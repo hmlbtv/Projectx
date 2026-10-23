@@ -1,7 +1,8 @@
+import InviteUser from './InviteUser';
 import { rows } from '@/lib/db';
 import { requireMe, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
-import { addBroadcaster, addProduction, addJob, addSourceSet, assignRoom, inviteUser } from '@/lib/actions';
+import { addBroadcaster, addProduction, addJob, addSourceSet, assignRoom } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
 export default async function Productions() {
@@ -28,5 +29,5 @@ export default async function Productions() {
               <div>Rooms: {jr.filter((x: any) => x.job_id === j.id).map((x: any) => <span key={x.name} className="tag">{x.name}</span>)}</div>
               <form action={assignRoom} className="row"><input type="hidden" name="job" value={j.id} /><select name="room">{rooms.map((r: any) => <option key={r.id} value={r.id}>{r.site} / {r.loc} / {r.name}</option>)}</select><button className="sec">Add Room</button></form>
               <div>Users: {ju.filter((x: any) => x.job_id === j.id).map((x: any) => <span key={x.email} className="tag">{x.email}</span>)}</div>
-              <form action={inviteUser} className="row"><input type="hidden" name="job" value={j.id} /><input name="email" type="email" placeholder="user@email" required /><button className="sec">Invite User</button></form></div>))}</div></div>))}</div></div>))}</>);
+              <InviteUser job={j.id} /></div>))}</div></div>))}</div></div>))}</>);
 }

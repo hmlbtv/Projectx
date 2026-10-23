@@ -1,5 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { mkdirSync } from 'node:fs';
+import { hashPassword } from './password';
 
 // Embedded Postgres for local dev. For production swap this module for a
 // hosted Postgres driver (Neon/Supabase) - the SQL below is plain Postgres.
@@ -7,7 +8,8 @@ const g = globalThis as any;
 
 const SCHEMA = `
 create table if not exists tenants(id serial primary key, name text not null);
-create table if not exists users(id serial primary key, tenant_id int references tenants(id), email text unique not null, name text not null, role text not null);
+create table if not exists users(id serial primary key, tenant_id int references tenants(id), email text unique not null, name text not null, role text not null, password_hash text, invite_hash text, invite_expires timestamptz, failed_attempts int not null default 0, locked_until timestamptz);
+create table if not exists sessions(id text primary key, user_id int not null references users(id) on delete cascade, expires_at timestamptz not null);
 create table if not exists sites(id serial primary key, tenant_id int not null, name text not null);
 create table if not exists locations(id serial primary key, site_id int not null references sites(id) on delete cascade, name text not null);
 create table if not exists rooms(id serial primary key, location_id int not null references locations(id) on delete cascade, name text not null);
@@ -36,36 +38,59 @@ function oneAndFive() {
   return t;
 }
 
-async function init() {
-  // Local: persisted under .data. On Vercel (read-only fs) fall back to in-memory demo data until DATABASE_URL/hosted Postgres is wired.
-  const dir = process.env.VERCEL ? 'memory://' : (process.env.PGLITE_DIR || './.data/pg');
-  if (!dir.startsWith('memory')) mkdirSync(dir, { recursive: true });
-  const db = new PGlite(dir);
-  await db.exec(SCHEMA);
-  const has = await db.query('select count(*)::int c from tenants');
-  if ((has.rows[0] as any).c === 0) await seed(db);
-  return db;
+type Client = { query: (sql: string, params?: any[]) => Promise<{ rows: any[] }>; exec: (sql: string) => Promise<any> };
+
+async function init(): Promise<Client> {
+  let client: Client;
+  if (process.env.DATABASE_URL) {
+    // Hosted Postgres (Neon) - used on Vercel and anywhere DATABASE_URL is set.
+    const { Pool } = await import('@neondatabase/serverless');
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    client = { query: (sql, params) => pool.query(sql, params), exec: async sql => { await pool.query(sql); } };
+  } else {
+    // Local dev: embedded Postgres persisted under .data
+    const dir = process.env.PGLITE_DIR || './.data/pg';
+    mkdirSync(dir, { recursive: true });
+    client = new PGlite(dir) as unknown as Client;
+  }
+  await client.exec(SCHEMA);
+  await bootstrap(client);
+  return client;
 }
 
-async function seed(db: PGlite) {
+// First run only: presets, and the first Master Admin from ADMIN_EMAIL / ADMIN_PASSWORD.
+async function bootstrap(db: Client) {
   const q = async (s: string, p: any[] = []) => (await db.query(s, p)).rows as any[];
-  const t = (await q("insert into tenants(name) values('Demo Tenant') returning id"))[0].id;
-  const users: [string,string,string,number|null][] = [
-    ['dev@wallmaker.test','WebAppDev','webappdev',null],
-    ['master@demo.test','Maya Master','master_admin',t],
-    ['admin@demo.test','Alex Admin','admin',t],
-    ['manager@demo.test','Morgan Manager','manager',t],
-    ['user@demo.test','Uma User','user',t],
-    ['guest@external.test','Gus (One-Time)','onetime',null],
-  ];
-  for (const [e,n,r,tid] of users) await q('insert into users(email,name,role,tenant_id) values($1,$2,$3,$4)',[e,n,r,tid]);
-  const site = (await q("insert into sites(tenant_id,name) values($1,'London Studios') returning id",[t]))[0].id;
-  const loc = (await q("insert into locations(site_id,name) values($1,'Gallery Floor') returning id",[site]))[0].id;
-  const room = (await q("insert into rooms(location_id,name) values($1,'Gallery A') returning id",[loc]))[0].id;
+  if ((await q('select count(*)::int c from tenants'))[0].c === 0) {
+    await q("insert into tenants(name) values($1)", [process.env.TENANT_NAME || 'My Tenant']);
+    await seedPresets(db);
+  }
+  if ((await q('select count(*)::int c from users'))[0].c === 0) {
+    const email = process.env.ADMIN_EMAIL?.toLowerCase(), pw = process.env.ADMIN_PASSWORD;
+    if (email && pw) await q("insert into users(tenant_id,email,name,role,password_hash) values(1,$1,'Master Admin','master_admin',$2)", [email, await hashPassword(pw)]);
+    else if (!process.env.DATABASE_URL) await seedDemo(db); // local only: demo users, password "demo-password-1"
+    else console.warn('No users yet. Set ADMIN_EMAIL and ADMIN_PASSWORD to create the first Master Admin.');
+  }
+}
+
+async function seedPresets(db: Client) {
+  const q = async (s: string, p: any[] = []) => (await db.query(s, p)).rows as any[];
   // Preset MV layouts (WebAppDev, tenant_id null), 16:9 frame = 1600x900
   const presets: [string, any][] = [['1 up',grid(1,1)],['2 up',grid(2,1)],['4 up (2x2)',grid(2,2)],['6 up (3x2)',grid(3,2)],['9 up (3x3)',grid(3,3)],['16 up (4x4)',grid(4,4)],['1 + 5',oneAndFive()]];
   for (const [n,tiles] of presets) await q('insert into mv_layouts(tenant_id,name,tiles) values(null,$1,$2)',[n,JSON.stringify(tiles)]);
-  // Preset wall template: 2 x 2 monitors
+}
+
+async function seedDemo(db: Client) {
+  const q = async (s: string, p: any[] = []) => (await db.query(s, p)).rows as any[];
+  const t = 1, h = await hashPassword('demo-password-1');
+  const users: [string,string,string][] = [
+    ['master@demo.test','Maya Master','master_admin'],['admin@demo.test','Alex Admin','admin'],
+    ['manager@demo.test','Morgan Manager','manager'],['user@demo.test','Uma User','user'],
+  ];
+  for (const [e,n,r] of users) await q('insert into users(email,name,role,tenant_id,password_hash) values($1,$2,$3,$4,$5)',[e,n,r,t,h]);
+  const site = (await q("insert into sites(tenant_id,name) values($1,'London Studios') returning id",[t]))[0].id;
+  const loc = (await q("insert into locations(site_id,name) values($1,'Gallery Floor') returning id",[site]))[0].id;
+  const room = (await q("insert into rooms(location_id,name) values($1,'Gallery A') returning id",[loc]))[0].id;
   const mon = (id:string,x:number,y:number)=>({id,type:'monitor',name:'Monitor '+id,x,y,w:320,h:180});
   const wall = {assets:[mon('1',0,0),mon('2',320,0),mon('3',0,180),mon('4',320,180)]};
   const wt = (await q("insert into wall_templates(tenant_id,name,data) values($1,'Gallery 2x2 Wall',$2) returning id",[t,JSON.stringify(wall)]))[0].id;
@@ -79,7 +104,7 @@ async function seed(db: PGlite) {
   await q('insert into job_users(job_id,user_id) values($1,$2)',[j,u]);
 }
 
-export async function db(): Promise<PGlite> {
+export async function db(): Promise<Client> {
   if (!g.__wm) g.__wm = init();
   return g.__wm;
 }

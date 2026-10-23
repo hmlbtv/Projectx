@@ -1,20 +1,55 @@
 'use server';
-import { cookies } from 'next/headers';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { one, rows } from './db';
-import { requireMe, canManage, isAdmin } from './session';
+import { requireMe, canManage, isAdmin, createSession, destroySession } from './session';
+import { verifyPassword, hashPassword, passwordProblem, newToken, sha256 } from './password';
 
 const tid = (me: any) => me.tenant_id ?? 1;
 const s = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
 async function mgr() { const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only'); return me; }
 
-export async function signIn(f: FormData) {
-  const u = await one('select id from users where id=$1', [Number(s(f, 'id'))]);
-  if (u) (await cookies()).set('uid', String(u.id), { httpOnly: true, path: '/' });
+// ---- Authentication ----
+const MAX_FAILS = 5, LOCK_MIN = 15;
+export type FormState = { error?: string; ok?: string; link?: string } | undefined;
+
+export async function signIn(_: FormState, f: FormData): Promise<FormState> {
+  const email = s(f, 'email').toLowerCase(), pw = String(f.get('password') ?? '');
+  const u = await one('select id,password_hash,failed_attempts,locked_until from users where email=$1', [email]);
+  if (u?.locked_until && new Date(u.locked_until) > new Date()) { await verifyPassword(pw, null); return { error: 'Too many attempts. Try again in a few minutes.' }; }
+  const ok = await verifyPassword(pw, u?.password_hash);
+  if (!u || !ok) {
+    if (u) await rows(`update users set failed_attempts=failed_attempts+1, locked_until=case when failed_attempts+1>=$2 then now() + ($3 || ' minutes')::interval else locked_until end where id=$1`, [u.id, MAX_FAILS, String(LOCK_MIN)]);
+    return { error: 'Email or password is incorrect.' };
+  }
+  await rows('update users set failed_attempts=0, locked_until=null where id=$1', [u.id]);
+  await createSession(u.id);
   redirect('/');
 }
-export async function signOut() { (await cookies()).delete('uid'); redirect('/signin'); }
+export async function signOut() { await destroySession(); redirect('/signin'); }
+
+export async function acceptInvite(_: FormState, f: FormData): Promise<FormState> {
+  const pw = String(f.get('password') ?? ''), pw2 = String(f.get('password2') ?? '');
+  if (pw !== pw2) return { error: 'Passwords do not match.' };
+  const bad = passwordProblem(pw); if (bad) return { error: bad };
+  const u = await one('select id from users where invite_hash=$1 and invite_expires > now()', [sha256(s(f, 'token'))]);
+  if (!u) return { error: 'This invite link is invalid or has expired. Ask your Manager for a new one.' };
+  await rows('update users set password_hash=$1, invite_hash=null, invite_expires=null, name=coalesce(nullif($3,\'\'),name) where id=$2', [await hashPassword(pw), u.id, s(f, 'name')]);
+  await createSession(u.id);
+  redirect('/');
+}
+export async function changePassword(_: FormState, f: FormData): Promise<FormState> {
+  const me = await requireMe();
+  const cur = await one('select password_hash from users where id=$1', [me.id]);
+  if (!(await verifyPassword(String(f.get('current') ?? ''), cur?.password_hash))) return { error: 'Current password is incorrect.' };
+  const pw = String(f.get('password') ?? ''); if (pw !== String(f.get('password2') ?? '')) return { error: 'Passwords do not match.' };
+  const bad = passwordProblem(pw); if (bad) return { error: bad };
+  await rows('update users set password_hash=$1 where id=$2', [await hashPassword(pw), me.id]);
+  await rows('delete from sessions where user_id=$1', [me.id]); // sign out everywhere, then back in here
+  await createSession(me.id);
+  return { ok: 'Password changed. Other devices have been signed out.' };
+}
 
 // ---- Tenant Tree (Admin + Manager) ----
 export async function addSite(f: FormData) { const me = await mgr(); if (s(f,'name')) await rows('insert into sites(tenant_id,name) values($1,$2)', [tid(me), s(f,'name')]); revalidatePath('/tenant'); }
@@ -61,12 +96,24 @@ export async function addJob(f: FormData) {
   revalidatePath('/productions');
 }
 export async function assignRoom(f: FormData) { await mgr(); await rows('insert into job_rooms(job_id,room_id) values($1,$2) on conflict do nothing', [Number(s(f,'job')), Number(s(f,'room'))]); revalidatePath('/productions'); }
-export async function inviteUser(f: FormData) {
-  await mgr(); const email = s(f,'email').toLowerCase(); if (!email) return;
-  const u = (await one('select id from users where email=$1', [email])) ?? (await one("insert into users(email,name,role,tenant_id) values($1,$1,'user',1) returning id", [email]));
+export async function inviteUser(_: FormState, f: FormData): Promise<FormState> {
+  const me = await mgr(); const email = s(f,'email').toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: 'Enter a valid email address.' };
+  const role = ['user', 'onetime'].includes(s(f, 'role')) ? s(f, 'role') : 'user';
+  const u = (await one('select id,password_hash from users where email=$1', [email])) ?? (await one("insert into users(email,name,role,tenant_id) values($1,$1,$2,$3) returning id,password_hash", [email, role, role === 'onetime' ? null : tid(me)]));
   await rows('insert into job_users(job_id,user_id) values($1,$2) on conflict do nothing', [Number(s(f,'job')), u.id]);
-  // TODO: send the email invite (Resend/Postmark) with a verification link.
   revalidatePath('/productions');
+  if (u.password_hash) return { ok: `${email} already has an account and now has access to this Job.` };
+  const token = newToken();
+  await rows("update users set invite_hash=$1, invite_expires=now() + interval '7 days' where id=$2", [sha256(token), u.id]);
+  const h = await headers(); const base = process.env.APP_URL || `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('host')}`;
+  const link = `${base}/invite/${token}`;
+  if (process.env.RESEND_API_KEY) {
+    const r = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: process.env.MAIL_FROM || 'Wall Maker <onboarding@resend.dev>', to: email, subject: 'You have been invited to Wall Maker', text: `Set your password and join the Job:\n${link}\n\nThis link expires in 7 days.` }) });
+    if (r.ok) return { ok: `Invite emailed to ${email}.` };
+  }
+  return { ok: `Email sending is not set up. Send this link to ${email} (valid 7 days):`, link };
 }
 export async function deleteJob(f: FormData) { const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete'); await rows('delete from jobs where id=$1', [Number(s(f,'id'))]); revalidatePath('/archive'); revalidatePath('/productions'); }
 

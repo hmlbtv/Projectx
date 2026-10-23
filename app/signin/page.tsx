@@ -1,10 +1,9 @@
-import { rows } from '@/lib/db';
-import { signIn } from '@/lib/actions';
+import { redirect } from 'next/navigation';
+import { getMe } from '@/lib/session';
+import SignInForm from './SignInForm';
 export const dynamic = 'force-dynamic';
 export default async function SignIn() {
-  const users = await rows('select id,name,email,role from users order by id');
-  return (<div className="card"><h1>Sign in (demo)</h1>
-    <p className="mut">Demo mode: pick a seeded user to try each role. Real email-invite login is a later phase.</p>
-    {users.map((u: any) => (<form key={u.id} action={signIn} className="row"><input type="hidden" name="id" value={u.id} />
-      <button>{u.name}</button><span className="tag">{u.role}</span><span className="mut">{u.email}</span></form>))}</div>);
+  if (await getMe()) redirect('/');
+  return (<div className="card" style={{ maxWidth: 400, margin: '40px auto' }}><h1>Sign in to Wall Maker</h1><SignInForm />
+    <p className="mut">Access is by invitation. Use the link in your invite email to set your password.</p></div>);
 }

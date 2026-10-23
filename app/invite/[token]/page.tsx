@@ -1,0 +1,11 @@
+import { one } from '@/lib/db';
+import { sha256 } from '@/lib/password';
+import InviteForm from './InviteForm';
+export const dynamic = 'force-dynamic';
+export default async function Invite({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const u = await one('select email from users where invite_hash=$1 and invite_expires > now()', [sha256(token)]);
+  return (<div className="card" style={{ maxWidth: 400, margin: '40px auto' }}>
+    {u ? (<><h1>Welcome to Wall Maker</h1><p className="mut">Set a password for {u.email}.</p><InviteForm token={token} /></>)
+      : (<><h1>Invite not valid</h1><p>This invite link is invalid or has expired. Ask your Manager to send a new one.</p></>)}</div>);
+}
