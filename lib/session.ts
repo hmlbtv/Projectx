@@ -14,6 +14,8 @@ const COOKIE = process.env.NODE_ENV === 'production' ? '__Host-gp_session' : 'gp
 export async function createSession(userId: number) {
   const token = newToken();
   await rows("insert into sessions(id,user_id,expires_at) values($1,$2,now() + interval '7 days')", [sha256(token), userId]);
+  await rows('insert into login_events(session_id,user_id,tenant_id) select $1,id,tenant_id from users where id=$2', [sha256(token), userId]);
+  await rows('update users set last_login_at=now(), login_count=login_count+1 where id=$1', [userId]);
   (await cookies()).set(COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: DAYS * 86400 });
 }
 export async function destroySession() {
@@ -23,8 +25,12 @@ export async function destroySession() {
 }
 export async function getMe(): Promise<Me | null> {
   const t = (await cookies()).get(COOKIE)?.value; if (!t) return null;
-  return (await one<Me>(`select u.id,u.name,u.email,u.role,u.tenant_id from sessions s join users u on u.id=s.user_id
-    where s.id=$1 and s.expires_at > now()`, [sha256(t)])) ?? null;
+  const h = sha256(t);
+  const me = (await one<Me>(`select u.id,u.name,u.email,u.role,u.tenant_id from sessions s join users u on u.id=s.user_id
+    where s.id=$1 and s.expires_at > now()`, [h])) ?? null;
+  // Activity heartbeat (at most once a minute) so session length can be measured; stores no page content.
+  if (me) await rows("update login_events set last_seen_at=now() where session_id=$1 and last_seen_at < now() - interval '1 minute'", [h]);
+  return me;
 }
 export async function requireMe(): Promise<Me> {
   const me = await getMe(); if (!me) redirect('/signin'); return me;

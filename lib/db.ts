@@ -35,6 +35,12 @@ alter table wall_templates add column if not exists broadcaster_id int reference
 alter table tenants add column if not exists max_broadcasters int not null default 2;
 alter table tenants add column if not exists max_productions int not null default 3;
 alter table tenants add column if not exists max_jobs_per_production int not null default 4;
+alter table tenants add column if not exists created_at timestamptz not null default now();
+alter table users add column if not exists created_at timestamptz not null default now();
+alter table users add column if not exists last_login_at timestamptz;
+alter table users add column if not exists login_count int not null default 0;
+create table if not exists login_events(session_id text primary key, user_id int not null, tenant_id int, started_at timestamptz not null default now(), last_seen_at timestamptz not null default now());
+create index if not exists login_events_tenant on login_events(tenant_id, started_at);
 alter table users add column if not exists email_verified boolean not null default true;
 alter table users add column if not exists max_jobs int not null default 5;
 alter table users add column if not exists verify_hash text;
