@@ -62,7 +62,7 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
         <Menu><Edit table="locations" id={l.id} name={l.name} what="Location" /></Menu></div>))}</div></>);
   }
   // ---- Home: sites ----
-  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Sites</h1><AddDialog action={addSite} label="Add Site" title="New Site" placeholder="Site name" /></div>
+  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Sites</h1><AddDialog action={addSite} inline label="Add Site" title="New Site" placeholder="Site name" /></div>
     <p className="mut">Site → Location → Room. Wall Templates are placed in Rooms, each with its own name, and then assigned to Jobs.</p>
     {sites.length === 0 && <p className="mut">No Sites yet. Add one to get started.</p>}
     <div className="tiles">{sites.map((s: any) => (<div key={s.id} className="card tile"><Link href={`/tenant?s=${s.id}`} className="tilelink"><b>{s.name}</b><span className="mut">{plural(locs.filter((l: any) => l.site_id === s.id).length, 'Location')}</span></Link>

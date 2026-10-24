@@ -101,3 +101,4 @@ button.small{min-height:34px;padding:0 12px;font-size:.9rem;border-radius:10px;w
 dialog.dlg{border:1px solid var(--line);border-radius:16px;padding:20px;width:min(380px,calc(100vw - 32px));background:var(--panel);color:inherit;box-shadow:0 20px 50px rgba(0,0,0,.3);margin:auto}
 dialog.dlg::backdrop{background:rgba(15,18,23,.5)}
 dialog.dlg label{display:flex;flex-direction:column;gap:4px;font-size:.8rem}
+.addrow{display:flex;justify-content:flex-end;margin:10px 0}.addrow.inline{margin:0}
