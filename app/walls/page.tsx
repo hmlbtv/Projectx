@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export default async function Walls({ searchParams }: { searchParams: Promise<{ id?: string; q?: string; b?: string }> }) {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
   const { id, q, b } = await searchParams; const t = me.tenant_id ?? 0;
-  const list = await rows('select w.*, b.name bname from wall_templates w left join broadcasters b on b.id=w.broadcaster_id where (w.tenant_id=$1 or w.tenant_id is null) and w.name ilike $2 order by w.name', [t, `%${q ?? ''}%`]);
+  const list = await rows('select w.*, b.name bname from wall_templates w left join broadcasters b on b.id=w.broadcaster_id where w.tenant_id=$1 and w.name ilike $2 order by w.name', [t, `%${q ?? ''}%`]);
   const lim = (await one('select max_walls_per_broadcaster m, plan from tenants where id=$1', [t]))!;
   const bcs = await rows('select b.id,b.name,(select count(*)::int from wall_templates w where w.broadcaster_id=b.id) c from broadcasters b where b.tenant_id=$1 order by b.id', [t]);
   const pick = bcs.find((x: any) => String(x.id) === b);

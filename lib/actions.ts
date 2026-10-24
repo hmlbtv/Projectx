@@ -20,7 +20,7 @@ const OWN: Record<string, string> = {
   sites: 'select 1 from sites where id=$1 and tenant_id=$2',
   locations: 'select 1 from locations l join sites s on s.id=l.site_id where l.id=$1 and s.tenant_id=$2',
   rooms: 'select 1 from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where r.id=$1 and s.tenant_id=$2',
-  walls: 'select 1 from wall_templates where id=$1 and (tenant_id=$2 or tenant_id is null)',
+  walls: 'select 1 from wall_templates where id=$1 and tenant_id=$2',
   myWalls: 'select 1 from wall_templates where id=$1 and tenant_id=$2',
   broadcasters: 'select 1 from broadcasters where id=$1 and tenant_id=$2',
   productions: 'select 1 from productions p join broadcasters b on b.id=p.broadcaster_id where p.id=$1 and b.tenant_id=$2',
@@ -137,7 +137,9 @@ async function invite(me: Me, email: string, role: string, jobId?: number): Prom
   if (!EMAIL.test(email)) return { error: 'Enter a valid email address.' };
   let u = await one('select id,tenant_id,password_hash from users where email=$1', [email]);
   if (u && u.tenant_id && u.tenant_id !== tid(me)) return { error: 'That email already belongs to another team.' };
-  if (!u) u = await one("insert into users(email,name,role,tenant_id,email_verified) values($1,$1,$2,$3,true) returning id,tenant_id,password_hash", [email, role, role === 'onetime' ? null : tid(me)]);
+  if (u && !u.tenant_id) await rows('update users set tenant_id=$1 where id=$2 and role=\'onetime\'', [tid(me), u.id]); // legacy tenant-less guests join the inviting tenant
+  // Every account, including One-Time Users, belongs to exactly one tenant.
+  if (!u) u = await one("insert into users(email,name,role,tenant_id,email_verified) values($1,$1,$2,$3,true) returning id,tenant_id,password_hash", [email, role, tid(me)]);
   if (jobId) {
     // Per-user cap on active Jobs they can access (default 5, set by the tenant Admin on the Team page).
     const already = await one('select 1 from job_users where job_id=$1 and user_id=$2', [jobId, u.id]);
