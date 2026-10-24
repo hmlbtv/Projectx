@@ -64,3 +64,10 @@ svg{max-width:100%;height:auto}
   td,th{padding:10px}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+.tenant .th{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:14px}
+.stat{background:var(--bg);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px}
+.stat b{font-size:1.1rem}.stat span{font-size:.75rem;opacity:.7}
+.limits{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-items:end;border-top:1px solid var(--line);padding-top:12px}
+.limits label{display:flex;flex-direction:column;gap:4px;font-size:.8rem}.limits input{width:100%}

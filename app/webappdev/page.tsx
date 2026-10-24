@@ -34,18 +34,25 @@ export default async function SiteAdmin() {
     return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.floor(m / 60) + ' h ago' : Math.floor(m / 1440) + ' d ago'; };
   const dur = (s: number) => s < 60 ? s + 's' : s < 3600 ? Math.round(s / 60) + ' min' : (s / 3600).toFixed(1) + ' h';
   const day = (d: any) => d ? new Date(d).toISOString().slice(0, 10) : '';
-  return (<><h1>Site admin · Tenants</h1><p className="mut">Set each tenant's plan name and their limits: Wall Templates per Broadcaster, Broadcasters, Productions per Broadcaster and active Jobs per Production. New sign-ups start on the demo plan: 1 Wall Template per Broadcaster, 2 Broadcasters, 3 Productions each, 4 Jobs each. Column order of the boxes: plan, walls, broadcasters, productions, jobs.</p>
-    <div className="tablewrap"><table><thead><tr><th>Tenant</th><th>Owner</th><th>Members</th><th>Walls</th><th>Contacts</th><th>Plan</th><th>Walls / broadcaster</th><th>Broadcasters</th><th>Productions / broadcaster</th><th>Jobs / production</th><th></th></tr></thead><tbody>
-      {ts.map((t: any) => (<tr key={t.id}><td>{t.name}</td><td>{t.owner}</td><td>{t.members}</td><td>{t.walls}</td><td>{t.contacts}</td>
-        <td colSpan={5}><form action={setTenantPlan} className="row" style={{ margin: 0 }}><input type="hidden" name="id" value={t.id} />
-          <input name="plan" defaultValue={t.plan} style={{ width: 100 }} title="Plan name" />
-          <input name="max" type="number" min="0" defaultValue={t.m} style={{ width: 70 }} title="Wall Templates per Broadcaster" />
-          <input name="b" type="number" min="0" defaultValue={t.b} style={{ width: 70 }} title="Broadcasters" />
-          <input name="p" type="number" min="0" defaultValue={t.p} style={{ width: 70 }} title="Productions per Broadcaster" />
-          <input name="j" type="number" min="0" defaultValue={t.j} style={{ width: 70 }} title="Active Jobs per Production" />
-          <button className="sec">Save</button></form></td></tr>))}</tbody></table></div>
-    <h2 style={{ marginTop: 28 }}>Tenant activity</h2>
-    <p className="mut">Counts only, never contact emails. "Time logged in" runs from sign-in to the last activity seen (sessions are not counted past the last page the person opened). Last 30 days unless stated. One-Time guests (no tenant): {g.guests} accounts, {g.guests30} signed in during the last 30 days.</p>
-    <div className="tablewrap"><table><thead><tr><th>Tenant</th><th>Signed up</th><th>Last login</th><th>Logins 30d</th><th>Active users 7d / 30d</th><th>Avg session</th><th>Total time</th><th>Members</th><th>Invited, not joined</th><th>Never signed in</th><th>Productions</th><th>Jobs</th><th>Monitor Plans</th><th>Guest links (joined)</th></tr></thead><tbody>
-      {ms.map((m: any) => (<tr key={m.id}><td>{m.name}</td><td>{day(m.created_at)}</td><td title={m.last_login ? new Date(m.last_login).toISOString() : ''}>{ago(m.last_login)}</td><td>{m.logins30}</td><td>{m.active7} / {m.active30}</td><td>{m.logins30 ? dur(m.avg_secs) : '—'}</td><td>{m.logins30 ? dur(m.total_secs) : '—'}</td><td>{m.members}</td><td>{m.pending}</td><td>{m.never}</td><td>{m.prods}</td><td>{m.jobs}</td><td>{m.plans}</td><td>{m.links} ({m.links_joined})</td></tr>))}</tbody></table></div></>);
+  const msById = new Map(ms.map((m: any) => [m.id, m]));
+  const Stat = ({ k, v }: { k: string; v: any }) => (<div className="stat"><b>{v}</b><span>{k}</span></div>);
+  return (<><h1>Site admin · Tenants</h1>
+    <p className="mut">One card per tenant. Counts only, never contact emails. Time logged in runs from sign-in to the last page seen. Activity is for the last 30 days unless stated. New sign-ups start on the demo plan: 1 Wall Template per Broadcaster, 2 Broadcasters, 3 Productions each, 4 Jobs each. One-Time guests (no tenant): {g.guests} accounts, {g.guests30} signed in during the last 30 days.</p>
+    {ts.map((t: any) => { const m: any = msById.get(t.id) ?? {}; return (
+      <div key={t.id} className="card tenant">
+        <div className="th"><div><h2 style={{ margin: 0 }}>{t.name}</h2><div className="mut">{t.owner || 'No owner'} · signed up {day(m.created_at)}</div></div>
+          <div className="mut" style={{ textAlign: 'right' }}>Last login<br /><strong style={{ color: 'inherit' }} title={m.last_login ? new Date(m.last_login).toISOString() : ''}>{ago(m.last_login)}</strong></div></div>
+        <div className="stats">
+          <Stat k="Members" v={t.members} /><Stat k="Contacts" v={t.contacts} /><Stat k="Wall Templates" v={t.walls} /><Stat k="Productions" v={m.prods ?? 0} /><Stat k="Jobs" v={m.jobs ?? 0} /><Stat k="Monitor Plans" v={m.plans ?? 0} />
+          <Stat k="Logins (30d)" v={m.logins30 ?? 0} /><Stat k="Active users 7d / 30d" v={`${m.active7 ?? 0} / ${m.active30 ?? 0}`} /><Stat k="Avg session" v={m.logins30 ? dur(m.avg_secs) : '—'} /><Stat k="Total time (30d)" v={m.logins30 ? dur(m.total_secs) : '—'} />
+          <Stat k="Invited, not joined" v={m.pending ?? 0} /><Stat k="Never signed in" v={m.never ?? 0} /><Stat k="Guest links (joined)" v={`${m.links ?? 0} (${m.links_joined ?? 0})`} />
+        </div>
+        <form action={setTenantPlan} className="limits"><input type="hidden" name="id" value={t.id} />
+          <label>Plan<input name="plan" defaultValue={t.plan} /></label>
+          <label>Wall Templates per Broadcaster<input name="max" type="number" min="0" defaultValue={t.m} /></label>
+          <label>Broadcasters<input name="b" type="number" min="0" defaultValue={t.b} /></label>
+          <label>Productions per Broadcaster<input name="p" type="number" min="0" defaultValue={t.p} /></label>
+          <label>Jobs per Production<input name="j" type="number" min="0" defaultValue={t.j} /></label>
+          <button className="sec">Save limits</button></form>
+      </div>); })}</>);
 }
