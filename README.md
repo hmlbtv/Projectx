@@ -14,6 +14,9 @@ Local demo logins (password `demo-password-1`): master@demo.test, admin@demo.tes
 - `APP_URL` - optional; base URL used in invite links.
 
 ## Security
+HTTPS (Vercel), HSTS, strict Content-Security-Policy with per-request nonce, `__Host-` session cookie, rate limits on sign-in, sign-up, reset and invites, tenant checks on every id, parameterised SQL, `npm audit` clean. Set `APP_URL` to your site address so emailed links never depend on request headers.
+
+Details:
 Scrypt-hashed passwords, random session tokens (only the hash is stored), httpOnly/secure/SameSite cookies, 7-day sessions, lockout after 5 failed attempts for 15 minutes, 7-day single-use invite links, security headers.
 
 ## Accounts and plans

@@ -7,7 +7,8 @@ export type Me = { id: number; name: string; email: string; role: string; tenant
 export const canManage = (me: Me) => ['webappdev', 'master_admin', 'admin', 'manager'].includes(me.role);
 export const isAdmin = (me: Me) => ['webappdev', 'master_admin', 'admin'].includes(me.role);
 
-const COOKIE = 'wm_session', DAYS = 7;
+// __Host- prefix (production): browser only accepts it over HTTPS, for this exact host, with no Domain attribute.
+const COOKIE = process.env.NODE_ENV === 'production' ? '__Host-gp_session' : 'gp_session', DAYS = 7;
 
 // The cookie holds a random token; only its SHA-256 hash is stored, so a database leak can't be used to log in.
 export async function createSession(userId: number) {

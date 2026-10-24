@@ -23,6 +23,8 @@ create table if not exists jobs(id serial primary key, production_id int not nul
 create table if not exists job_rooms(job_id int not null references jobs(id) on delete cascade, room_id int not null references rooms(id), primary key(job_id, room_id));
 create table if not exists job_users(job_id int not null references jobs(id) on delete cascade, user_id int not null references users(id), primary key(job_id, user_id));
 create table if not exists monitor_plans(id serial primary key, job_id int not null references jobs(id) on delete cascade, user_id int not null, name text not null, data jsonb not null default '{}', updated_at timestamptz default now());
+create table if not exists attempts(key text not null, at timestamptz not null default now());
+create index if not exists attempts_key_at on attempts(key, at);
 alter table tenants add column if not exists plan text not null default 'demo';
 alter table tenants add column if not exists max_wall_templates int not null default 1;
 alter table tenants add column if not exists max_walls_per_broadcaster int not null default 1;

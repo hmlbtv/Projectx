@@ -4,10 +4,12 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { one, rows } from './db';
 import { requireMe, canManage, isAdmin, createSession, destroySession, type Me } from './session';
+import { allow, clientIp } from './security';
 import { verifyPassword, hashPassword, passwordProblem, newToken, sha256 } from './password';
 
 const tid = (me: any) => me.tenant_id ?? 1;
-const s = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
+const s = (f: FormData, k: string) => String(f.get(k) ?? '').trim().slice(0, k === 'sources' ? 20000 : 200);
+const TOO_MANY: FormState = { error: 'Too many requests. Please wait a while and try again.' };
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export type FormState = { error?: string; ok?: string; link?: string } | undefined;
 
@@ -41,13 +43,19 @@ async function sendMail(to: string, subject: string, text: string) {
     body: JSON.stringify({ from: process.env.MAIL_FROM || 'Gallery Planner <onboarding@resend.dev>', to, subject, text }) });
   return r.ok;
 }
-async function baseUrl() { const h = await headers(); return process.env.APP_URL || `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('host')}`; }
+async function baseUrl() {
+  // Links in emails must not depend on the request's Host header (host-header poisoning).
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  const h = await headers(); return `${h.get('x-forwarded-proto') ?? 'http'}://${h.get('host')}`;
+}
 
 // ---- Authentication ----
 const MAX_FAILS = 5, LOCK_MIN = 15;
 
 export async function signIn(_: FormState, f: FormData): Promise<FormState> {
-  const email = s(f, 'email').toLowerCase(), pw = String(f.get('password') ?? '');
+  const email = s(f, 'email').toLowerCase(), pw = String(f.get('password') ?? '').slice(0, 200);
+  if (!(await allow('signin', await clientIp(), 40, 10))) return TOO_MANY;
   const u = await one('select id,password_hash,failed_attempts,locked_until,email_verified from users where email=$1', [email]);
   if (u?.locked_until && new Date(u.locked_until) > new Date()) { await verifyPassword(pw, null); return { error: 'Too many attempts. Try again in a few minutes.' }; }
   const ok = await verifyPassword(pw, u?.password_hash);
@@ -65,6 +73,7 @@ export async function signOut() { await destroySession(); redirect('/signin'); }
 // New person: creates their own Tenant (demo plan, 1 wall template) and makes them its Master Admin.
 export async function signUp(_: FormState, f: FormData): Promise<FormState> {
   if (s(f, 'website')) return { error: 'Could not create the account.' }; // honeypot for bots
+  if (!(await allow('signup', await clientIp(), 5, 60))) return TOO_MANY;
   const name = s(f, 'name').slice(0, 100), org = s(f, 'tenant').slice(0, 100), email = s(f, 'email').toLowerCase(), pw = String(f.get('password') ?? '');
   if (!name || !org) return { error: 'Enter your name and your company or team name.' };
   if (!EMAIL.test(email)) return { error: 'Enter a valid email address.' };
@@ -87,6 +96,7 @@ export async function signUp(_: FormState, f: FormData): Promise<FormState> {
 export async function requestReset(_: FormState, f: FormData): Promise<FormState> {
   if (!emailOn()) return { error: 'Password reset email is not set up yet. Please contact your administrator.' };
   const email = s(f, 'email').toLowerCase();
+  if (!(await allow('reset', await clientIp(), 5, 60)) || !(await allow('reset-email', email, 3, 60))) return TOO_MANY;
   const u = await one('select id from users where email=$1', [email]);
   if (u) {
     const token = newToken();
@@ -98,6 +108,7 @@ export async function requestReset(_: FormState, f: FormData): Promise<FormState
 
 // Used for invites and password resets (both set a password from a one-time token).
 export async function acceptInvite(_: FormState, f: FormData): Promise<FormState> {
+  if (!(await allow('token', await clientIp(), 20, 10))) return TOO_MANY;
   const pw = String(f.get('password') ?? ''), pw2 = String(f.get('password2') ?? '');
   if (pw !== pw2) return { error: 'Passwords do not match.' };
   const bad = passwordProblem(pw); if (bad) return { error: bad };
@@ -122,6 +133,7 @@ export async function changePassword(_: FormState, f: FormData): Promise<FormSta
 
 // ---- Team + job invites ----
 async function invite(me: Me, email: string, role: string, jobId?: number): Promise<FormState> {
+  if (!(await allow('invite', String(me.id), 40, 60))) return TOO_MANY;
   if (!EMAIL.test(email)) return { error: 'Enter a valid email address.' };
   let u = await one('select id,tenant_id,password_hash from users where email=$1', [email]);
   if (u && u.tenant_id && u.tenant_id !== tid(me)) return { error: 'That email already belongs to another team.' };
@@ -259,6 +271,7 @@ export async function deleteJob(f: FormData) {
 // ---- Monitor Plans ----
 export async function savePlan(jobId: number, name: string, data: any) {
   const me = await requireMe(); if (!(await canAccessJob(me, jobId))) throw new Error('Not found');
+  if (JSON.stringify(data ?? {}).length > 100_000) throw new Error('Too large');
   name = String(name).slice(0, 80) || 'Room Layout';
   const ex = await one('select id from monitor_plans where job_id=$1 and user_id=$2 and name=$3', [jobId, me.id, name]);
   if (ex) await rows('update monitor_plans set data=$1,updated_at=now() where id=$2', [JSON.stringify(data), ex.id]);
