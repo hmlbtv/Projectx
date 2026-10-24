@@ -27,7 +27,9 @@ export default async function Tenant() {
           <div className="tree"><Add action={addRoom} parent={l.id} ph="New Room" />
             {rms.filter((r: any) => r.location_id === l.id).map((r: any) => (<div key={r.id}><b>Room</b><Rename table="rooms" id={r.id} name={r.name} />
               <div className="tree">{rw.filter((x: any) => x.room_id === r.id).map((x: any) => <div key={x.id}>▫ {x.name} <span className="mut">({x.wall})</span></div>)}
+                {rw.filter((x: any) => x.room_id === r.id).length === 0 && <div className="mut">No Wall Template yet. The Room is saved and can be used now; add a wall whenever it is ready.</div>}
+                {walls.length === 0 ? <div className="mut">No Wall Templates built yet - <a href="/walls">build one in the Wall Designer</a>, then add it here.</div> :
                 <form action={addRoomWall} className="row"><input type="hidden" name="room" value={r.id} /><input name="name" placeholder="Wall name in this Room" required />
-                  <select name="wall">{walls.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}</select><button className="sec">Add Wall Template</button></form></div></div>))}
+                  <select name="wall">{walls.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}</select><button className="sec">Add Wall Template</button></form>}</div></div>))}
           </div></div>))}</div></div>))}</>);
 }
