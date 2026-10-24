@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { one, rows } from './db';
 import { requireMe, canManage, createSession, type Me } from './session';
+import { myEmails } from './emails';
 import { allow, clientIp } from './security';
 import { emailOn, sendMail, baseUrl } from './mail';
 import { newToken, sha256, hashPassword, passwordProblem } from './password';
@@ -45,7 +46,7 @@ export async function signUpGuest(_: FormState, f: FormData): Promise<FormState>
   if (!name) return { error: 'Enter your name.' };
   if (pw !== String(f.get('password2') ?? '')) return { error: 'Passwords do not match.' };
   const bad = passwordProblem(pw); if (bad) return { error: bad };
-  if (await one('select 1 from users where email=$1', [link.email])) return { error: 'An account with this email already exists. Sign in instead.' };
+  if ((await one('select 1 from users where email=$1', [link.email])) || (await one('select 1 from user_emails where email=$1 and verified', [link.email.toLowerCase()]))) return { error: 'An account with this email already exists. Sign in instead.' };
   const verify = emailOn(), vt = newToken();
   const u = (await one(`insert into users(tenant_id,email,name,role,password_hash,email_verified,verify_hash,verify_expires)
     values(null,$1,$2,'onetime',$3,$4,$5,now() + interval '2 days') returning id`, [link.email, name, await hashPassword(pw), !verify, verify ? sha256(vt) : null]))!;
@@ -61,7 +62,7 @@ export async function signUpGuest(_: FormState, f: FormData): Promise<FormState>
 // ---- Guest actions: access comes from the signed-in account's verified email, never from client-supplied ids ----
 async function linkAccess(me: Me, linkId: number) {
   return one(`select wl.id, wl.job_id, wl.room_wall_id, wl.access, rw.room_id from wall_links wl join jobs j on j.id=wl.job_id join room_walls rw on rw.id=wl.room_wall_id
-    where wl.id=$1 and lower(wl.email)=lower($2) and not wl.revoked and (j.expires_at is null or j.expires_at >= current_date)`, [linkId, me.email]);
+    where wl.id=$1 and lower(wl.email) in ${myEmails(2)} and not wl.revoked and (j.expires_at is null or j.expires_at >= current_date)`, [linkId, me.id]);
 }
 export async function savePlanLink(linkId: number, name: string, data: any) {
   const me = await requireMe(); const l = await linkAccess(me, linkId); if (!l || l.access !== 'edit') throw new Error('Not allowed');
@@ -77,4 +78,22 @@ export async function addCommentLink(f: FormData) {
   const body = s(f, 'body').slice(0, 2000); if (!body) return;
   await rows('insert into comments(job_id,room_id,user_id,body) values($1,$2,$3,$4)', [l.job_id, l.room_id, me.id, body]);
   revalidatePath('/shared');
+}
+
+// Send an invitation to a different contact (or resend to the same one). The old link stops working.
+export async function reassignWallLink(_: FormState, f: FormData): Promise<FormState> {
+  const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
+  const tenant = me.tenant_id ?? 0;
+  if (!(await allow('wall-link', String(me.id), 60, 60))) return { error: 'Too many requests. Please wait a while and try again.' };
+  const wl = await one(`select wl.id, wl.job_id, wl.access from wall_links wl join jobs j on j.id=wl.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id
+    where wl.id=$1 and b.tenant_id=$2 and not wl.revoked`, [Number(s(f, 'id')), tenant]);
+  if (!wl) return { error: 'Link not found.' };
+  const contact = await one(`select c.id, c.email from contacts c join production_contacts pc on pc.contact_id=c.id join jobs j on j.production_id=pc.production_id
+    where c.id=$1 and c.tenant_id=$2 and j.id=$3`, [Number(s(f, 'contact')), tenant, wl.job_id]);
+  if (!contact) return { error: 'Choose a contact assigned to this Production.' };
+  const token = newToken();
+  await rows('update wall_links set email=$1, contact_id=$2, token_hash=$3 where id=$4', [contact.email, contact.id, sha256(token), wl.id]);
+  const link = `${await baseUrl()}/w/${token}`; revalidatePath('/productions');
+  const sent = await sendMail(contact.email, 'A monitor wall has been shared with you', `${me.name} shared a monitor wall with you on Gallery Planner (${wl.access === 'edit' ? 'you can edit it' : 'view only'}).\nOpen this link to sign in or create your account:\n${link}\n\nAccess ends when the Job ends.`);
+  return { ok: sent ? `New link emailed to ${contact.email}. The previous link no longer works.` : `Email sending is not set up. Send this new link to ${contact.email} (the previous link no longer works):`, link: sent ? undefined : link };
 }
