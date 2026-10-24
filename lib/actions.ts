@@ -7,7 +7,7 @@ import { requireMe, canManage, isAdmin, createSession, destroySession, type Me }
 import { allow, clientIp } from './security';
 import { verifyPassword, hashPassword, passwordProblem, newToken, sha256 } from './password';
 
-const tid = (me: any) => me.tenant_id ?? 1;
+const tid = (me: any) => me.tenant_id ?? 0;
 const s = (f: FormData, k: string) => String(f.get(k) ?? '').trim().slice(0, k === 'sources' ? 20000 : 200);
 const TOO_MANY: FormState = { error: 'Too many requests. Please wait a while and try again.' };
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;

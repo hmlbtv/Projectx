@@ -13,7 +13,7 @@ function Rename({ table, id, name }: any) {
 
 export default async function Tenant() {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
-  const t = me.tenant_id ?? 1;
+  const t = me.tenant_id ?? 0;
   const sites = await rows('select * from sites where tenant_id=$1 order by id', [t]);
   const locs = await rows('select l.* from locations l join sites s on s.id=l.site_id where s.tenant_id=$1 order by l.id', [t]);
   const rms = await rows('select r.* from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by r.id', [t]);

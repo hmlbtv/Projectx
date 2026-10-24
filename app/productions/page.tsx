@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function Productions() {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
-  const t = me.tenant_id ?? 1;
+  const t = me.tenant_id ?? 0;
   const lim = (await rows('select max_broadcasters b, max_productions p, max_jobs_per_production j from tenants where id=$1', [t]))[0];
   const bs = await rows('select * from broadcasters where tenant_id=$1 order by id', [t]);
   const ps = await rows('select p.* from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 order by p.id', [t]);

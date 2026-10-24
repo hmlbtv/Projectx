@@ -6,7 +6,7 @@ import TeamInvite from './TeamInvite';
 export const dynamic = 'force-dynamic';
 export default async function Team() {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
-  const t = me.tenant_id ?? 1;
+  const t = me.tenant_id ?? 0;
   const tenant = await one('select name,plan,max_walls_per_broadcaster m from tenants where id=$1', [t]);
   const members = await rows(`select id,name,email,role,(password_hash is null) pending, max_jobs,
     (select count(*)::int from job_users ju join jobs j on j.id=ju.job_id where ju.user_id=users.id and j.expires_at >= current_date) active
