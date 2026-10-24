@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Menu from '../Menu';
 import { rows } from '@/lib/db';
 import { requireMe, isAdmin, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
@@ -15,7 +16,6 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
   const walls = await rows('select id,name from wall_templates where tenant_id=$1 order by name', [t]);
   const rw = await rows('select rw.*, w.name wall from room_walls rw join wall_templates w on w.id=rw.wall_template_id join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by rw.name', [t]);
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
-  const Menu = ({ children }: { children: React.ReactNode }) => (<details className="dots"><summary aria-label="Options" title="Options">⋯</summary><div className="pop">{children}</div></details>);
   const Edit = ({ table, id, name, what }: { table: string; id: number; name: string; what: string }) => (<>
     <b>Edit {what}</b><form action={renameNode} className="stack"><input type="hidden" name="table" value={table} /><input type="hidden" name="id" value={id} /><input name="name" defaultValue={name} required /><button className="sec">Save</button></form>
     {adm && <form action={deleteNode} className="del-row"><input type="hidden" name="table" value={table} /><input type="hidden" name="id" value={id} /><span className="mut">Delete this {what} and everything inside it? This cannot be undone.</span><button className="del">Yes, delete</button></form>}</>);
