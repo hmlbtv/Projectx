@@ -1,0 +1,19 @@
+import Link from 'next/link';
+import { rows } from '@/lib/db';
+import { requireMe } from '@/lib/session';
+export const dynamic = 'force-dynamic';
+
+// Every active invitation sent to this account's email, from any tenant, in one place.
+export default async function Shared() {
+  const me = await requireMe();
+  const items = await rows(`select wl.id, wl.access, t.name tenant, p.name prod, j.name job, r.name room, rw.name wall, j.expires_at
+    from wall_links wl join jobs j on j.id=wl.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id join tenants t on t.id=b.tenant_id
+    join room_walls rw on rw.id=wl.room_wall_id join rooms r on r.id=rw.room_id
+    where lower(wl.email)=lower($1) and not wl.revoked and (j.expires_at is null or j.expires_at >= current_date) order by t.name, j.job_date, wl.id`, [me.email]);
+  const groups = [...new Set(items.map((i: any) => i.tenant))];
+  return (<><h1>Shared with me</h1><p className="mut">Monitor walls other teams have shared with {me.email}. You can edit or only view each one, depending on the invitation.</p>
+    {items.length === 0 && <div className="card mut">Nothing is shared with you right now. When someone invites you to a wall it will appear here.</div>}
+    {groups.map(g => (<div key={g}><h2>{g}</h2>{items.filter((i: any) => i.tenant === g).map((i: any) => (
+      <div key={i.id} className="card"><div className="row" style={{ justifyContent: 'space-between' }}><div><b>{i.wall}</b> <span className="mut">{i.prod} / {i.job} · {i.room}</span></div>
+        <div><span className="tag">{i.access === 'edit' ? 'Can edit' : 'View only'}</span> <Link href={`/shared/${i.id}`}><button className="sec" type="button">Open</button></Link></div></div></div>))}</div>))}</>);
+}

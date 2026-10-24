@@ -16,7 +16,6 @@ export async function allow(action: string, key: string, max: number, minutes: n
   if (Math.random() < 0.02) { // occasional housekeeping
     await rows("delete from attempts where at < now() - interval '1 day'");
     await rows('delete from sessions where expires_at < now()');
-    await rows('delete from guest_sessions where expires_at < now()');
   }
   return true;
 }

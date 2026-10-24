@@ -51,7 +51,7 @@ export async function signIn(_: FormState, f: FormData): Promise<FormState> {
   if (!u.email_verified) return { error: 'Please verify your email first - use the link we sent, or "Forgot password" to get a new one.' };
   await rows('update users set failed_attempts=0, locked_until=null where id=$1', [u.id]);
   await createSession(u.id);
-  redirect('/');
+  const next = s(f, 'next'); redirect(/^\/(?!\/)[\w\-\/]*$/.test(next) ? next : '/');
 }
 export async function signOut() { await destroySession(); redirect('/signin'); }
 

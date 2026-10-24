@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
 import { requireMe, canManage } from '@/lib/session';
 import { addComment } from '@/lib/actions';
@@ -6,7 +7,7 @@ import { savePlan } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
 export default async function Plans({ searchParams }: { searchParams: Promise<{ job?: string }> }) {
-  const me = await requireMe(); const { job } = await searchParams;
+  const me = await requireMe(); if (me.role === 'onetime') redirect('/shared'); const { job } = await searchParams;
   const jobs = await rows(`select j.id,j.name,j.job_date,p.name prod from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id
     where j.expires_at >= current_date and (j.id in (select job_id from job_users where user_id=$1) or ($2 and b.tenant_id=$3)) order by j.job_date`, [me.id, canManage(me), me.tenant_id ?? 0]);
   const cur = jobs.find((j: any) => String(j.id) === job);

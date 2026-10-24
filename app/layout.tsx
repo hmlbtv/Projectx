@@ -16,7 +16,8 @@ export default async function Root({ children }: { children: React.ReactNode }) 
       <NavMenu links={[
         ...(isAdmin(me) ? [{ href: '/tenant', label: 'Sites' }] : []),
         ...(canManage(me) ? [{ href: '/team', label: 'Team' }, { href: '/walls', label: 'Wall Designer' }, { href: '/layouts', label: 'MV Designer' }, { href: '/productions', label: 'Productions' }, { href: '/contacts', label: 'Contacts' }] : []),
-        { href: '/plans', label: 'Monitor Plans' }, { href: '/archive', label: 'Archive' },
+        ...(me.role === 'onetime' ? [] : [{ href: '/plans', label: 'Monitor Plans' }, { href: '/archive', label: 'Archive' }]),
+        { href: '/shared', label: 'Shared with me' },
         ...(me.role === 'webappdev' ? [{ href: '/webappdev', label: 'Site admin' }] : []),
       ]}>
         <Link href="/account" className="who">{me.name} <span className="tag">{me.role}</span></Link>

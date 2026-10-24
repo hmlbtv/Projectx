@@ -24,8 +24,6 @@ create table if not exists job_rooms(job_id int not null references jobs(id) on 
 create table if not exists job_users(job_id int not null references jobs(id) on delete cascade, user_id int not null references users(id), primary key(job_id, user_id));
 create table if not exists monitor_plans(id serial primary key, job_id int not null references jobs(id) on delete cascade, user_id int not null, name text not null, data jsonb not null default '{}', updated_at timestamptz default now());
 create table if not exists wall_links(id serial primary key, job_id int not null references jobs(id) on delete cascade, room_wall_id int not null references room_walls(id) on delete cascade, email text not null, access text not null default 'edit', token_hash text unique not null, revoked boolean not null default false, created_by int, created_at timestamptz not null default now());
-create table if not exists link_codes(link_id int primary key references wall_links(id) on delete cascade, code_hash text not null, expires_at timestamptz not null, tries int not null default 0);
-create table if not exists guest_sessions(id text primary key, link_id int not null references wall_links(id) on delete cascade, expires_at timestamptz not null);
 alter table monitor_plans add column if not exists link_id int references wall_links(id) on delete cascade;
 create table if not exists attempts(key text not null, at timestamptz not null default now());
 create index if not exists attempts_key_at on attempts(key, at);
