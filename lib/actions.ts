@@ -70,7 +70,7 @@ export async function signUp(_: FormState, f: FormData): Promise<FormState> {
   const u = await one(`insert into users(tenant_id,email,name,role,password_hash,email_verified,verify_hash,verify_expires)
     values($1,$2,$3,'master_admin',$4,$5,$6,now() + interval '2 days') returning id`, [t.id, email, name, await hashPassword(pw), !verify, verify ? sha256(token) : null]);
   if (verify) {
-    const sent = await sendMail(email, 'Verify your Gallery Planner account', `Welcome to Gallery Planner.\nConfirm your email to finish setting up your account:\n${await baseUrl()}/verify/${token}\n\nThis link expires in 2 days.`);
+    const sent = await sendMail(email, 'Verify your TelePlanner account', `Welcome to TelePlanner.\nConfirm your email to finish setting up your account:\n${await baseUrl()}/verify/${token}\n\nThis link expires in 2 days.`);
     if (sent) return { ok: `We sent a verification link to ${email}. Open it to finish creating your account.` };
     await rows('update users set email_verified=true where id=$1', [u.id]); // mail failed: don't lock the person out
   }
@@ -86,7 +86,7 @@ export async function requestReset(_: FormState, f: FormData): Promise<FormState
   if (u) {
     const token = newToken();
     await rows("update users set invite_hash=$1, invite_expires=now() + interval '1 hour' where id=$2", [sha256(token), u.id]);
-    await sendMail(email, 'Reset your Gallery Planner password', `Use this link to set a new password (valid for 1 hour):\n${await baseUrl()}/invite/${token}\n\nIf you did not ask for this, ignore this email.`);
+    await sendMail(email, 'Reset your TelePlanner password', `Use this link to set a new password (valid for 1 hour):\n${await baseUrl()}/invite/${token}\n\nIf you did not ask for this, ignore this email.`);
   }
   return { ok: 'If an account exists for that email, a reset link is on its way.' };
 }
@@ -138,7 +138,7 @@ async function invite(me: Me, email: string, role: string, jobId?: number): Prom
   const token = newToken();
   await rows("update users set invite_hash=$1, invite_expires=now() + interval '7 days' where id=$2", [sha256(token), u.id]);
   const link = `${await baseUrl()}/invite/${token}`;
-  if (await sendMail(email, 'You have been invited to Gallery Planner', `${me.name} invited you to Gallery Planner.\nSet your password to join:\n${link}\n\nThis link expires in 7 days.`)) return { ok: `Invite emailed to ${email}.` };
+  if (await sendMail(email, 'You have been invited to TelePlanner', `${me.name} invited you to TelePlanner.\nSet your password to join:\n${link}\n\nThis link expires in 7 days.`)) return { ok: `Invite emailed to ${email}.` };
   return { ok: `Email sending is not set up. Send this link to ${email} (valid 7 days):`, link };
 }
 export async function inviteUser(_: FormState, f: FormData): Promise<FormState> {
@@ -292,7 +292,7 @@ export async function addAltEmail(_: FormState, f: FormData): Promise<FormState>
   await rows(`insert into user_emails(email,user_id,verified,token_hash,expires_at) values($1,$2,false,$3,now() + interval '2 days')
     on conflict (email) do update set token_hash=$3, expires_at=now() + interval '2 days' where user_emails.user_id=$2 and not user_emails.verified`, [email, me.id, sha256(token)]);
   const link = `${await baseUrl()}/verify-email/${token}`;
-  if (await sendMail(email, 'Confirm this email for Gallery Planner', `Confirm that ${email} should be added to the Gallery Planner account of ${me.name}:\n${link}\n\nThis link expires in 2 days. If you did not ask for this, ignore this email.`))
+  if (await sendMail(email, 'Confirm this email for TelePlanner', `Confirm that ${email} should be added to the TelePlanner account of ${me.name}:\n${link}\n\nThis link expires in 2 days. If you did not ask for this, ignore this email.`))
     return { ok: `We sent a confirmation link to ${email}. Open it to finish adding the address.` };
   return process.env.DEV_SHOW_CODES === '1' ? { ok: 'Test mode - confirm with this link:', link } : { error: 'The confirmation email could not be sent. Try again later.' };
 }

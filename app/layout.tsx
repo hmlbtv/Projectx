@@ -7,7 +7,7 @@ import '@fontsource-variable/space-grotesk';
 import { signOut } from '@/lib/actions';
 
 export const viewport = { width: 'device-width', initialScale: 1, themeColor: '#0f1217' };
-export const metadata = { title: 'Gallery Planner', description: 'Monitor plans for live production' };
+export const metadata = { title: 'TelePlanner', description: 'Monitor plans for live production' };
 
 export default async function Root({ children }: { children: React.ReactNode }) {
   const me = await getMe();
