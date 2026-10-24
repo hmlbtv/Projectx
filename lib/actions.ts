@@ -171,8 +171,9 @@ export async function removeJobUser(f: FormData) {
 // ---- Site admin (WebAppDev): plans and limits per tenant ----
 export async function setTenantPlan(f: FormData) {
   const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
-  const max = Math.min(Math.max(parseInt(s(f, 'max')) || 1, 0), 100000);
-  await rows('update tenants set plan=$1, max_wall_templates=$2 where id=$3', [s(f, 'plan').slice(0, 40) || 'demo', max, Number(s(f, 'id'))]);
+  const n = (k: string, d: number) => { const v = parseInt(s(f, k)); return Number.isFinite(v) ? Math.min(Math.max(v, 0), 100000) : d; };
+  await rows('update tenants set plan=$1, max_wall_templates=$2, max_broadcasters=$3, max_productions=$4, max_jobs_per_production=$5 where id=$6',
+    [s(f, 'plan').slice(0, 40) || 'demo', n('max', 1), n('b', 2), n('p', 3), n('j', 4), Number(s(f, 'id'))]);
   revalidatePath('/webappdev');
 }
 
@@ -215,19 +216,33 @@ export async function saveLayout(f: FormData) {
 export async function deleteLayout(f: FormData) { const me = await mgr(); await rows('delete from mv_layouts where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/layouts'); }
 
 // ---- Productions: Broadcaster > Production > Job ----
-export async function addBroadcaster(f: FormData) { const me = await mgr(); if (s(f,'name')) await rows('insert into broadcasters(tenant_id,name) values($1,$2)', [tid(me), s(f,'name')]); revalidatePath('/productions'); }
-export async function addProduction(f: FormData) { const me = await mgr(); const p = Number(s(f,'parent')); await own('broadcasters', p, me); if (s(f,'name')) await rows('insert into productions(broadcaster_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/productions'); }
+// Plan limits (demo default: 2 Broadcasters, 3 Productions each, 4 active Jobs each; the site admin can change them per tenant)
+async function limits(me: Me) { return (await one('select max_broadcasters b, max_productions p, max_jobs_per_production j from tenants where id=$1', [tid(me)]))!; }
+export async function addBroadcaster(_: FormState, f: FormData): Promise<FormState> {
+  const me = await mgr(); const l = await limits(me);
+  const c = (await one('select count(*)::int c from broadcasters where tenant_id=$1', [tid(me)]))!.c;
+  if (c >= l.b) return { error: `Your plan allows ${l.b} Broadcaster${l.b === 1 ? '' : 's'}. Contact us to upgrade.` };
+  if (s(f,'name')) await rows('insert into broadcasters(tenant_id,name) values($1,$2)', [tid(me), s(f,'name')]); revalidatePath('/productions'); return { ok: 'Added.' };
+}
+export async function addProduction(_: FormState, f: FormData): Promise<FormState> {
+  const me = await mgr(); const p = Number(s(f,'parent')); await own('broadcasters', p, me); const l = await limits(me);
+  const c = (await one('select count(*)::int c from productions where broadcaster_id=$1', [p]))!.c;
+  if (c >= l.p) return { error: `Your plan allows ${l.p} Production${l.p === 1 ? '' : 's'} per Broadcaster.` };
+  if (s(f,'name')) await rows('insert into productions(broadcaster_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/productions'); return { ok: 'Added.' };
+}
 export async function addSourceSet(f: FormData) {
   const me = await mgr(); const list = s(f,'sources').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 500);
   if (s(f,'name')) await rows('insert into source_sets(tenant_id,name,sources) values($1,$2,$3)', [tid(me), s(f,'name'), JSON.stringify(list)]); revalidatePath('/productions');
 }
-export async function addJob(f: FormData) {
-  const me = await mgr(); const p = Number(s(f,'parent')); await own('productions', p, me);
+export async function addJob(_: FormState, f: FormData): Promise<FormState> {
+  const me = await mgr(); const p = Number(s(f,'parent')); await own('productions', p, me); const l = await limits(me);
+  const c = (await one('select count(*)::int c from jobs where production_id=$1 and (expires_at is null or expires_at >= current_date)', [p]))!.c;
+  if (c >= l.j) return { error: `Your plan allows ${l.j} active Job${l.j === 1 ? '' : 's'} per Production.` };
   const ss = Number(s(f,'sourceSet')) || null; if (ss) await own('sourceSets', ss, me);
   const fin = s(f,'final') || s(f,'date') || null, exp = s(f,'expires') || null;
   await rows(`insert into jobs(production_id,name,job_date,final_date,expires_at,source_set_id)
     values($1,$2,$3,$4,coalesce($5::date,$4::date+5),$6)`, [p, s(f,'name'), s(f,'date') || null, fin, exp, ss]);
-  revalidatePath('/productions');
+  revalidatePath('/productions'); return { ok: 'Added.' };
 }
 export async function assignRoom(f: FormData) {
   const me = await mgr(); const job = Number(s(f,'job')), room = Number(s(f,'room')); await own('jobs', job, me); await own('rooms', room, me);
