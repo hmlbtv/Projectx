@@ -126,7 +126,15 @@ async function invite(me: Me, email: string, role: string, jobId?: number): Prom
   let u = await one('select id,tenant_id,password_hash from users where email=$1', [email]);
   if (u && u.tenant_id && u.tenant_id !== tid(me)) return { error: 'That email already belongs to another team.' };
   if (!u) u = await one("insert into users(email,name,role,tenant_id,email_verified) values($1,$1,$2,$3,true) returning id,tenant_id,password_hash", [email, role, role === 'onetime' ? null : tid(me)]);
-  if (jobId) await rows('insert into job_users(job_id,user_id) values($1,$2) on conflict do nothing', [jobId, u.id]);
+  if (jobId) {
+    // Per-user cap on active Jobs they can access (default 5, set by the tenant Admin on the Team page).
+    const already = await one('select 1 from job_users where job_id=$1 and user_id=$2', [jobId, u.id]);
+    if (!already) {
+      const lim = await one(`select max_jobs m, role, (select count(*)::int from job_users ju join jobs j on j.id=ju.job_id where ju.user_id=users.id and j.expires_at >= current_date) c from users where id=$1`, [u.id]);
+      if (lim.role === 'user' && lim.c >= lim.m) return { error: `${email} is already on ${lim.c} active Jobs, the limit set for them (${lim.m}). An Admin can raise it on the Team page.` };
+    }
+    await rows('insert into job_users(job_id,user_id) values($1,$2) on conflict do nothing', [jobId, u.id]);
+  }
   revalidatePath('/productions'); revalidatePath('/team');
   if (u.password_hash) return { ok: `${email} already has an account${jobId ? ' and now has access to this Job' : ' in your team'}.` };
   const token = newToken();
@@ -148,6 +156,16 @@ export async function removeMember(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
   const id = Number(s(f, 'id')); if (id === me.id) return;
   await rows("delete from users where id=$1 and tenant_id=$2 and role in ('user','manager','admin')", [id, tid(me)]); revalidatePath('/team');
+}
+
+export async function setUserMaxJobs(f: FormData) {
+  const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
+  const max = Math.min(Math.max(parseInt(s(f, 'max')), 0) || 0, 1000);
+  await rows("update users set max_jobs=$1 where id=$2 and tenant_id=$3 and role='user'", [max, Number(s(f, 'id')), tid(me)]); revalidatePath('/team');
+}
+export async function removeJobUser(f: FormData) {
+  const me = await mgr(); const job = Number(s(f, 'job')); await own('jobs', job, me);
+  await rows('delete from job_users where job_id=$1 and user_id=$2', [job, Number(s(f, 'user'))]); revalidatePath('/productions'); revalidatePath('/team');
 }
 
 // ---- Site admin (WebAppDev): plans and limits per tenant ----

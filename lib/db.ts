@@ -26,6 +26,7 @@ create table if not exists monitor_plans(id serial primary key, job_id int not n
 alter table tenants add column if not exists plan text not null default 'demo';
 alter table tenants add column if not exists max_wall_templates int not null default 1;
 alter table users add column if not exists email_verified boolean not null default true;
+alter table users add column if not exists max_jobs int not null default 5;
 alter table users add column if not exists verify_hash text;
 alter table users add column if not exists verify_expires timestamptz;
 create table if not exists comments(id serial primary key, job_id int not null references jobs(id) on delete cascade, room_id int not null, user_id int not null, body text not null, created_at timestamptz default now());
