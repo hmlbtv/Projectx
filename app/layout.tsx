@@ -3,12 +3,12 @@ import Link from 'next/link';
 import { getMe, canManage, isAdmin } from '@/lib/session';
 import { signOut } from '@/lib/actions';
 
-export const metadata = { title: 'Wall Maker', description: 'Monitor Plan configurator' };
+export const metadata = { title: 'Gallery Planner', description: 'Monitor Plan configurator' };
 
 export default async function Root({ children }: { children: React.ReactNode }) {
   const me = await getMe();
   return (<html lang="en"><body>
-    <nav><b>Wall Maker</b>
+    <nav><b>Gallery Planner</b>
       {me && <>
         {isAdmin(me) && <Link href="/tenant">Admin / Tenant Sites</Link>}
         {canManage(me) && <Link href="/team">Team</Link>}
