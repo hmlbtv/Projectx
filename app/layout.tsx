@@ -11,6 +11,8 @@ export default async function Root({ children }: { children: React.ReactNode }) 
     <nav><b>Wall Maker</b>
       {me && <>
         {isAdmin(me) && <Link href="/tenant">Admin / Tenant Sites</Link>}
+        {canManage(me) && <Link href="/team">Team</Link>}
+        {me.role === 'webappdev' && <Link href="/webappdev">Site admin</Link>}
         {canManage(me) && <><Link href="/walls">Wall Designer</Link><Link href="/layouts">MV Designer</Link><Link href="/productions">Productions</Link></>}
         <Link href="/plans">Monitor Plans</Link><Link href="/archive">Archive</Link>
         <span className="sp" /><Link href="/account">{me.name} · <span className="tag">{me.role}</span></Link>

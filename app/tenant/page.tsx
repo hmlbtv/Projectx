@@ -18,7 +18,7 @@ export default async function Tenant() {
   const locs = await rows('select l.* from locations l join sites s on s.id=l.site_id where s.tenant_id=$1 order by l.id', [t]);
   const rms = await rows('select r.* from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by r.id', [t]);
   const walls = await rows('select id,name from wall_templates where tenant_id=$1 or tenant_id is null order by name', [t]);
-  const rw = await rows('select rw.*, w.name wall from room_walls rw join wall_templates w on w.id=rw.wall_template_id');
+  const rw = await rows('select rw.*, w.name wall from room_walls rw join wall_templates w on w.id=rw.wall_template_id join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1', [t]);
   return (<><h1>Tenant Tree</h1><p className="mut">Tenant → Site → Location → Room. Wall Templates are placed in Rooms, each with its own name.</p>
     <Add action={addSite} ph="New Site" />
     {sites.map((s: any) => (<div key={s.id} className="card"><b>Site</b><Rename table="sites" id={s.id} name={s.name} />

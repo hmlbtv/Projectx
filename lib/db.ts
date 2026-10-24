@@ -23,6 +23,11 @@ create table if not exists jobs(id serial primary key, production_id int not nul
 create table if not exists job_rooms(job_id int not null references jobs(id) on delete cascade, room_id int not null references rooms(id), primary key(job_id, room_id));
 create table if not exists job_users(job_id int not null references jobs(id) on delete cascade, user_id int not null references users(id), primary key(job_id, user_id));
 create table if not exists monitor_plans(id serial primary key, job_id int not null references jobs(id) on delete cascade, user_id int not null, name text not null, data jsonb not null default '{}', updated_at timestamptz default now());
+alter table tenants add column if not exists plan text not null default 'demo';
+alter table tenants add column if not exists max_wall_templates int not null default 1;
+alter table users add column if not exists email_verified boolean not null default true;
+alter table users add column if not exists verify_hash text;
+alter table users add column if not exists verify_expires timestamptz;
 create table if not exists comments(id serial primary key, job_id int not null references jobs(id) on delete cascade, room_id int not null, user_id int not null, body text not null, created_at timestamptz default now());
 `;
 
@@ -62,12 +67,15 @@ async function init(): Promise<Client> {
 async function bootstrap(db: Client) {
   const q = async (s: string, p: any[] = []) => (await db.query(s, p)).rows as any[];
   if ((await q('select count(*)::int c from tenants'))[0].c === 0) {
-    await q("insert into tenants(name) values($1)", [process.env.TENANT_NAME || 'My Tenant']);
+    // Tenant 1 belongs to the site owner: unlimited wall templates.
+    await q("insert into tenants(name,plan,max_wall_templates) values($1,'owner',100000)", [process.env.TENANT_NAME || 'Site Owner']);
     await seedPresets(db);
   }
+  if (process.env.ADMIN_EMAIL) await q("update users set role='webappdev', email_verified=true where email=$1", [process.env.ADMIN_EMAIL.toLowerCase()]);
+  await q("update tenants set plan='owner', max_wall_templates=100000 where id=1 and plan='demo'");
   if ((await q('select count(*)::int c from users'))[0].c === 0) {
     const email = process.env.ADMIN_EMAIL?.toLowerCase(), pw = process.env.ADMIN_PASSWORD;
-    if (email && pw) await q("insert into users(tenant_id,email,name,role,password_hash) values(1,$1,'Master Admin','master_admin',$2)", [email, await hashPassword(pw)]);
+    if (email && pw) await q("insert into users(tenant_id,email,name,role,password_hash) values(1,$1,'Master Admin','webappdev',$2)", [email, await hashPassword(pw)]);
     else if (!process.env.DATABASE_URL) await seedDemo(db); // local only: demo users, password "demo-password-1"
     else console.warn('No users yet. Set ADMIN_EMAIL and ADMIN_PASSWORD to create the first Master Admin.');
   }

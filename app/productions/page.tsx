@@ -13,8 +13,8 @@ export default async function Productions() {
   const js = await rows('select j.*, ss.name ss_name from jobs j left join source_sets ss on ss.id=j.source_set_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 and (j.expires_at is null or j.expires_at >= current_date) order by j.job_date', [t]);
   const sets = await rows('select * from source_sets where tenant_id=$1', [t]);
   const rooms = await rows('select r.id, r.name, l.name loc, s.name site from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1', [t]);
-  const jr = await rows('select jr.job_id, r.name from job_rooms jr join rooms r on r.id=jr.room_id');
-  const ju = await rows('select ju.job_id, u.email from job_users ju join users u on u.id=ju.user_id');
+  const jr = await rows('select jr.job_id, r.name from job_rooms jr join rooms r on r.id=jr.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1', [t]);
+  const ju = await rows('select ju.job_id, u.email from job_users ju join users u on u.id=ju.user_id where u.tenant_id=$1 or u.tenant_id is null', [t]);
   return (<><h1>Productions</h1><p className="mut">Broadcaster → Production → Job. Jobs expire on the date set, or 5 days after the final date, and are then archived.</p>
     <div className="card"><b>Source Sets</b>{sets.map((s: any) => <div key={s.id}>{s.name} <span className="mut">({s.sources.length} sources)</span></div>)}
       <form action={addSourceSet} className="row"><input name="name" placeholder="Source Set name" required /><textarea name="sources" placeholder="One source per line" rows={2} /><button className="sec">Add Source Set</button></form></div>

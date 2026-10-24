@@ -1,4 +1,4 @@
-import { rows } from '@/lib/db';
+import { rows, one } from '@/lib/db';
 import { requireMe, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { deleteWall } from '@/lib/actions';
@@ -9,8 +9,10 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
   const me = await requireMe(); if (!canManage(me)) redirect('/');
   const { id, q } = await searchParams; const t = me.tenant_id ?? 1;
   const list = await rows('select * from wall_templates where (tenant_id=$1 or tenant_id is null) and name ilike $2 order by name', [t, `%${q ?? ''}%`]);
+  const lim = await one('select max_wall_templates m, plan, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [t]);
   const cur = id === 'new' ? { id: null, name: 'New Wall Template', data: { assets: [] } } : list.find((w: any) => String(w.id) === id);
   return (<><h1>Wall Designer</h1>
+    <p className="mut">Wall Templates used: {lim.c} of {lim.m} <span className="tag">{lim.plan}</span></p>
     <form className="row"><input name="q" placeholder="Search Wall Templates" defaultValue={q} /><button className="sec">Search</button><a href="/walls?id=new"><button type="button">New Wall Template</button></a></form>
     <div className="split" style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 12 }}>
       <div>{list.map((w: any) => (<div key={w.id} className="card"><a href={`/walls?id=${w.id}`}>{w.name}</a> <span className="mut">{w.data.assets.length} assets</span>

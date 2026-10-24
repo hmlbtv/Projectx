@@ -76,7 +76,7 @@ export default function Designer({ id, initialName, initial }: { id: number | nu
   const one = assets.find(a => a.id === sel[0]);
   const upd = (patch: Partial<A>) => { const next = assets.map(a => a.id === one!.id ? { ...a, ...patch } : a); if (ok(next, next.filter(a => a.id === one!.id))) setAssets(next); };
 
-  async function save() { const r = await saveWall(wid, name || 'Untitled Wall', assets); setWid(r); setMsg('Saved'); }
+  async function save() { const r = await saveWall(wid, name || 'Untitled Wall', assets); if (r.error) { setMsg(r.error); return; } setWid(r.id!); setMsg('Saved'); }
   const color = (t: string) => PALETTE.find(p => p.type === t)?.color || '#333';
 
   return (<div>
