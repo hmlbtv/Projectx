@@ -241,7 +241,16 @@ export async function addProduction(_: FormState, f: FormData): Promise<FormStat
 }
 export async function addSourceSet(f: FormData) {
   const me = await mgr(); const list = s(f,'sources').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 500);
-  if (s(f,'name')) await rows('insert into source_sets(tenant_id,name,sources) values($1,$2,$3)', [tid(me), s(f,'name'), JSON.stringify(list)]); revalidatePath('/productions');
+  if (s(f,'name')) await rows('insert into source_sets(tenant_id,name,sources) values($1,$2,$3)', [tid(me), s(f,'name'), JSON.stringify(list)]); revalidatePath('/sources'); revalidatePath('/productions');
+}
+export async function updateSourceSet(f: FormData) {
+  const me = await mgr(); const id = Number(s(f,'id')); await own('sourceSets', id, me);
+  const list = s(f,'sources').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 500);
+  if (s(f,'name')) await rows('update source_sets set name=$1,sources=$2 where id=$3', [s(f,'name'), JSON.stringify(list), id]); revalidatePath('/sources');
+}
+export async function deleteSourceSet(f: FormData) {
+  const me = await mgr(); const id = Number(s(f,'id')); await own('sourceSets', id, me);
+  await rows('update jobs set source_set_id=null where source_set_id=$1', [id]); await rows('delete from source_sets where id=$1', [id]); revalidatePath('/sources'); revalidatePath('/productions');
 }
 export async function addJob(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const p = Number(s(f,'parent')); await own('productions', p, me); const l = await limits(me);

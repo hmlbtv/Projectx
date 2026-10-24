@@ -71,3 +71,4 @@ svg{max-width:100%;height:auto}
 .stat b{font-size:1.1rem}.stat span{font-size:.75rem;opacity:.7}
 .limits{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-items:end;border-top:1px solid var(--line);padding-top:12px}
 .limits label{display:flex;flex-direction:column;gap:4px;font-size:.8rem}.limits input{width:100%}
+.stack{display:flex;flex-direction:column;gap:10px}.stack textarea{width:100%}

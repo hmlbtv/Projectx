@@ -6,7 +6,7 @@ import { revokeWallLink } from '@/lib/guestActions';
 import { rows } from '@/lib/db';
 import { requireMe, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
-import { addBroadcaster, addProduction, addJob, addSourceSet, assignRoom, removeJobUser } from '@/lib/actions';
+import { addBroadcaster, addProduction, addJob, assignRoom, removeJobUser } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
 export default async function Productions() {
@@ -28,8 +28,6 @@ export default async function Productions() {
   const ju = await rows('select ju.job_id, ju.user_id, u.email from job_users ju join users u on u.id=ju.user_id where u.tenant_id=$1', [t]);
   return (<><h1>Productions</h1>
     <p className="mut">Plan limits: {lim.b} Broadcaster{lim.b === 1 ? '' : 's'}, {lim.p} Productions each, {lim.j} active Jobs each.</p><p className="mut">Broadcaster → Production → Job. Jobs expire on the date set, or 5 days after the final date, and are then archived.</p>
-    <div className="card"><b>Source Sets</b>{sets.map((s: any) => <div key={s.id}>{s.name} <span className="mut">({s.sources.length} sources)</span></div>)}
-      <form action={addSourceSet} className="row"><input name="name" placeholder="Source Set name" required /><textarea name="sources" placeholder="One source per line" rows={2} /><button className="sec">Add Source Set</button></form></div>
     <ActionForm action={addBroadcaster} className="row"><input name="name" placeholder="New Broadcaster" required /><button>Add Broadcaster</button></ActionForm>
     {bs.map((b: any) => (<div key={b.id} className="card"><b>Broadcaster: {b.name}</b>
       <div className="tree"><ActionForm action={addProduction} className="row"><input type="hidden" name="parent" value={b.id} /><input name="name" placeholder="New Production" required /><button className="sec">Add Production</button></ActionForm>
