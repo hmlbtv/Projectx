@@ -12,7 +12,7 @@ const PALETTE = [
 const SNAP = 10, W = 1600, H = 900;
 const hit = (a: A, b: A) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
-export default function Designer({ id, initialName, initial }: { id: number | null; initialName: string; initial: A[] }) {
+export default function Designer({ id, initialName, initial, broadcasterId }: { id: number | null; initialName: string; initial: A[]; broadcasterId?: number | null }) {
   const [name, setName] = useState(initialName);
   const [assets, setAssets] = useState<A[]>(initial);
   const [sel, setSel] = useState<string[]>([]);
@@ -76,7 +76,7 @@ export default function Designer({ id, initialName, initial }: { id: number | nu
   const one = assets.find(a => a.id === sel[0]);
   const upd = (patch: Partial<A>) => { const next = assets.map(a => a.id === one!.id ? { ...a, ...patch } : a); if (ok(next, next.filter(a => a.id === one!.id))) setAssets(next); };
 
-  async function save() { const r = await saveWall(wid, name || 'Untitled Wall', assets); if (r.error) { setMsg(r.error); return; } setWid(r.id!); setMsg('Saved'); }
+  async function save() { const r = await saveWall(wid, name || 'Untitled Wall', assets, broadcasterId); if (r.error) { setMsg(r.error); return; } setWid(r.id!); setMsg('Saved'); }
   const color = (t: string) => PALETTE.find(p => p.type === t)?.color || '#333';
 
   return (<div>

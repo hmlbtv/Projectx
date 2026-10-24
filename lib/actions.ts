@@ -71,7 +71,7 @@ export async function signUp(_: FormState, f: FormData): Promise<FormState> {
   if (pw !== String(f.get('password2') ?? '')) return { error: 'Passwords do not match.' };
   const bad = passwordProblem(pw); if (bad) return { error: bad };
   if (await one('select 1 from users where email=$1', [email])) return { error: 'An account with this email already exists. Sign in instead.' };
-  const t = await one('insert into tenants(name,plan,max_wall_templates) values($1,\'demo\',1) returning id', [org]);
+  const t = await one('insert into tenants(name,plan,max_walls_per_broadcaster) values($1,\'demo\',1) returning id', [org]);
   const verify = emailOn(), token = newToken();
   const u = await one(`insert into users(tenant_id,email,name,role,password_hash,email_verified,verify_hash,verify_expires)
     values($1,$2,$3,'master_admin',$4,$5,$6,now() + interval '2 days') returning id`, [t.id, email, name, await hashPassword(pw), !verify, verify ? sha256(token) : null]);
@@ -172,7 +172,7 @@ export async function removeJobUser(f: FormData) {
 export async function setTenantPlan(f: FormData) {
   const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
   const n = (k: string, d: number) => { const v = parseInt(s(f, k)); return Number.isFinite(v) ? Math.min(Math.max(v, 0), 100000) : d; };
-  await rows('update tenants set plan=$1, max_wall_templates=$2, max_broadcasters=$3, max_productions=$4, max_jobs_per_production=$5 where id=$6',
+  await rows('update tenants set plan=$1, max_walls_per_broadcaster=$2, max_broadcasters=$3, max_productions=$4, max_jobs_per_production=$5 where id=$6',
     [s(f, 'plan').slice(0, 40) || 'demo', n('max', 1), n('b', 2), n('p', 3), n('j', 4), Number(s(f, 'id'))]);
   revalidatePath('/webappdev');
 }
@@ -191,16 +191,18 @@ export async function addRoomWall(f: FormData) {
   await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, s(f,'name') || 'Wall']); revalidatePath('/tenant');
 }
 
-// ---- Wall Designer (demo tenants are limited by max_wall_templates) ----
-export async function saveWall(id: number | null, name: string, assets: any[]): Promise<{ id?: number; error?: string }> {
+// ---- Wall Designer (each Wall Template belongs to a Broadcaster; demo tenants get 1 per Broadcaster) ----
+export async function saveWall(id: number | null, name: string, assets: any[], broadcasterId?: number | null): Promise<{ id?: number; error?: string }> {
   const me = await mgr();
   if (!Array.isArray(assets) || assets.length > 300) return { error: 'Too many assets.' };
   const clean = assets.map(a => ({ id: String(a.id).slice(0, 20), type: String(a.type).slice(0, 20), name: String(a.name).slice(0, 60), x: +a.x || 0, y: +a.y || 0, w: +a.w || 10, h: +a.h || 10 }));
   name = String(name).slice(0, 80);
   if (id) { await own('myWalls', id, me); await rows('update wall_templates set name=$1,data=$2 where id=$3', [name, JSON.stringify({ assets: clean }), id]); revalidatePath('/walls'); return { id }; }
-  const t = await one('select max_wall_templates m, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [tid(me)]);
-  if (t.c >= t.m) return { error: `Your plan allows ${t.m} Wall Template${t.m === 1 ? '' : 's'} (you have ${t.c}). Contact us to upgrade.` };
-  const r = await one('insert into wall_templates(tenant_id,name,data) values($1,$2,$3) returning id', [tid(me), name, JSON.stringify({ assets: clean })]);
+  if (!broadcasterId) return { error: 'Choose a Broadcaster for this Wall Template.' };
+  await own('broadcasters', broadcasterId, me);
+  const t = (await one('select max_walls_per_broadcaster m, (select count(*)::int from wall_templates where broadcaster_id=$2) c from tenants where id=$1', [tid(me), broadcasterId]))!;
+  if (t.c >= t.m) return { error: `Your plan allows ${t.m} Wall Template${t.m === 1 ? '' : 's'} per Broadcaster (this one has ${t.c}). Contact us to upgrade.` };
+  const r = (await one('insert into wall_templates(tenant_id,broadcaster_id,name,data) values($1,$2,$3,$4) returning id', [tid(me), broadcasterId, name, JSON.stringify({ assets: clean })]))!;
   revalidatePath('/walls'); return { id: r.id };
 }
 export async function deleteWall(f: FormData) { const me = await mgr(); await rows('delete from wall_templates where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/walls'); }

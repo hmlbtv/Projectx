@@ -25,6 +25,8 @@ create table if not exists job_users(job_id int not null references jobs(id) on 
 create table if not exists monitor_plans(id serial primary key, job_id int not null references jobs(id) on delete cascade, user_id int not null, name text not null, data jsonb not null default '{}', updated_at timestamptz default now());
 alter table tenants add column if not exists plan text not null default 'demo';
 alter table tenants add column if not exists max_wall_templates int not null default 1;
+alter table tenants add column if not exists max_walls_per_broadcaster int not null default 1;
+alter table wall_templates add column if not exists broadcaster_id int references broadcasters(id) on delete set null;
 alter table tenants add column if not exists max_broadcasters int not null default 2;
 alter table tenants add column if not exists max_productions int not null default 3;
 alter table tenants add column if not exists max_jobs_per_production int not null default 4;
@@ -72,11 +74,11 @@ async function bootstrap(db: Client) {
   const q = async (s: string, p: any[] = []) => (await db.query(s, p)).rows as any[];
   if ((await q('select count(*)::int c from tenants'))[0].c === 0) {
     // Tenant 1 belongs to the site owner: unlimited wall templates.
-    await q("insert into tenants(name,plan,max_wall_templates) values($1,'owner',100000)", [process.env.TENANT_NAME || 'Site Owner']);
+    await q("insert into tenants(name,plan,max_wall_templates,max_walls_per_broadcaster) values($1,'owner',100000,100000)", [process.env.TENANT_NAME || 'Site Owner']);
     await seedPresets(db);
   }
   if (process.env.ADMIN_EMAIL) await q("update users set role='webappdev', email_verified=true where email=$1", [process.env.ADMIN_EMAIL.toLowerCase()]);
-  await q("update tenants set plan='owner', max_wall_templates=100000, max_broadcasters=100000, max_productions=100000, max_jobs_per_production=100000 where id=1 and plan='demo'");
+  await q("update tenants set plan='owner', max_wall_templates=100000, max_walls_per_broadcaster=100000, max_broadcasters=100000, max_productions=100000, max_jobs_per_production=100000 where id=1 and plan='demo'");
   if ((await q('select count(*)::int c from users'))[0].c === 0) {
     const email = process.env.ADMIN_EMAIL?.toLowerCase(), pw = process.env.ADMIN_PASSWORD;
     if (email && pw) await q("insert into users(tenant_id,email,name,role,password_hash) values(1,$1,'Master Admin','webappdev',$2)", [email, await hashPassword(pw)]);

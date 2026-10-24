@@ -7,13 +7,13 @@ export const dynamic = 'force-dynamic';
 export default async function Team() {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
   const t = me.tenant_id ?? 1;
-  const tenant = await one('select name,plan,max_wall_templates m, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [t]);
+  const tenant = await one('select name,plan,max_walls_per_broadcaster m from tenants where id=$1', [t]);
   const members = await rows(`select id,name,email,role,(password_hash is null) pending, max_jobs,
     (select count(*)::int from job_users ju join jobs j on j.id=ju.job_id where ju.user_id=users.id and j.expires_at >= current_date) active
     from users where tenant_id=$1 order by id`, [t]);
   return (<><h1>Team · {tenant.name}</h1>
-    <div className="card"><b>Plan:</b> <span className="tag">{tenant.plan}</span> · Wall Templates used: {tenant.c} of {tenant.m}
-      {tenant.c >= tenant.m && <div className="mut">You have reached your plan limit. Contact us to upgrade.</div>}</div>
+    <div className="card"><b>Plan:</b> <span className="tag">{tenant.plan}</span> · {tenant.m} Wall Template{tenant.m === 1 ? '' : 's'} per Broadcaster
+      </div>
     <div className="card"><b>Invite someone to your workspace</b><p className="mut" style={{ margin: '2px 0 8px' }}>Everyone you invite can use your Wall Templates in their Monitor Plans. Each User can be on 5 active Jobs by default; change it per person below.</p><TeamInvite canAddManagers={isAdmin(me)} /></div>
     <table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Active Jobs / limit</th><th></th></tr></thead><tbody>
       {members.map((m: any) => (<tr key={m.id}><td>{m.name}</td><td>{m.email}</td><td><span className="tag">{m.role}</span>{m.pending && <span className="tag">invite pending</span>}</td>
