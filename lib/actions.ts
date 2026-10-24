@@ -176,17 +176,32 @@ export async function setTenantPlan(f: FormData) {
 }
 
 // ---- Tenant Tree (Admin + Manager) ----
-export async function addSite(f: FormData) { const me = await mgr(); if (s(f,'name')) await rows('insert into sites(tenant_id,name) values($1,$2)', [tid(me), s(f,'name')]); revalidatePath('/tenant'); }
-export async function addLocation(f: FormData) { const me = await mgr(); const p = Number(s(f,'parent')); await own('sites', p, me); if (s(f,'name')) await rows('insert into locations(site_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/tenant'); }
-export async function addRoom(f: FormData) { const me = await mgr(); const p = Number(s(f,'parent')); await own('locations', p, me); if (s(f,'name')) await rows('insert into rooms(location_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/tenant'); }
+export async function addSite(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); if (s(f,'name')) await rows('insert into sites(tenant_id,name) values($1,$2)', [tid(me), s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }
+export async function addLocation(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); const p = Number(s(f,'parent')); await own('sites', p, me); if (s(f,'name')) await rows('insert into locations(site_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }
+export async function addRoom(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); const p = Number(s(f,'parent')); await own('locations', p, me); if (s(f,'name')) await rows('insert into rooms(location_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }
 export async function renameNode(f: FormData) {
   const me = await mgr(); const t = s(f,'table'); if (!['sites','locations','rooms'].includes(t)) return;
   const id = Number(s(f,'id')); await own(t as any, id, me);
   await rows(`update ${t} set name=$1 where id=$2`, [s(f,'name'), id]); revalidatePath('/tenant');
 }
-export async function addRoomWall(f: FormData) {
+export async function addRoomWall(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const room = Number(s(f,'room')), wall = Number(s(f,'wall')); await own('rooms', room, me); await own('walls', wall, me);
-  await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, s(f,'name') || 'Wall']); revalidatePath('/tenant');
+  await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, s(f,'name') || 'Wall']); revalidatePath('/tenant'); return { ok: 'Added.' };
+}
+export async function renameRoomWall(f: FormData) {
+  const me = await mgr(); const id = Number(s(f,'id'));
+  if (s(f,'name')) await rows(`update room_walls set name=$1 where id=$2 and room_id in (select r.id from rooms r join locations l on l.id=r.location_id join sites st on st.id=l.site_id where st.tenant_id=$3)`, [s(f,'name'), id, tid(me)]);
+  revalidatePath('/tenant'); revalidatePath('/plans');
+}
+// Deleting removes everything underneath (Locations, Rooms, walls placed in them). Admin only.
+export async function deleteNode(f: FormData) {
+  const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
+  const t = s(f,'table'); if (!['sites','locations','rooms'].includes(t)) return;
+  const id = Number(s(f,'id')); await own(t as any, id, me);
+  const roomsSql = t === 'rooms' ? 'select $1::int' : t === 'locations' ? 'select id from rooms where location_id=$1' : 'select r.id from rooms r join locations l on l.id=r.location_id where l.site_id=$1';
+  await rows(`delete from job_rooms where room_id in (${roomsSql})`, [id]);
+  await rows(`delete from comments where room_id in (${roomsSql})`, [id]).catch(() => {});
+  await rows(`delete from ${t} where id=$1`, [id]); revalidatePath('/tenant'); revalidatePath('/productions'); revalidatePath('/plans');
 }
 
 export async function removeRoomWall(f: FormData) {

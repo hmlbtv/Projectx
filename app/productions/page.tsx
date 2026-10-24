@@ -1,4 +1,3 @@
-import ActionForm from './ActionForm';
 import AddDialog from './AddDialog';
 import InviteUser from './InviteUser';
 import ShareWall from './ShareWall';
@@ -67,9 +66,9 @@ export default async function Productions({ searchParams }: { searchParams: Prom
     return (<><Bar back={`/productions?b=${b.id}`} />
       <div className="card tile head"><div><div className="mut">{b.name}</div><h1 style={{ margin: 0 }}>{p.name}</h1><div className="mut">Production · {plural(mine.length, 'Job')}</div></div>
         <Menu><b>Edit Production</b><form action={updateProduction} className="stack"><input type="hidden" name="id" value={p.id} /><input name="name" defaultValue={p.name} required /><button className="sec">Save</button></form><Del action={deleteProduction} id={p.id} what="Production" /></Menu></div>
-      <ActionForm action={addJob} className="row"><input type="hidden" name="parent" value={p.id} /><input name="name" placeholder="New Job name" required />
-        <input type="date" name="date" title="Job date" /><input type="date" name="final" title="Final date" /><input type="date" name="expires" title="Expiry (optional)" />
-        <select name="sourceSet"><option value="">Source Set…</option>{sets.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select><button>Add Job</button></ActionForm>
+      <AddDialog action={addJob} label="Add Job" title="New Job" placeholder="Job name"><input type="hidden" name="parent" value={p.id} />
+        <label className="mut">Job date<input type="date" name="date" /></label><label className="mut">Final date<input type="date" name="final" /></label><label className="mut">Expires (optional)<input type="date" name="expires" /></label>
+        <select name="sourceSet"><option value="">Source Set…</option>{sets.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></AddDialog>
       {mine.length === 0 && <p className="mut">No current Jobs yet.</p>}
       <div className="tiles">{mine.map((j: any) => (<div key={j.id} className="card tile"><Link href={`/productions?j=${j.id}`} className="tilelink"><b>{j.name}</b><span className="mut">{d(j.job_date)} · expires {d(j.expires_at)} · {j.ss_name ?? 'no Source Set'}</span></Link>
         <Menu><b>Edit Job</b><form action={updateJob} className="stack"><input type="hidden" name="id" value={j.id} /><input name="name" defaultValue={j.name} required />
@@ -85,7 +84,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
     return (<><Bar back="/productions" />
       <div className="card tile head"><div><h1 style={{ margin: 0 }}>{b.name}</h1><div className="mut">Broadcaster · {plural(mine.length, 'Production')}</div></div>
         <Menu><b>Edit Broadcaster</b><form action={updateBroadcaster} className="stack"><input type="hidden" name="id" value={b.id} /><input name="name" defaultValue={b.name} required /><button className="sec">Save</button></form><Del action={deleteBroadcaster} id={b.id} what="Broadcaster" /></Menu></div>
-      <ActionForm action={addProduction} className="row"><input type="hidden" name="parent" value={b.id} /><input name="name" placeholder="New Production" required /><button>Add Production</button></ActionForm>
+      <AddDialog action={addProduction} label="Add Production" title="New Production" placeholder="Production name"><input type="hidden" name="parent" value={b.id} /></AddDialog>
       {mine.length === 0 && <p className="mut">No Productions yet.</p>}
       <div className="tiles">{mine.map((p: any) => (<div key={p.id} className="card tile"><Link href={`/productions?p=${p.id}`} className="tilelink"><b>{p.name}</b><span className="mut">{plural(js.filter((j: any) => j.production_id === p.id).length, 'Job')}</span></Link>
         <Menu><b>Edit Production</b><form action={updateProduction} className="stack"><input type="hidden" name="id" value={p.id} /><input name="name" defaultValue={p.name} required /><button className="sec">Save</button></form><Del action={deleteProduction} id={p.id} what="Production" /></Menu></div>))}</div></>);
