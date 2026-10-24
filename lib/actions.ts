@@ -299,3 +299,35 @@ export async function addAltEmail(_: FormState, f: FormData): Promise<FormState>
 export async function removeAltEmail(f: FormData) {
   const me = await requireMe(); await rows('delete from user_emails where email=$1 and user_id=$2', [s(f, 'email').toLowerCase(), me.id]); revalidatePath('/account');
 }
+
+// One-click sample data for a tenant admin: a Broadcaster, Production, Room with a Wall, two Jobs and saved Monitor Plans.
+export async function loadDemoData() {
+  const me = await requireMe(); if (!isAdmin(me) || !me.tenant_id) throw new Error('Admin only');
+  const t = tid(me);
+  if (await one("select 1 from broadcasters where tenant_id=$1 and name='Demo Broadcaster'", [t])) redirect('/');
+  const b = (await one('insert into broadcasters(tenant_id,name) values($1,$2) returning id', [t, 'Demo Broadcaster']))!;
+  const p = (await one('insert into productions(broadcaster_id,name) values($1,$2) returning id', [b.id, 'Evening News']))!;
+  const site = (await one('insert into sites(tenant_id,name) values($1,$2) returning id', [t, 'Main Studios']))!;
+  const loc = (await one('insert into locations(site_id,name) values($1,$2) returning id', [site.id, 'Building A']))!;
+  const room = (await one('insert into rooms(location_id,name) values($1,$2) returning id', [loc.id, 'Studio 1 Gallery']))!;
+  const assets = Array.from({ length: 6 }, (_, i) => ({ id: 'm' + (i + 1), type: 'monitor', name: 'MON ' + (i + 1), x: 20 + (i % 3) * 340, y: 20 + Math.floor(i / 3) * 200, w: 320, h: 180 }));
+  const wt = (await one('insert into wall_templates(tenant_id,broadcaster_id,name,data) values($1,$2,$3,$4) returning id', [t, b.id, 'Main Wall', JSON.stringify({ assets })]))!;
+  const rw = (await one('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3) returning id', [room.id, wt.id, 'Main Wall']))!;
+  const ss = (await one('insert into source_sets(tenant_id,name,sources) values($1,$2,$3) returning id', [t, 'Studio sources', JSON.stringify(['Camera 1', 'Camera 2', 'Camera 3', 'Graphics', 'Programme', 'Preview', 'Satellite 1', 'Remote guest'])]))!;
+  const lays = await rows('select id,tiles from mv_layouts where tenant_id is null order by id limit 2');
+  const mk = async (name: string, day: number) => {
+    const j = (await one(`insert into jobs(production_id,name,job_date,expires_at,source_set_id) values($1,$2,current_date + $3::int,current_date + $3::int + 30,$4) returning id`, [p.id, name, day, ss.id]))!;
+    await rows('insert into job_rooms(job_id,room_id) values($1,$2)', [j.id, room.id]);
+    await rows('insert into job_users(job_id,user_id) values($1,$2) on conflict do nothing', [j.id, me.id]);
+    return j.id as number;
+  };
+  const plan = async (job: number, name: string, lay: any, srcs: string[]) => {
+    const assign: Record<number, string> = {}; (lay?.tiles ?? []).forEach((tl: any, i: number) => { assign[tl.n] = srcs[i % srcs.length]; });
+    await rows('insert into monitor_plans(job_id,user_id,name,data) values($1,$2,$3,$4)', [job, me.id, name, JSON.stringify({ [rw.id]: { layoutId: lay?.id, assign } })]);
+  };
+  const j1 = await mk('Election Night Special', 2), j2 = await mk('Weekly Sports Show', 9);
+  await plan(j1, 'Main plan', lays[0], ['Camera 1', 'Camera 2', 'Programme', 'Graphics', 'Preview']);
+  await plan(j1, 'Backup plan', lays[1] ?? lays[0], ['Camera 3', 'Remote guest', 'Programme', 'Satellite 1']);
+  await plan(j2, 'Main plan', lays[1] ?? lays[0], ['Camera 1', 'Graphics', 'Satellite 1', 'Programme']);
+  revalidatePath('/'); redirect('/');
+}
