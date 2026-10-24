@@ -1,4 +1,4 @@
-import AddDialog from './AddDialog';
+import AddDialog from '../AddDialog';
 import InviteUser from './InviteUser';
 import ShareWall from './ShareWall';
 import ReassignLink from './ReassignLink';

@@ -36,3 +36,10 @@ export async function unassignContact(f: FormData) {
   if (!(await ownContact(c, me.t)) || !(await ownProduction(p, me.t))) throw new Error('Not found');
   await rows('delete from production_contacts where production_id=$1 and contact_id=$2', [p, c]); refresh();
 }
+
+export async function updateContact(f: FormData) {
+  const me = await mgr(); const id = Number(s(f, 'id')), name = s(f, 'name'), email = s(f, 'email').toLowerCase(), company = s(f, 'company');
+  if (!name || !EMAIL.test(email)) return;
+  if (await one('select 1 from contacts where tenant_id=$1 and email=$2 and id<>$3', [me.t, email, id])) return;
+  await rows('update contacts set name=$1,email=$2,company=$3 where id=$4 and tenant_id=$5', [name, email, company, id, me.t]); refresh();
+}

@@ -3,6 +3,8 @@ import { requireMe, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { deleteWall } from '@/lib/actions';
 import Designer from './Designer';
+import Menu from '../Menu';
+import Link from 'next/link';
 export const dynamic = 'force-dynamic';
 
 export default async function Walls({ searchParams }: { searchParams: Promise<{ id?: string; q?: string; b?: string }> }) {
@@ -13,12 +15,12 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
   const bcs = await rows('select b.id,b.name,(select count(*)::int from wall_templates w where w.broadcaster_id=b.id) c from broadcasters b where b.tenant_id=$1 order by b.id', [t]);
   const pick = bcs.find((x: any) => String(x.id) === b);
   const cur = id === 'new' ? { id: null, name: 'New Wall Template', data: { assets: [] } } : list.find((w: any) => String(w.id) === id);
-  return (<><h1>Wall Designer</h1>
+  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Wall Designer</h1><Link href="/walls?id=new" className="btn small">+ New Wall Template</Link></div>
     <p className="mut">Plan allows {lim.m >= 100000 ? 'unlimited' : lim.m} Wall Template{lim.m === 1 ? '' : 's'} per Broadcaster <span className="tag">{lim.plan}</span>{bcs.map((x: any) => <span key={x.id} className="tag">{x.name}: {x.c}{lim.m >= 100000 ? '' : ` of ${lim.m}`}</span>)}</p>
-    <form className="row"><input name="q" placeholder="Search Wall Templates" defaultValue={q} /><button className="sec">Search</button><a href="/walls?id=new"><button type="button">New Wall Template</button></a></form>
+    <form className="row"><input name="q" placeholder="Search Wall Templates" defaultValue={q} /><button className="sec">Search</button></form>
     <div className="split" style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 12 }}>
-      <div>{list.map((w: any) => (<div key={w.id} className="card"><a href={`/walls?id=${w.id}`}>{w.name}</a> <span className="mut">{w.bname ? w.bname + ' · ' : ''}{w.data.assets.length} assets</span>
-        {w.tenant_id && <form action={deleteWall}><input type="hidden" name="id" value={w.id} /><button className="del">Delete</button></form>}</div>))}</div>
+      <div>{list.map((w: any) => (<div key={w.id} className="card tile"><Link href={`/walls?id=${w.id}`} className="tilelink"><b>{w.name}</b><span className="mut">{w.bname ? w.bname + ' · ' : ''}{w.data.assets.length} assets</span></Link>
+        {w.tenant_id && <Menu><form action={deleteWall} className="del-row"><input type="hidden" name="id" value={w.id} /><span className="mut">Delete this Wall Template? It is removed from any Room and Job using it.</span><button className="del">Yes, delete</button></form></Menu>}</div>))}</div>
       <div>{id === 'new' && !pick ? (bcs.length === 0 ? <p className="mut">Create a Broadcaster in Productions first - each Wall Template belongs to a Broadcaster.</p> :
         <div className="card"><b>Which Broadcaster is this Wall Template for?</b>{bcs.map((x: any) => <div key={x.id}><a href={`/walls?id=new&b=${x.id}`}>{x.name}</a> <span className="mut">{x.c} of {lim.m} used</span></div>)}</div>)
       : cur ? <Designer key={String(cur.id) + (pick?.id ?? '')} id={cur.id} initialName={cur.name} initial={cur.data.assets} broadcasterId={pick?.id ?? null} /> : <p className="mut">Select a Wall Template or create a new one.</p>}</div></div></>);

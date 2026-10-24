@@ -3,7 +3,7 @@ import Menu from '../Menu';
 import { rows } from '@/lib/db';
 import { requireMe, isAdmin, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
-import AddDialog from '../productions/AddDialog';
+import AddDialog from '../AddDialog';
 import { addSite, addLocation, addRoom, renameNode, addRoomWall, removeRoomWall, renameRoomWall, deleteNode } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 

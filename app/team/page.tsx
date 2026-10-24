@@ -1,22 +1,26 @@
 import { redirect } from 'next/navigation';
 import { rows, one } from '@/lib/db';
 import { requireMe, canManage, isAdmin } from '@/lib/session';
-import { removeMember, setUserMaxJobs } from '@/lib/actions';
-import TeamInvite from './TeamInvite';
+import { removeMember, setUserMaxJobs, inviteTeam } from '@/lib/actions';
+import AddDialog from '../AddDialog';
+import Menu from '../Menu';
 export const dynamic = 'force-dynamic';
 export default async function Team() {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
-  const t = me.tenant_id ?? 0;
+  const t = me.tenant_id ?? 0; const adm = isAdmin(me);
   const tenant = await one('select name,plan,max_walls_per_broadcaster m from tenants where id=$1', [t]);
   const members = await rows(`select id,name,email,role,(password_hash is null) pending, max_jobs,
     (select count(*)::int from job_users ju join jobs j on j.id=ju.job_id where ju.user_id=users.id and j.expires_at >= current_date) active
     from users where tenant_id=$1 order by id`, [t]);
-  return (<><h1>Team · {tenant.name}</h1>
-    <div className="card"><b>Plan:</b> <span className="tag">{tenant.plan}</span> · {tenant.m} Wall Template{tenant.m === 1 ? '' : 's'} per Broadcaster
-      </div>
-    <div className="card"><b>Invite someone to your workspace</b><p className="mut" style={{ margin: '2px 0 8px' }}>Everyone you invite can use your Wall Templates in their Monitor Plans. Each User can be on 5 active Jobs by default; change it per person below.</p><TeamInvite canAddManagers={isAdmin(me)} /></div>
-    <div className="tablewrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Active Jobs / limit</th><th></th></tr></thead><tbody>
-      {members.map((m: any) => (<tr key={m.id}><td>{m.name}</td><td>{m.email}</td><td><span className="tag">{m.role}</span>{m.pending && <span className="tag">invite pending</span>}</td>
-        <td>{m.role === 'user' ? (isAdmin(me) ? <form action={setUserMaxJobs} className="row" style={{ margin: 0 }}>{m.active} of <input type="hidden" name="id" value={m.id} /><input name="max" type="number" min="0" defaultValue={m.max_jobs} style={{ width: 70 }} /><button className="sec">Save</button></form> : `${m.active} of ${m.max_jobs}`) : <span className="mut">no limit</span>}</td>
-        <td>{isAdmin(me) && m.id !== me.id && m.role !== 'master_admin' && m.role !== 'webappdev' && <form action={removeMember}><input type="hidden" name="id" value={m.id} /><button className="del">Remove</button></form>}</td></tr>))}</tbody></table></div></>);
+  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Team · {tenant.name}</h1>
+      <AddDialog inline noName action={inviteTeam} label="Invite" title="Invite someone to your workspace"><p className="mut" style={{ margin: 0 }}>Everyone you invite can use your Wall Templates in their Monitor Plans. Each User can be on 5 active Jobs by default; change it per person from their menu.</p>
+        <input name="email" type="email" placeholder="colleague@email" required autoFocus /><select name="role"><option value="user">User</option>{adm && <option value="manager">Manager</option>}</select></AddDialog></div>
+    <p className="mut">Plan <span className="tag">{tenant.plan}</span> · {tenant.m} Wall Template{tenant.m === 1 ? '' : 's'} per Broadcaster</p>
+    <div className="tiles">{members.map((m: any) => { const canEdit = adm && m.role === 'user'; const canRemove = adm && m.id !== me.id && m.role !== 'master_admin' && m.role !== 'webappdev';
+      return (<div key={m.id} className="card tile"><div className="tilelink"><b>{m.name}</b><span className="mut">{m.email}</span>
+        <span><span className="tag">{m.role}</span>{m.pending && <span className="tag">invite pending</span>}</span>
+        <span className="mut">{m.role === 'user' ? `${m.active} of ${m.max_jobs} active Jobs` : 'no Job limit'}</span></div>
+        {(canEdit || canRemove) && <Menu>
+          {canEdit && <><b>Active Jobs limit</b><form action={setUserMaxJobs} className="stack"><input type="hidden" name="id" value={m.id} /><input name="max" type="number" min="0" defaultValue={m.max_jobs} /><button className="sec">Save</button></form></>}
+          {canRemove && <form action={removeMember} className="del-row"><input type="hidden" name="id" value={m.id} /><span className="mut">Remove {m.name} from your workspace?</span><button className="del">Yes, remove</button></form>}</Menu>}</div>); })}</div></>);
 }

@@ -102,3 +102,4 @@ dialog.dlg{border:1px solid var(--line);border-radius:16px;padding:20px;width:mi
 dialog.dlg::backdrop{background:rgba(15,18,23,.5)}
 dialog.dlg label{display:flex;flex-direction:column;gap:4px;font-size:.8rem}
 .addrow{display:flex;justify-content:flex-end;margin:10px 0}.addrow.inline{margin:0}
+a.btn.small{min-height:34px;padding:0 12px;font-size:.9rem;border-radius:10px;background:var(--ink,#0f1217);color:#fff;border-color:transparent}

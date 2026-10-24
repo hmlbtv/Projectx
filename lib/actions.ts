@@ -225,17 +225,17 @@ export async function saveWall(id: number | null, name: string, assets: any[], b
   const r = (await one('insert into wall_templates(tenant_id,broadcaster_id,name,data) values($1,$2,$3,$4) returning id', [tid(me), broadcasterId, name, JSON.stringify({ assets: clean })]))!;
   revalidatePath('/walls'); return { id: r.id };
 }
-export async function deleteWall(f: FormData) { const me = await mgr(); await rows('delete from wall_templates where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/walls'); }
+export async function deleteWall(f: FormData) { const me = await mgr(); await rows('delete from room_walls where wall_template_id in (select id from wall_templates where id=$1 and tenant_id=$2)', [Number(s(f,'id')), tid(me)]); revalidatePath('/tenant'); await rows('delete from wall_templates where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/walls'); }
 
 // ---- MV Layouts: only Admin/Manager create custom ones ----
-export async function saveLayout(f: FormData) {
+export async function saveLayout(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const n = Math.min(Math.max(Number(s(f,'count')) || 1, 1), 36);
   const cols = Math.ceil(Math.sqrt(n)), rws = Math.ceil(n / cols), tiles: any[] = [];
   for (let i = 0; i < n; i++) { const c = i % cols, r = Math.floor(i / cols); tiles.push({ n: i + 1, x: c * 1600 / cols, y: r * 900 / rws, w: 1600 / cols, h: 900 / rws }); }
   // Only the site admin can make a Standard (global) layout, visible to every tenant.
   const standard = me.role === 'webappdev' && s(f, 'standard') === '1';
   await rows('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3)', [standard ? null : tid(me), s(f,'name') || `Custom ${n}`, JSON.stringify(tiles)]);
-  revalidatePath('/layouts');
+  revalidatePath('/layouts'); return { ok: 'Added.' };
 }
 export async function deleteLayout(f: FormData) { const me = await mgr(); await rows(me.role === 'webappdev' ? 'delete from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'delete from mv_layouts where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/layouts'); }
 
@@ -256,9 +256,9 @@ export async function addProduction(_: FormState, f: FormData): Promise<FormStat
   if (c >= l.p) return { error: `Your plan allows ${l.p} Production${l.p === 1 ? '' : 's'} per Broadcaster.` };
   if (s(f,'name')) await rows('insert into productions(broadcaster_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/productions'); return { ok: 'Added.' };
 }
-export async function addSourceSet(f: FormData) {
+export async function addSourceSet(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const list = s(f,'sources').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 500);
-  if (s(f,'name')) await rows('insert into source_sets(tenant_id,name,sources) values($1,$2,$3)', [tid(me), s(f,'name'), JSON.stringify(list)]); revalidatePath('/sources'); revalidatePath('/productions');
+  if (s(f,'name')) await rows('insert into source_sets(tenant_id,name,sources) values($1,$2,$3)', [tid(me), s(f,'name'), JSON.stringify(list)]); revalidatePath('/sources'); revalidatePath('/productions'); return { ok: 'Added.' };
 }
 export async function updateSourceSet(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id')); await own('sourceSets', id, me);
