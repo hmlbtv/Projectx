@@ -203,6 +203,13 @@ export async function addRoomWall(f: FormData) {
   await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, s(f,'name') || 'Wall']); revalidatePath('/tenant');
 }
 
+export async function removeRoomWall(f: FormData) {
+  const me = await mgr(); const id = Number(s(f, 'id'));
+  // only if the Room it sits in belongs to this tenant
+  await rows(`delete from room_walls where id=$1 and room_id in (select r.id from rooms r join locations l on l.id=r.location_id join sites st on st.id=l.site_id where st.tenant_id=$2)`, [id, tid(me)]);
+  revalidatePath('/tenant'); revalidatePath('/plans');
+}
+
 // ---- Wall Designer (each Wall Template belongs to a Broadcaster; demo tenants get 1 per Broadcaster) ----
 export async function saveWall(id: number | null, name: string, assets: any[], broadcasterId?: number | null): Promise<{ id?: number; error?: string }> {
   const me = await mgr();

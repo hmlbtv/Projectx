@@ -1,7 +1,7 @@
 import { rows } from '@/lib/db';
 import { requireMe, isAdmin, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
-import { addSite, addLocation, addRoom, renameNode, addRoomWall } from '@/lib/actions';
+import { addSite, addLocation, addRoom, renameNode, addRoomWall, removeRoomWall } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
 function Add({ action, parent, ph }: any) {
@@ -26,7 +26,7 @@ export default async function Tenant() {
         {locs.filter((l: any) => l.site_id === s.id).map((l: any) => (<div key={l.id}><b>Location</b><Rename table="locations" id={l.id} name={l.name} />
           <div className="tree"><Add action={addRoom} parent={l.id} ph="New Room" />
             {rms.filter((r: any) => r.location_id === l.id).map((r: any) => (<div key={r.id}><b>Room</b><Rename table="rooms" id={r.id} name={r.name} />
-              <div className="tree">{rw.filter((x: any) => x.room_id === r.id).map((x: any) => <div key={x.id}>▫ {x.name} <span className="mut">({x.wall})</span></div>)}
+              <div className="tree">{rw.filter((x: any) => x.room_id === r.id).map((x: any) => <form key={x.id} action={removeRoomWall} className="row" style={{ margin: '4px 0' }}><input type="hidden" name="id" value={x.id} />▫ {x.name} <span className="mut">({x.wall})</span><button className="del" style={{ minHeight: 0, padding: '2px 10px' }} title="Remove this Wall Template from the Room">Remove</button></form>)}
                 {rw.filter((x: any) => x.room_id === r.id).length === 0 && <div className="mut">No Wall Template yet. The Room is saved and can be used now; add a wall whenever it is ready.</div>}
                 {walls.length === 0 ? <div className="mut">No Wall Templates built yet - <a href="/walls">build one in the Wall Designer</a>, then add it here.</div> :
                 <form action={addRoomWall} className="row"><input type="hidden" name="room" value={r.id} /><input name="name" placeholder="Wall name in this Room" required />
