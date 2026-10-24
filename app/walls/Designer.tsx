@@ -4,10 +4,10 @@ import { saveWall } from '@/lib/actions';
 
 type A = { id: string; type: string; name: string; x: number; y: number; w: number; h: number };
 const PALETTE = [
-  { type: 'monitor', label: 'Monitor 16:9', w: 320, h: 180, color: '#1d3a6b' },
-  { type: 'monitor43', label: 'Monitor 4:3', w: 240, h: 180, color: '#1d3a6b' },
-  { type: 'speaker', label: 'Speaker', w: 60, h: 120, color: '#5a3a1d' },
-  { type: 'clock', label: 'Clock', w: 100, h: 100, color: '#3a1d5a' },
+  { type: 'monitor', label: 'Monitor 16:9', w: 320, h: 180, color: '#2b323d' },
+  { type: 'monitor43', label: 'Monitor 4:3', w: 240, h: 180, color: '#2b323d' },
+  { type: 'speaker', label: 'Speaker', w: 60, h: 120, color: '#3a3430' },
+  { type: 'clock', label: 'Clock', w: 100, h: 100, color: '#343a45' },
 ];
 const SNAP = 10, W = 1600, H = 900;
 const hit = (a: A, b: A) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -91,7 +91,7 @@ export default function Designer({ id, initialName, initial, broadcasterId }: { 
         <div className="card"><b>Add asset</b>{PALETTE.map(p => <div key={p.type}><button className="sec" onClick={() => add(p)}>+ {p.label}</button></div>)}</div>
         <div className="card"><b>Align (select several)</b><div className="row">
           {[['top', 'Top'], ['left', 'Left'], ['right', 'Right'], ['middle', 'Middle'], ['h', 'Space H'], ['v', 'Space V']].map(([k, l]) => <button key={k} className="sec" onClick={() => align(k)}>{l}</button>)}</div></div>
-        <div className="card"><b>Properties</b>{one ? <div>
+        <div className="card"><b>Properties</b><div style={{ height: 6 }} />{one ? <div>
           <div><input value={one.name} onChange={e => upd({ name: e.target.value })} /></div>
           X <input type="number" style={{ width: 70 }} value={one.x} onChange={e => upd({ x: +e.target.value })} /> Y <input type="number" style={{ width: 70 }} value={one.y} onChange={e => upd({ y: +e.target.value })} />
           <div><button className="del" onClick={() => { setAssets(assets.filter(a => a.id !== one.id)); setSel([]); }}>Delete</button></div></div> : <span className="mut">Select an asset. Shift-click for several; arrows nudge; Delete removes.</span>}</div>

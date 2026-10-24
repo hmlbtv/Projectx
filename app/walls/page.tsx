@@ -14,7 +14,7 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
   const pick = bcs.find((x: any) => String(x.id) === b);
   const cur = id === 'new' ? { id: null, name: 'New Wall Template', data: { assets: [] } } : list.find((w: any) => String(w.id) === id);
   return (<><h1>Wall Designer</h1>
-    <p className="mut">Plan allows {lim.m} Wall Template{lim.m === 1 ? '' : 's'} per Broadcaster <span className="tag">{lim.plan}</span>{bcs.map((x: any) => <span key={x.id} className="tag">{x.name}: {x.c} of {lim.m}</span>)}</p>
+    <p className="mut">Plan allows {lim.m >= 100000 ? 'unlimited' : lim.m} Wall Template{lim.m === 1 ? '' : 's'} per Broadcaster <span className="tag">{lim.plan}</span>{bcs.map((x: any) => <span key={x.id} className="tag">{x.name}: {x.c}{lim.m >= 100000 ? '' : ` of ${lim.m}`}</span>)}</p>
     <form className="row"><input name="q" placeholder="Search Wall Templates" defaultValue={q} /><button className="sec">Search</button><a href="/walls?id=new"><button type="button">New Wall Template</button></a></form>
     <div className="split" style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 12 }}>
       <div>{list.map((w: any) => (<div key={w.id} className="card"><a href={`/walls?id=${w.id}`}>{w.name}</a> <span className="mut">{w.bname ? w.bname + ' · ' : ''}{w.data.assets.length} assets</span>
