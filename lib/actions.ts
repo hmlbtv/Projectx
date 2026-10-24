@@ -290,9 +290,16 @@ export async function deleteBroadcaster(f: FormData) {
   await rows('delete from wall_templates where broadcaster_id=$1 and tenant_id=$2', [id, tid(me)]);
   await rows('delete from broadcasters where id=$1', [id]); revalidatePath('/productions'); revalidatePath('/walls'); revalidatePath('/tenant');
 }
-export async function assignRoom(f: FormData) {
-  const me = await mgr(); const job = Number(s(f,'job')), room = Number(s(f,'room')); await own('jobs', job, me); await own('rooms', room, me);
-  await rows('insert into job_rooms(job_id,room_id) values($1,$2) on conflict do nothing', [job, room]); revalidatePath('/productions');
+// A Wall Template sits in a Room (Sites page); a Job is then given the specific walls it will plan.
+const OWN_RW = 'select 1 from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where rw.id=$1 and s.tenant_id=$2';
+export async function assignWall(f: FormData) {
+  const me = await mgr(); const job = Number(s(f,'job')), wall = Number(s(f,'wall')); await own('jobs', job, me);
+  if (!wall || !(await one(OWN_RW, [wall, tid(me)]))) throw new Error('Not found');
+  await rows('insert into job_walls(job_id,room_wall_id) values($1,$2) on conflict do nothing', [job, wall]); revalidatePath('/productions'); revalidatePath('/plans');
+}
+export async function unassignWall(f: FormData) {
+  const me = await mgr(); const job = Number(s(f,'job')), wall = Number(s(f,'wall')); await own('jobs', job, me);
+  await rows('delete from job_walls where job_id=$1 and room_wall_id=$2', [job, wall]); revalidatePath('/productions'); revalidatePath('/plans');
 }
 export async function deleteJob(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
@@ -312,7 +319,7 @@ export async function savePlan(jobId: number, name: string, data: any) {
 }
 export async function addComment(f: FormData) {
   const me = await requireMe(); const job = Number(s(f,'job')), room = Number(s(f,'room'));
-  if (!(await canAccessJob(me, job)) || !(await one('select 1 from job_rooms where job_id=$1 and room_id=$2', [job, room]))) throw new Error('Not found');
+  if (!(await canAccessJob(me, job)) || !(await one('select 1 from job_walls jw join room_walls rw on rw.id=jw.room_wall_id where jw.job_id=$1 and rw.room_id=$2', [job, room]))) throw new Error('Not found');
   if (s(f,'body')) await rows('insert into comments(job_id,room_id,user_id,body) values($1,$2,$3,$4)', [job, room, me.id, s(f,'body').slice(0, 2000)]);
   revalidatePath('/plans');
 }
@@ -355,6 +362,7 @@ export async function loadDemoData() {
   const mk = async (name: string, day: number) => {
     const j = (await one(`insert into jobs(production_id,name,job_date,expires_at,source_set_id) values($1,$2,current_date + $3::int,current_date + $3::int + 30,$4) returning id`, [p.id, name, day, ss.id]))!;
     await rows('insert into job_rooms(job_id,room_id) values($1,$2)', [j.id, room.id]);
+    await rows('insert into job_walls(job_id,room_wall_id) values($1,$2)', [j.id, rw.id]);
     await rows('insert into job_users(job_id,user_id) values($1,$2) on conflict do nothing', [j.id, me.id]);
     return j.id as number;
   };

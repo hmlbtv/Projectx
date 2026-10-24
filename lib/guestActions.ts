@@ -18,7 +18,7 @@ export async function createWallLink(_: FormState, f: FormData): Promise<FormSta
   const access = s(f, 'access') === 'view' ? 'view' : 'edit';
   if (!(await allow('wall-link', String(me.id), 60, 60))) return { error: 'Too many requests. Please wait a while and try again.' };
   const ok = await one(`select 1 from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id
-    join job_rooms jr on jr.job_id=j.id join room_walls rw on rw.room_id=jr.room_id where j.id=$1 and rw.id=$2 and b.tenant_id=$3`, [job, wall, tenant]);
+    join job_walls jw on jw.job_id=j.id join room_walls rw on rw.id=jw.room_wall_id where j.id=$1 and rw.id=$2 and b.tenant_id=$3`, [job, wall, tenant]);
   if (!ok) return { error: 'Choose a wall that belongs to this Job.' };
   const contact = await one(`select c.id, c.email from contacts c join production_contacts pc on pc.contact_id=c.id join jobs j on j.production_id=pc.production_id
     where c.id=$1 and c.tenant_id=$2 and j.id=$3`, [Number(s(f, 'contact')), tenant, job]);

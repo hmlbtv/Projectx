@@ -23,6 +23,7 @@ create table if not exists jobs(id serial primary key, production_id int not nul
 create table if not exists job_rooms(job_id int not null references jobs(id) on delete cascade, room_id int not null references rooms(id), primary key(job_id, room_id));
 create table if not exists job_users(job_id int not null references jobs(id) on delete cascade, user_id int not null references users(id), primary key(job_id, user_id));
 create table if not exists monitor_plans(id serial primary key, job_id int not null references jobs(id) on delete cascade, user_id int not null, name text not null, data jsonb not null default '{}', updated_at timestamptz default now());
+create table if not exists job_walls(job_id int not null references jobs(id) on delete cascade, room_wall_id int not null references room_walls(id) on delete cascade, primary key(job_id, room_wall_id));
 create table if not exists wall_links(id serial primary key, job_id int not null references jobs(id) on delete cascade, room_wall_id int not null references room_walls(id) on delete cascade, email text not null, access text not null default 'edit', token_hash text unique not null, revoked boolean not null default false, created_by int, created_at timestamptz not null default now());
 alter table monitor_plans add column if not exists link_id int references wall_links(id) on delete cascade;
 create table if not exists user_emails(email text primary key, user_id int not null references users(id) on delete cascade, verified boolean not null default false, token_hash text, expires_at timestamptz);
@@ -79,7 +80,10 @@ async function init(): Promise<Client> {
     mkdirSync(dir, { recursive: true });
     client = new PGlite(dir) as unknown as Client;
   }
+  const hadJobWalls = (await client.query("select to_regclass('public.job_walls') t")).rows[0].t;
   await client.exec(SCHEMA);
+  // One-time: Jobs used to be given whole Rooms; carry that over as the Room's current walls.
+  if (!hadJobWalls) await client.query('insert into job_walls(job_id,room_wall_id) select jr.job_id, rw.id from job_rooms jr join room_walls rw on rw.room_id=jr.room_id on conflict do nothing');
   await bootstrap(client);
   return client;
 }
@@ -129,6 +133,7 @@ async function seedDemo(db: Client) {
   const p = (await q("insert into productions(broadcaster_id,name) values($1,'Evening Show') returning id",[b]))[0].id;
   const j = (await q("insert into jobs(production_id,name,job_date,final_date,expires_at,source_set_id) values($1,'Show Day 1',current_date+1,current_date+1,current_date+6,$2) returning id",[p,ss]))[0].id;
   await q('insert into job_rooms(job_id,room_id) values($1,$2)',[j,room]);
+  await q('insert into job_walls(job_id,room_wall_id) select $1,id from room_walls where room_id=$2',[j,room]);
   const u = (await q("select id from users where email='user@demo.test'"))[0].id;
   await q('insert into job_users(job_id,user_id) values($1,$2)',[j,u]);
 }

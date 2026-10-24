@@ -6,7 +6,7 @@ import { revokeWallLink } from '@/lib/guestActions';
 import { rows } from '@/lib/db';
 import { requireMe, canManage, isAdmin } from '@/lib/session';
 import { redirect } from 'next/navigation';
-import { addBroadcaster, addProduction, addJob, assignRoom, removeJobUser, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob } from '@/lib/actions';
+import { addBroadcaster, addProduction, addJob, removeJobUser, assignWall, unassignWall, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
 export default async function Productions() {
@@ -16,15 +16,14 @@ export default async function Productions() {
   const bs = await rows('select * from broadcasters where tenant_id=$1 order by id', [t]);
   const ps = await rows('select p.* from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 order by p.id', [t]);
   const js = await rows('select j.*, ss.name ss_name from jobs j left join source_sets ss on ss.id=j.source_set_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 and (j.expires_at is null or j.expires_at >= current_date) order by j.job_date', [t]);
-  const rw = await rows(`select jr.job_id, rw.id, rw.name wname, r.name rname from job_rooms jr join rooms r on r.id=jr.room_id join room_walls rw on rw.room_id=r.id
+  const rw = await rows(`select jw.job_id, rw.id, rw.name wname, r.name rname from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join rooms r on r.id=rw.room_id
     join locations l on l.id=r.location_id join sites st on st.id=l.site_id where st.tenant_id=$1`, [t]);
   const wl = await rows(`select wl.id, wl.job_id, wl.email, wl.access, wl.revoked, rw.name wname from wall_links wl join room_walls rw on rw.id=wl.room_wall_id
     join jobs jb on jb.id=wl.job_id join productions pr on pr.id=jb.production_id join broadcasters bc on bc.id=pr.broadcaster_id where bc.tenant_id=$1 order by wl.id`, [t]);
   const contacts = await rows('select id,name,email,company from contacts where tenant_id=$1 order by name', [t]);
   const pcs = await rows('select pc.production_id, pc.contact_id from production_contacts pc join contacts c on c.id=pc.contact_id where c.tenant_id=$1', [t]);
   const sets = await rows('select * from source_sets where tenant_id=$1', [t]);
-  const rooms = await rows('select r.id, r.name, l.name loc, s.name site from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1', [t]);
-  const jr = await rows('select jr.job_id, r.name from job_rooms jr join rooms r on r.id=jr.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1', [t]);
+  const allWalls = await rows('select rw.id, rw.name, r.name room, l.name loc, s.name site from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name, l.name, r.name, rw.name', [t]);
   const ju = await rows('select ju.job_id, ju.user_id, u.email from job_users ju join users u on u.id=ju.user_id where u.tenant_id=$1', [t]);
   const adm = isAdmin(me); const d = (x: any) => x ? new Date(x).toISOString().slice(0, 10) : '';
   const Del = ({ action, id, what }: { action: any; id: number; what: string }) => adm ? (<details className="sub"><summary className="mut">Delete…</summary>
@@ -47,8 +46,8 @@ export default async function Productions() {
                 <input type="date" name="date" title="Job date" defaultValue={d(j.job_date)} /><input type="date" name="final" title="Final date" defaultValue={d(j.final_date)} /><input type="date" name="expires" title="Expiry" defaultValue={d(j.expires_at)} />
                 <select name="sourceSet" defaultValue={j.source_set_id ?? ''}><option value="">Source Set…</option>{sets.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}</select><button className="sec">Save</button></form></details>
               <Del action={deleteJob} id={j.id} what="Job" />
-              <div>Rooms: {jr.filter((x: any) => x.job_id === j.id).map((x: any) => <span key={x.name} className="tag">{x.name}</span>)}</div>
-              <form action={assignRoom} className="row"><input type="hidden" name="job" value={j.id} /><select name="room">{rooms.map((r: any) => <option key={r.id} value={r.id}>{r.site} / {r.loc} / {r.name}</option>)}</select><button className="sec">Add Room</button></form>
+              <div>Wall Templates: {rw.filter((x: any) => x.job_id === j.id).length === 0 && <span className="mut">none assigned yet</span>}{rw.filter((x: any) => x.job_id === j.id).map((x: any) => <form key={x.id} action={unassignWall} style={{ display: 'inline' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="wall" value={x.id} /><span className="tag">{x.rname} / {x.wname} <button title="Remove from Job" style={{ background: 'none', color: 'inherit', padding: 0 }}>×</button></span></form>)}</div>
+              <form action={assignWall} className="row"><input type="hidden" name="job" value={j.id} /><select name="wall" required>{allWalls.length === 0 && <option value="">Add a Wall Template to a Room on the Sites page first</option>}{allWalls.filter((w: any) => !rw.some((x: any) => x.job_id === j.id && x.id === w.id)).map((w: any) => <option key={w.id} value={w.id}>{w.site} / {w.loc} / {w.room} / {w.name}</option>)}</select><button className="sec">Assign Wall Template</button></form>
               <div>Users: {ju.filter((x: any) => x.job_id === j.id).map((x: any) => <form key={x.email} action={removeJobUser} style={{ display: 'inline' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="user" value={x.user_id} /><span className="tag">{x.email} <button title="Remove from Job" style={{ background: 'none', color: 'inherit', padding: 0 }}>×</button></span></form>)}</div>
               <InviteUser job={j.id} />
               <div style={{ marginTop: 8 }}><b>Share a wall with a guest</b> <span className="mut">(they sign in with the contact's email and see everything shared with them in one place)</span>

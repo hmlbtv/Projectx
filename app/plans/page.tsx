@@ -14,7 +14,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
   if (!cur) return (<><h1>Monitor Plans</h1>{jobs.length === 0 && <p className="mut">No active Jobs assigned to you.</p>}
     {jobs.map((j: any) => <div key={j.id} className="card"><a href={`/plans?job=${j.id}`}>{j.prod} / {j.name}</a> <span className="mut">{String(j.job_date).slice(0, 10)}</span></div>)}</>);
   const j = (await rows('select j.*, ss.sources from jobs j left join source_sets ss on ss.id=j.source_set_id where j.id=$1', [cur.id]))[0];
-  const rws = await rows(`select r.id room_id, r.name room, rw.id, rw.name from job_rooms jr join rooms r on r.id=jr.room_id left join room_walls rw on rw.room_id=r.id where jr.job_id=$1 order by r.id, rw.id`, [cur.id]);
+  const rws = await rows(`select r.id room_id, r.name room, rw.id, rw.name from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join rooms r on r.id=rw.room_id where jw.job_id=$1 order by r.id, rw.id`, [cur.id]);
   // MV Layouts come from the Job's own tenant (plus shared presets) - never from the viewer's tenant.
   const layouts = await rows('select l.id,l.name,l.tiles from mv_layouts l where l.tenant_id is null or l.tenant_id=(select b.tenant_id from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where j.id=$1) order by l.tenant_id nulls first,l.id', [cur.id]);
   const saved = await rows('select name,data from monitor_plans where job_id=$1 and user_id=$2 order by id', [cur.id, me.id]);
