@@ -29,7 +29,7 @@ export default async function Productions() {
   const Del = ({ action, id, what }: { action: any; id: number; what: string }) => adm ? (<details className="sub"><summary className="mut">Delete…</summary>
     <form action={action} className="row"><input type="hidden" name="id" value={id} /><span>Delete this {what} and everything inside it? This cannot be undone.</span><button className="del">Yes, delete</button></form></details>) : null;
   return (<><h1>Productions</h1>
-    <p className="mut">Choose a Broadcaster to see its Productions, then a Production to see its Jobs. Limits: {lim.b} Broadcaster{lim.b === 1 ? '' : 's'}, {lim.p} Productions each, {lim.j} active Jobs each. Jobs are archived when they expire.</p>
+    <p className="mut">Choose a Broadcaster to see its Productions, then a Production to see its Jobs. {me.role === 'webappdev' ? 'No limits on this account.' : <>Limits: {lim.b} Broadcaster{lim.b === 1 ? '' : 's'}, {lim.p} Productions each, {lim.j} active Jobs each.</>} Jobs are archived when they expire.</p>
     <ActionForm action={addBroadcaster} className="row"><input name="name" placeholder="New Broadcaster" required /><button>Add Broadcaster</button></ActionForm>
     {bs.map((b: any) => (<details key={b.id} className="card acc"><summary><b>{b.name}</b> <span className="mut">Broadcaster · {ps.filter((p: any) => p.broadcaster_id === b.id).length} Production{ps.filter((p: any) => p.broadcaster_id === b.id).length === 1 ? '' : 's'}</span></summary>
       <details className="sub"><summary className="mut">Edit Broadcaster</summary><form action={updateBroadcaster} className="row"><input type="hidden" name="id" value={b.id} /><input name="name" defaultValue={b.name} required /><button className="sec">Save</button></form></details>

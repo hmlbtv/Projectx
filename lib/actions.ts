@@ -206,7 +206,7 @@ export async function saveWall(id: number | null, name: string, assets: any[], b
   if (!broadcasterId) return { error: 'Choose a Broadcaster for this Wall Template.' };
   await own('broadcasters', broadcasterId, me);
   const t = (await one('select max_walls_per_broadcaster m, (select count(*)::int from wall_templates where broadcaster_id=$2) c from tenants where id=$1', [tid(me), broadcasterId]))!;
-  if (t.c >= t.m) return { error: `Your plan allows ${t.m} Wall Template${t.m === 1 ? '' : 's'} per Broadcaster (this one has ${t.c}). Contact us to upgrade.` };
+  if (me.role !== 'webappdev' && t.c >= t.m) return { error: `Your plan allows ${t.m} Wall Template${t.m === 1 ? '' : 's'} per Broadcaster (this one has ${t.c}). Contact us to upgrade.` };
   const r = (await one('insert into wall_templates(tenant_id,broadcaster_id,name,data) values($1,$2,$3,$4) returning id', [tid(me), broadcasterId, name, JSON.stringify({ assets: clean })]))!;
   revalidatePath('/walls'); return { id: r.id };
 }
@@ -226,7 +226,9 @@ export async function deleteLayout(f: FormData) { const me = await mgr(); await 
 
 // ---- Productions: Broadcaster > Production > Job ----
 // Plan limits (demo default: 2 Broadcasters, 3 Productions each, 4 active Jobs each; the site admin can change them per tenant)
-async function limits(me: Me) { return (await one('select max_broadcasters b, max_productions p, max_jobs_per_production j from tenants where id=$1', [tid(me)]))!; }
+// The site admin (webappdev) is never limited.
+const NO_LIMIT = { b: 1e9, p: 1e9, j: 1e9 };
+async function limits(me: Me) { if (me.role === 'webappdev') return NO_LIMIT; return (await one('select max_broadcasters b, max_productions p, max_jobs_per_production j from tenants where id=$1', [tid(me)]))!; }
 export async function addBroadcaster(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const l = await limits(me);
   const c = (await one('select count(*)::int c from broadcasters where tenant_id=$1', [tid(me)]))!.c;
