@@ -2,6 +2,7 @@ import { rows } from '@/lib/db';
 import { requireMe, canManage } from '@/lib/session';
 import { addComment } from '@/lib/actions';
 import Plan from './Plan';
+import { savePlan } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
 export default async function Plans({ searchParams }: { searchParams: Promise<{ job?: string }> }) {
@@ -16,11 +17,11 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
   // MV Layouts come from the Job's own tenant (plus shared presets) - never from the viewer's tenant.
   const layouts = await rows('select l.id,l.name,l.tiles from mv_layouts l where l.tenant_id is null or l.tenant_id=(select b.tenant_id from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where j.id=$1) order by l.tenant_id nulls first,l.id', [cur.id]);
   const saved = await rows('select name,data from monitor_plans where job_id=$1 and user_id=$2 order by id', [cur.id, me.id]);
-  const comments = await rows('select c.*, u.name uname from comments c join users u on u.id=c.user_id where c.job_id=$1 order by c.id', [cur.id]);
+  const comments = await rows(`select c.*, coalesce(u.name, c.guest_email || ' (guest)') uname from comments c left join users u on u.id=c.user_id where c.job_id=$1 order by c.id`, [cur.id]);
   const roomIds = [...new Set(rws.map((r: any) => r.room_id))];
   return (<><a href="/plans">← Jobs</a><h1>{cur.prod} / {cur.name}</h1>
     {roomIds.map(rid => { const rs = rws.filter((r: any) => r.room_id === rid); return (<div key={rid}><h2>Room: {rs[0].room}</h2>
-      {rs.filter((r: any) => r.id).length === 0 ? <div className="card mut">No Wall Template has been added to this Room yet. Check back once it has been set up.</div> : <Plan jobId={cur.id} walls={rs.filter((r: any) => r.id).map((r: any) => ({ id: r.id, name: r.name }))} layouts={layouts} sources={j.sources ?? []} saved={saved} />}
+      {rs.filter((r: any) => r.id).length === 0 ? <div className="card mut">No Wall Template has been added to this Room yet. Check back once it has been set up.</div> : <Plan save={savePlan.bind(null, cur.id)} walls={rs.filter((r: any) => r.id).map((r: any) => ({ id: r.id, name: r.name }))} layouts={layouts} sources={j.sources ?? []} saved={saved} />}
       <div className="card"><b>Comments</b>{comments.filter((c: any) => c.room_id === rid).map((c: any) => <div key={c.id}><b>{c.uname}</b>: {c.body}</div>)}
         <form action={addComment} className="row"><input type="hidden" name="job" value={cur.id} /><input type="hidden" name="room" value={rid} /><input name="body" placeholder="Add a comment" required style={{ flex: 1 }} /><button className="sec">Post</button></form></div></div>); })}</>);
 }

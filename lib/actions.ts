@@ -1,17 +1,17 @@
 'use server';
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { one, rows } from './db';
 import { requireMe, canManage, isAdmin, createSession, destroySession, type Me } from './session';
 import { allow, clientIp } from './security';
+import { emailOn, sendMail, baseUrl } from './mail';
 import { verifyPassword, hashPassword, passwordProblem, newToken, sha256 } from './password';
 
 const tid = (me: any) => me.tenant_id ?? 0;
 const s = (f: FormData, k: string) => String(f.get(k) ?? '').trim().slice(0, k === 'sources' ? 20000 : 200);
 const TOO_MANY: FormState = { error: 'Too many requests. Please wait a while and try again.' };
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-export type FormState = { error?: string; ok?: string; link?: string } | undefined;
+export type FormState = { error?: string; ok?: string; link?: string; step?: string } | undefined;
 
 async function mgr() { const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only'); return me; }
 
@@ -33,21 +33,6 @@ async function own(kind: keyof typeof OWN, id: number, me: Me) {
 async function canAccessJob(me: Me, jobId: number) {
   if (await one('select 1 from job_users where job_id=$1 and user_id=$2', [jobId, me.id])) return true;
   return canManage(me) && !!(await one(OWN.jobs, [jobId, tid(me)]));
-}
-
-// ---- Email (Resend). Without RESEND_API_KEY nothing is sent. ----
-const emailOn = () => !!process.env.RESEND_API_KEY;
-async function sendMail(to: string, subject: string, text: string) {
-  if (!emailOn()) return false;
-  const r = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: process.env.MAIL_FROM || 'Gallery Planner <onboarding@resend.dev>', to, subject, text }) });
-  return r.ok;
-}
-async function baseUrl() {
-  // Links in emails must not depend on the request's Host header (host-header poisoning).
-  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  const h = await headers(); return `${h.get('x-forwarded-proto') ?? 'http'}://${h.get('host')}`;
 }
 
 // ---- Authentication ----
@@ -137,7 +122,6 @@ async function invite(me: Me, email: string, role: string, jobId?: number): Prom
   if (!EMAIL.test(email)) return { error: 'Enter a valid email address.' };
   let u = await one('select id,tenant_id,password_hash from users where email=$1', [email]);
   if (u && u.tenant_id && u.tenant_id !== tid(me)) return { error: 'That email already belongs to another team.' };
-  if (u && !u.tenant_id) await rows('update users set tenant_id=$1 where id=$2 and role=\'onetime\'', [tid(me), u.id]); // legacy tenant-less guests join the inviting tenant
   // Every account, including One-Time Users, belongs to exactly one tenant.
   if (!u) u = await one("insert into users(email,name,role,tenant_id,email_verified) values($1,$1,$2,$3,true) returning id,tenant_id,password_hash", [email, role, tid(me)]);
   if (jobId) {
@@ -159,7 +143,7 @@ async function invite(me: Me, email: string, role: string, jobId?: number): Prom
 }
 export async function inviteUser(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const job = Number(s(f, 'job')); await own('jobs', job, me);
-  return invite(me, s(f, 'email').toLowerCase(), ['user', 'onetime'].includes(s(f, 'role')) ? s(f, 'role') : 'user', job);
+  return invite(me, s(f, 'email').toLowerCase(), 'user', job);
 }
 export async function inviteTeam(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr();

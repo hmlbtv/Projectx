@@ -23,6 +23,10 @@ create table if not exists jobs(id serial primary key, production_id int not nul
 create table if not exists job_rooms(job_id int not null references jobs(id) on delete cascade, room_id int not null references rooms(id), primary key(job_id, room_id));
 create table if not exists job_users(job_id int not null references jobs(id) on delete cascade, user_id int not null references users(id), primary key(job_id, user_id));
 create table if not exists monitor_plans(id serial primary key, job_id int not null references jobs(id) on delete cascade, user_id int not null, name text not null, data jsonb not null default '{}', updated_at timestamptz default now());
+create table if not exists wall_links(id serial primary key, job_id int not null references jobs(id) on delete cascade, room_wall_id int not null references room_walls(id) on delete cascade, email text not null, access text not null default 'edit', token_hash text unique not null, revoked boolean not null default false, created_by int, created_at timestamptz not null default now());
+create table if not exists link_codes(link_id int primary key references wall_links(id) on delete cascade, code_hash text not null, expires_at timestamptz not null, tries int not null default 0);
+create table if not exists guest_sessions(id text primary key, link_id int not null references wall_links(id) on delete cascade, expires_at timestamptz not null);
+alter table monitor_plans add column if not exists link_id int references wall_links(id) on delete cascade;
 create table if not exists attempts(key text not null, at timestamptz not null default now());
 create index if not exists attempts_key_at on attempts(key, at);
 alter table tenants add column if not exists plan text not null default 'demo';
@@ -37,6 +41,10 @@ alter table users add column if not exists max_jobs int not null default 5;
 alter table users add column if not exists verify_hash text;
 alter table users add column if not exists verify_expires timestamptz;
 create table if not exists comments(id serial primary key, job_id int not null references jobs(id) on delete cascade, room_id int not null, user_id int not null, body text not null, created_at timestamptz default now());
+alter table comments add column if not exists guest_email text;
+create table if not exists contacts(id serial primary key, tenant_id int not null references tenants(id) on delete cascade, name text not null, email text not null, company text not null default '', created_at timestamptz not null default now(), unique(tenant_id,email));
+create table if not exists production_contacts(production_id int not null references productions(id) on delete cascade, contact_id int not null references contacts(id) on delete cascade, primary key(production_id, contact_id));
+alter table wall_links add column if not exists contact_id int references contacts(id) on delete set null;
 `;
 
 function grid(cols: number, rows: number) {

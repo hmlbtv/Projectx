@@ -1,5 +1,7 @@
 import ActionForm from './ActionForm';
 import InviteUser from './InviteUser';
+import ShareWall from './ShareWall';
+import { revokeWallLink } from '@/lib/guestActions';
 import { rows } from '@/lib/db';
 import { requireMe, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
@@ -13,6 +15,12 @@ export default async function Productions() {
   const bs = await rows('select * from broadcasters where tenant_id=$1 order by id', [t]);
   const ps = await rows('select p.* from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 order by p.id', [t]);
   const js = await rows('select j.*, ss.name ss_name from jobs j left join source_sets ss on ss.id=j.source_set_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 and (j.expires_at is null or j.expires_at >= current_date) order by j.job_date', [t]);
+  const rw = await rows(`select jr.job_id, rw.id, rw.name wname, r.name rname from job_rooms jr join rooms r on r.id=jr.room_id join room_walls rw on rw.room_id=r.id
+    join locations l on l.id=r.location_id join sites st on st.id=l.site_id where st.tenant_id=$1`, [t]);
+  const wl = await rows(`select wl.id, wl.job_id, wl.email, wl.access, wl.revoked, rw.name wname from wall_links wl join room_walls rw on rw.id=wl.room_wall_id
+    join jobs jb on jb.id=wl.job_id join productions pr on pr.id=jb.production_id join broadcasters bc on bc.id=pr.broadcaster_id where bc.tenant_id=$1 order by wl.id`, [t]);
+  const contacts = await rows('select id,name,email,company from contacts where tenant_id=$1 order by name', [t]);
+  const pcs = await rows('select pc.production_id, pc.contact_id from production_contacts pc join contacts c on c.id=pc.contact_id where c.tenant_id=$1', [t]);
   const sets = await rows('select * from source_sets where tenant_id=$1', [t]);
   const rooms = await rows('select r.id, r.name, l.name loc, s.name site from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1', [t]);
   const jr = await rows('select jr.job_id, r.name from job_rooms jr join rooms r on r.id=jr.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1', [t]);
@@ -32,5 +40,10 @@ export default async function Productions() {
               <div>Rooms: {jr.filter((x: any) => x.job_id === j.id).map((x: any) => <span key={x.name} className="tag">{x.name}</span>)}</div>
               <form action={assignRoom} className="row"><input type="hidden" name="job" value={j.id} /><select name="room">{rooms.map((r: any) => <option key={r.id} value={r.id}>{r.site} / {r.loc} / {r.name}</option>)}</select><button className="sec">Add Room</button></form>
               <div>Users: {ju.filter((x: any) => x.job_id === j.id).map((x: any) => <form key={x.email} action={removeJobUser} style={{ display: 'inline' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="user" value={x.user_id} /><span className="tag">{x.email} <button title="Remove from Job" style={{ background: 'none', color: 'inherit', padding: 0 }}>×</button></span></form>)}</div>
-              <InviteUser job={j.id} /></div>))}</div></div>))}</div></div>))}</>);
+              <InviteUser job={j.id} />
+              <div style={{ marginTop: 8 }}><b>Share a wall with a guest</b> <span className="mut">(one wall, tied to the contact's email)</span>
+                <ShareWall job={j.id} production={p.id} assigned={contacts.filter((c: any) => pcs.some((x: any) => x.production_id === p.id && x.contact_id === c.id))} others={contacts.filter((c: any) => !pcs.some((x: any) => x.production_id === p.id && x.contact_id === c.id))} walls={rw.filter((x: any) => x.job_id === j.id).map((x: any) => ({ id: x.id, label: `${x.rname} / ${x.wname}` }))} />
+                {wl.filter((x: any) => x.job_id === j.id).map((x: any) => (<form key={x.id} action={revokeWallLink} className="row" style={{ margin: '2px 0' }}><input type="hidden" name="id" value={x.id} />
+                  <span className="tag">{x.wname}</span><span className="tag">{x.email}</span><span className="tag">{x.access === 'edit' ? 'can edit' : 'view only'}</span>
+                  {x.revoked ? <span className="tag">switched off</span> : <button className="del" style={{ minHeight: 0, padding: '2px 10px' }}>Switch off</button>}</form>))}</div></div>))}</div></div>))}</div></div>))}</>);
 }

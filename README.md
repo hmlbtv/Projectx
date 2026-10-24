@@ -11,6 +11,7 @@ Local demo logins (password `demo-password-1`): master@demo.test, admin@demo.tes
 - `DATABASE_URL` - set by the Neon integration.
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD` - creates the site admin (WebAppDev) on first run. That account sees the Site admin page where tenant plans and Wall Template limits are set. Change the password in Account after signing in.
 - `RESEND_API_KEY`, `MAIL_FROM` - sends verification, invite and password-reset emails (Resend, free tier, available in the Vercel Marketplace). `MAIL_FROM` must use a domain verified in Resend, e.g. `Gallery Planner <hello@yourdomain.com>`; the default test sender only delivers to your own address. Without these, new sign-ups are not email-verified and invite links are shown to the Manager to pass on.
+- Guests open a shared wall link and confirm their email with a one-time code, so `RESEND_API_KEY` is required for shared wall links in production. `DEV_SHOW_CODES=1` shows the code on screen for local testing only - never set it in production.
 - `APP_URL` - optional; base URL used in invite links.
 
 ## Security
