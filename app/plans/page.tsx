@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export default async function Plans({ searchParams }: { searchParams: Promise<{ job?: string }> }) {
   const me = await requireMe(); if (me.role === 'onetime') redirect('/shared'); const { job } = await searchParams;
   const jobs = await rows(`select j.id,j.name,j.job_date,p.name prod from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id
-    where j.expires_at >= current_date and (j.id in (select job_id from job_users where user_id=$1) or ($2 and b.tenant_id=$3)) order by j.job_date`, [me.id, canManage(me), me.tenant_id ?? 0]);
+    where (j.expires_at is null or j.expires_at >= current_date) and (j.id in (select job_id from job_users where user_id=$1) or ($2 and b.tenant_id=$3)) order by j.job_date`, [me.id, canManage(me), me.tenant_id ?? 0]);
   const cur = jobs.find((j: any) => String(j.id) === job);
   if (!cur) return (<><h1>Monitor Plans</h1>{jobs.length === 0 && <p className="mut">No active Jobs assigned to you.</p>}
     {jobs.map((j: any) => <div key={j.id} className="card"><a href={`/plans?job=${j.id}`}>{j.prod} / {j.name}</a> <span className="mut">{String(j.job_date).slice(0, 10)}</span></div>)}</>);
