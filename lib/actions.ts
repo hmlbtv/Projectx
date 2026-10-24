@@ -262,6 +262,34 @@ export async function addJob(_: FormState, f: FormData): Promise<FormState> {
     values($1,$2,$3,$4,coalesce($5::date,$4::date+5),$6)`, [p, s(f,'name'), s(f,'date') || null, fin, exp, ss]);
   revalidatePath('/productions'); return { ok: 'Added.' };
 }
+export async function updateBroadcaster(f: FormData) {
+  const me = await mgr(); const id = Number(s(f,'id')); await own('broadcasters', id, me);
+  if (s(f,'name')) await rows('update broadcasters set name=$1 where id=$2', [s(f,'name'), id]); revalidatePath('/productions');
+}
+export async function updateProduction(f: FormData) {
+  const me = await mgr(); const id = Number(s(f,'id')); await own('productions', id, me);
+  if (s(f,'name')) await rows('update productions set name=$1 where id=$2', [s(f,'name'), id]); revalidatePath('/productions');
+}
+export async function updateJob(f: FormData) {
+  const me = await mgr(); const id = Number(s(f,'id')); await own('jobs', id, me);
+  const ss = Number(s(f,'sourceSet')) || null; if (ss) await own('sourceSets', ss, me);
+  const fin = s(f,'final') || s(f,'date') || null, exp = s(f,'expires') || null;
+  if (s(f,'name')) await rows(`update jobs set name=$1,job_date=$2,final_date=$3,expires_at=coalesce($4::date,$3::date+5),source_set_id=$5 where id=$6`, [s(f,'name'), s(f,'date') || null, fin, exp, ss, id]);
+  revalidatePath('/productions'); revalidatePath('/plans');
+}
+// Deleting removes everything underneath (Productions, Jobs, their Monitor Plans and guest links). Admin only.
+export async function deleteProduction(f: FormData) {
+  const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
+  const id = Number(s(f,'id')); await own('productions', id, me);
+  await rows('delete from productions where id=$1', [id]); revalidatePath('/productions'); revalidatePath('/plans');
+}
+export async function deleteBroadcaster(f: FormData) {
+  const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
+  const id = Number(s(f,'id')); await own('broadcasters', id, me);
+  await rows('delete from room_walls where wall_template_id in (select id from wall_templates where broadcaster_id=$1 and tenant_id=$2)', [id, tid(me)]);
+  await rows('delete from wall_templates where broadcaster_id=$1 and tenant_id=$2', [id, tid(me)]);
+  await rows('delete from broadcasters where id=$1', [id]); revalidatePath('/productions'); revalidatePath('/walls'); revalidatePath('/tenant');
+}
 export async function assignRoom(f: FormData) {
   const me = await mgr(); const job = Number(s(f,'job')), room = Number(s(f,'room')); await own('jobs', job, me); await own('rooms', room, me);
   await rows('insert into job_rooms(job_id,room_id) values($1,$2) on conflict do nothing', [job, room]); revalidatePath('/productions');
@@ -269,7 +297,7 @@ export async function assignRoom(f: FormData) {
 export async function deleteJob(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
   const id = Number(s(f, 'id')); await own('jobs', id, me);
-  await rows('delete from jobs where id=$1', [id]); revalidatePath('/archive'); revalidatePath('/productions');
+  await rows('delete from jobs where id=$1', [id]); revalidatePath('/archive'); revalidatePath('/productions'); revalidatePath('/plans');
 }
 
 // ---- Monitor Plans ----

@@ -72,3 +72,10 @@ svg{max-width:100%;height:auto}
 .limits{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-items:end;border-top:1px solid var(--line);padding-top:12px}
 .limits label{display:flex;flex-direction:column;gap:4px;font-size:.8rem}.limits input{width:100%}
 .stack{display:flex;flex-direction:column;gap:10px}.stack textarea{width:100%}
+
+details.acc>summary{cursor:pointer;list-style:none;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;padding:6px 0;position:relative;padding-left:22px}
+details.acc>summary::-webkit-details-marker{display:none}
+details.acc>summary::before{content:"";position:absolute;left:4px;top:.85em;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+details.acc[open]>summary::before{transform:rotate(45deg)}
+details.acc.card>summary{font-size:1.05rem}
+details.sub{margin:4px 0 4px 22px}details.sub>summary{cursor:pointer;font-size:.85rem}
