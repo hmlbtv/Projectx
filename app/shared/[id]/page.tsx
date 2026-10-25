@@ -12,7 +12,7 @@ export default async function SharedWall({ params }: { params: Promise<{ id: str
   const link = await one(`select wl.id, wl.job_id, wl.room_wall_id, wl.access, j.name job, j.source_set_id, p.name prod, t.name tenant, t.id tenant_id, rw.name wall, r.id room_id, r.name room
     from wall_links wl join jobs j on j.id=wl.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id join tenants t on t.id=b.tenant_id
     join room_walls rw on rw.id=wl.room_wall_id join rooms r on r.id=rw.room_id
-    where wl.id=$1 and lower(wl.email) in ${myEmails(2)} and not wl.revoked and (j.expires_at is null or j.expires_at >= current_date)`, [Number(id) || 0, me.id]);
+    where wl.id=$1 and lower(wl.email) in ${myEmails(2)} and not wl.revoked and (j.expires_at is null or j.expires_at >= current_date) and (select tn.status from tenants tn join broadcasters bb on bb.tenant_id=tn.id join productions pp on pp.broadcaster_id=bb.id where pp.id=j.production_id)='active'`, [Number(id) || 0, me.id]);
   if (!link) notFound();
   const layouts = await rows('select id,name,tiles from mv_layouts where tenant_id is null or tenant_id=$1 order by tenant_id nulls first,id', [link.tenant_id]);
   const src = link.source_set_id ? await one('select sources from source_sets where id=$1', [link.source_set_id]) : null;

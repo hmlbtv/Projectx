@@ -40,7 +40,7 @@ export async function revokeWallLink(f: FormData) {
 export async function signUpGuest(_: FormState, f: FormData): Promise<FormState> {
   if (s(f, 'website')) return { error: 'Could not create the account.' };
   if (!(await allow('signup', await clientIp(), 5, 60))) return { error: 'Too many requests. Please wait a while and try again.' };
-  const link = await one(`select wl.email from wall_links wl join jobs j on j.id=wl.job_id where wl.token_hash=$1 and not wl.revoked and (j.expires_at is null or j.expires_at >= current_date)`, [sha256(s(f, 'token'))]);
+  const link = await one(`select wl.email from wall_links wl join jobs j on j.id=wl.job_id where wl.token_hash=$1 and not wl.revoked and (j.expires_at is null or j.expires_at >= current_date) and (select tn.status from tenants tn join broadcasters bb on bb.tenant_id=tn.id join productions pp on pp.broadcaster_id=bb.id where pp.id=j.production_id)='active'`, [sha256(s(f, 'token'))]);
   if (!link) return { error: 'This invitation is no longer active. Ask for a new one.' };
   const name = s(f, 'name').slice(0, 100), pw = String(f.get('password') ?? '');
   if (!name) return { error: 'Enter your name.' };
@@ -63,7 +63,7 @@ export async function signUpGuest(_: FormState, f: FormData): Promise<FormState>
 // ---- Guest actions: access comes from the signed-in account's verified email, never from client-supplied ids ----
 async function linkAccess(me: Me, linkId: number) {
   return one(`select wl.id, wl.job_id, wl.room_wall_id, wl.access, rw.room_id from wall_links wl join jobs j on j.id=wl.job_id join room_walls rw on rw.id=wl.room_wall_id
-    where wl.id=$1 and lower(wl.email) in ${myEmails(2)} and not wl.revoked and (j.expires_at is null or j.expires_at >= current_date)`, [linkId, me.id]);
+    where wl.id=$1 and lower(wl.email) in ${myEmails(2)} and not wl.revoked and (j.expires_at is null or j.expires_at >= current_date) and (select tn.status from tenants tn join broadcasters bb on bb.tenant_id=tn.id join productions pp on pp.broadcaster_id=bb.id where pp.id=j.production_id)='active'`, [linkId, me.id]);
 }
 export async function savePlanLink(linkId: number, name: string, data: any) {
   const me = await requireMe(); const l = await linkAccess(me, linkId); if (!l || l.access !== 'edit') throw new Error('Not allowed');

@@ -13,9 +13,9 @@ export default async function Invitation({ params }: { params: Promise<{ token: 
   const { token } = await params;
   const link = await one(`select wl.id, wl.email, t.name tenant from wall_links wl join jobs j on j.id=wl.job_id join productions p on p.id=j.production_id
     join broadcasters b on b.id=p.broadcaster_id join tenants t on t.id=b.tenant_id
-    where wl.token_hash=$1 and not wl.revoked and (j.expires_at is null or j.expires_at >= current_date)`, [sha256(token)]);
+    where wl.token_hash=$1 and not wl.revoked and (j.expires_at is null or j.expires_at >= current_date) and (select tn.status from tenants tn join broadcasters bb on bb.tenant_id=tn.id join productions pp on pp.broadcaster_id=bb.id where pp.id=j.production_id)='active'`, [sha256(token)]);
   const head = <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 22px' }}><Logo size={30} /></div>;
-  if (!link) return (<div className="auth">{head}<div className="card"><h1>Link not active</h1><p>This invitation has expired or been switched off. Ask the person who sent it for a new one.</p></div></div>);
+  if (!link) return (<div className="auth">{head}<div className="card"><h1>Link not active</h1><p>This invitation has expired, been switched off, or the account that sent it is no longer active. Ask the person who sent it for a new one.</p></div></div>);
   const me = await getMe();
   if (me) {
     const mine = await one(`select 1 where $1 in ${myEmails(2)}`, [link.email.toLowerCase(), me.id]);
