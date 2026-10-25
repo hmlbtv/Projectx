@@ -152,6 +152,13 @@ export async function inviteTeam(_: FormState, f: FormData): Promise<FormState> 
   const role = isAdmin(me) && s(f, 'role') === 'manager' ? 'manager' : 'user';
   return invite(me, s(f, 'email').toLowerCase(), role);
 }
+// New link (valid 7 days) for someone who was invited but has not set a password yet; the old link stops working.
+export async function resendInvite(_: FormState, f: FormData): Promise<FormState> {
+  const me = await mgr();
+  const u = await one('select email,role from users where id=$1 and tenant_id=$2 and password_hash is null', [Number(s(f, 'id')), tid(me)]);
+  if (!u) return { error: 'That person has already joined, or is not in your team.' };
+  return invite(me, u.email, u.role);
+}
 export async function removeMember(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
   const id = Number(s(f, 'id')); if (id === me.id) return;

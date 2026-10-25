@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { rows, one } from '@/lib/db';
 import { requireMe, canManage, isAdmin } from '@/lib/session';
-import { removeMember, setUserMaxJobs, setUserRole, inviteTeam } from '@/lib/actions';
+import { removeMember, setUserMaxJobs, setUserRole, resendInvite, inviteTeam } from '@/lib/actions';
 import AddDialog from '../AddDialog';
 import Menu from '../Menu';
 export const dynamic = 'force-dynamic';
@@ -19,7 +19,8 @@ export default async function Team() {
     <div className="tiles">{members.map((m: any) => { const canEdit = adm && m.role === 'user'; const canRole = adm && m.id !== me.id && ['user', 'manager', 'admin'].includes(m.role) && (me.role !== 'admin' || m.role !== 'admin'); const canRemove = adm && m.id !== me.id && m.role !== 'master_admin' && m.role !== 'webappdev';
       return (<div key={m.id} className="card tile"><div className="tilelink"><b>{m.name}</b><span className="mut">{m.email}</span>
         <span><span className="tag">{m.role}</span>{m.pending && <span className="tag">invite pending</span>}</span>
-        <span className="mut">{m.role === 'user' ? `${m.active} of ${m.max_jobs} active Jobs` : 'no Job limit'}</span></div>
+        <span className="mut">{m.role === 'user' ? `${m.active} of ${m.max_jobs} active Jobs` : 'no Job limit'}</span>
+        {m.pending && <AddDialog inline noName action={resendInvite} label="Resend invite" title={`Send ${m.email} a new invite link`}><input type="hidden" name="id" value={m.id} /><p className="mut" style={{ margin: 0 }}>A new link is emailed (valid 7 days). The old link stops working.</p></AddDialog>}</div>
         {(canEdit || canRemove || canRole) && <Menu>
           {canRole && <><b>Role</b><form action={setUserRole} className="stack"><input type="hidden" name="id" value={m.id} /><select name="role" defaultValue={m.role}><option value="user">User</option><option value="manager">Manager</option>{me.role !== 'admin' && <option value="admin">Admin</option>}</select><button className="sec">Save role</button></form></>}
           {canEdit && <><b>Active Jobs limit</b><form action={setUserMaxJobs} className="stack"><input type="hidden" name="id" value={m.id} /><input name="max" type="number" min="0" defaultValue={m.max_jobs} /><button className="sec">Save</button></form></>}
