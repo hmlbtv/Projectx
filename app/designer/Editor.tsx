@@ -30,6 +30,10 @@ const Icon = ({ k }: { k: string }) => {
     spv: <>{L('M3 2.5h14M3 17.5h14')}{R(6, 6, 8, 3)}{R(6, 11, 8, 3)}</>,
     same: <>{R(2, 4, 7, 7)}{R(11, 4, 7, 7)}{L('M3 15h14')}</>,
     scale: <>{R(5, 7, 6, 6)}{L('M13 4h3v3M16 4l-4 4M13 16h3v-3M16 16l-4-4')}</>,
+    pushleft: <>{L('M3 2v16')}{L('M16 10H7M10 6l-4 4 4 4')}</>,
+    pushright: <>{L('M17 2v16')}{L('M4 10h9M10 6l4 4-4 4')}</>,
+    pushup: <>{L('M2 3h16')}{L('M10 16V7M6 10l4-4 4 4')}</>,
+    pushdown: <>{L('M2 17h16')}{L('M10 4v9M6 10l4 4 4-4')}</>,
     fit: <>{L('M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4')}{R(7, 7, 6, 6)}</>,
     tile: <><rect x="2.5" y="3.5" width="15" height="13" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />{R(7, 7, 6, 6)}</>,
   };
@@ -107,11 +111,14 @@ export default function Editor(p: Props) {
     const rx = (e.clientX - d.sx) / px, ry = (e.clientY - d.sy) / px; let next: DAsset[];
     if (d.mode === 'move') {
       const prim = d.orig.find((a: DAsset) => a.id === d.primary) ?? d.orig.find((a: DAsset) => d.ids.includes(a.id)); // the grabbed item lands on the grid; the rest keep their offsets
-      const dx = sn(prim.x + rx) - prim.x, dy = sn(prim.y + ry) - prim.y;
+      const G = d.orig.filter((a: DAsset) => d.ids.includes(a.id)); // pinned to the canvas edges, so pushing into a corner slides along the walls into it
+      const gl = Math.min(...G.map((a: DAsset) => a.x)), gt = Math.min(...G.map((a: DAsset) => a.y)), gr = Math.max(...G.map((a: DAsset) => a.x + a.w)), gb = Math.max(...G.map((a: DAsset) => a.y + a.h));
+      const dx = Math.min(Math.max(sn(prim.x + rx) - prim.x, -gl), world.w - gr), dy = Math.min(Math.max(sn(prim.y + ry) - prim.y, -gt), world.h - gb);
       next = d.orig.map((a: DAsset) => d.ids.includes(a.id) ? { ...a, x: a.x + dx, y: a.y + dy } : a);
     } else {
       const r = d.r0 as DAsset, hd = d.hd as string; let l = r.x, tp = r.y, rt = r.x + r.w, bt = r.y + r.h;
       if (hd.includes('e')) rt = sn(rt + rx); if (hd.includes('w')) l = sn(l + rx); if (hd.includes('s')) bt = sn(bt + ry); if (hd.includes('n')) tp = sn(tp + ry);
+      l = Math.max(l, 0); tp = Math.max(tp, 0); rt = Math.min(rt, world.w); bt = Math.min(bt, world.h);
       let w = Math.max(MIN, rt - l), h = Math.max(MIN, bt - tp);
       if (lock) { const ratio = r.w / r.h; if (Math.abs(w - r.w) >= Math.abs(h - r.h) * ratio) h = Math.round(w / ratio); else w = Math.round(h * ratio); }
       const x = hd.includes('w') ? r.x + r.w - w : r.x, y = hd.includes('n') ? r.y + r.h - h : r.y;
@@ -155,6 +162,23 @@ export default function Editor(p: Props) {
 
   const [lastSpace, setLastSpace] = useState<'h' | 'v' | null>(null);
   useEffect(() => { setLastSpace(null); }, [sel.join(',')]);
+  // Slide the selection as far as it will go in one direction: to the canvas edge, or up to the nearest other item (items that may overlap only stop at the edge).
+  function pushTo(dir: 'up' | 'down' | 'left' | 'right') {
+    const S = items.filter(a => sel.includes(a.id)); if (!S.length) { setMsg('Select something first.'); return; }
+    const others = items.filter(a => !sel.includes(a.id)); let d = Infinity;
+    for (const a of S) {
+      let lim = dir === 'left' ? a.x : dir === 'up' ? a.y : dir === 'right' ? world.w - a.x - a.w : world.h - a.y - a.h;
+      if (!p.allowOverlap) for (const o of others) {
+        if (dir === 'left' || dir === 'right') { if (o.y < a.y + a.h && o.y + o.h > a.y) { const g = dir === 'left' ? a.x - (o.x + o.w) : o.x - (a.x + a.w); if (g >= 0 && g < lim) lim = g; } }
+        else if (o.x < a.x + a.w && o.x + o.w > a.x) { const g = dir === 'up' ? a.y - (o.y + o.h) : o.y - (a.y + a.h); if (g >= 0 && g < lim) lim = g; }
+      }
+      d = Math.min(d, lim);
+    }
+    if (!(d > 0)) { setMsg('Already as far as it will go.'); return; }
+    const dx = dir === 'left' ? -d : dir === 'right' ? d : 0, dy = dir === 'up' ? -d : dir === 'down' ? d : 0;
+    const next = items.map(a => sel.includes(a.id) ? { ...a, x: a.x + dx, y: a.y + dy } : a);
+    if (free(next, next.filter(a => sel.includes(a.id)))) apply(next); else setMsg('That would not fit - not applied.');
+  }
   function align(kind: string) {
     const S = items.filter(a => sel.includes(a.id));
     if (kind === 'tile') { // centre the selection, as a group, on the canvas itself
@@ -310,6 +334,8 @@ export default function Editor(p: Props) {
           <div className="dz-grp">Size</div>
           <div className="dz-ic"><button className="sec small" title="Match size: make all selected the same size as the first selected" aria-label="Match size" onClick={() => align('size')}><Icon k="same" /></button>
             <button className="sec small" title="Scale: after Space H or V, make the selected all one size and as big as the free space around them allows, in any direction" aria-label="Scale" disabled={!lastSpace} onClick={() => align('scale')}><Icon k="scale" /></button></div>
+          <div className="dz-grp">Push to edge</div>
+          <div className="dz-ic">{([['left', 'Push left as far as it will go'], ['right', 'Push right as far as it will go'], ['up', 'Push up as far as it will go'], ['down', 'Push down as far as it will go']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => pushTo(k)}><Icon k={'push' + k} /></button>)}</div>
           <div className="dz-grp">On the {p.canvasName ?? 'canvas'}</div>
           <div className="dz-ic"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} aria-label={`Centre on ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}><Icon k="tile" /></button>{p.fitSpace && <button className="sec small" title="Fit to space: grow the selected one into the free space around it, keeping 16:9" aria-label="Fit to space" onClick={fitToSpace}><Icon k="fit" /></button>}</div>
           <p className="mut dz-help">Select two or more to align or space. The first selected is the reference, and spacing follows the order selected.</p></Sec>}
