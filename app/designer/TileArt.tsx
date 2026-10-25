@@ -5,15 +5,22 @@ const LEVELS = [0.82, 0.64, 0.9, 0.55, 0.72, 0.6, 0.85, 0.5, 0.78, 0.66, 0.88, 0
 const num = (v: any, d: number, lo: number, hi: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(Math.max(n, lo), hi) : d; };
 
 // Draws one Tile Asset to fill its own box (viewBox = the asset's own size, so nothing is stretched).
+// Turned in steps of 90 degrees (props.rot, 0 to 3, clockwise). The box is the turned shape; the art is drawn upright in a box with the sides swapped, then rotated into it.
 export function AssetArt({ a }: { a: DAsset }) {
-  const p = a.props ?? {}, w = a.w, h = a.h;
+  const rot = (((Math.round(Number(a.props?.rot)) || 0) + (a.type === 'audio' && a.props?.orientation === 'horizontal' ? 1 : 0)) % 4 + 4) % 4;
+  if (rot === 0) return <Upright a={a} w={a.w} h={a.h} />;
+  const odd = rot % 2 === 1, uw = odd ? a.h : a.w, uh = odd ? a.w : a.h;
+  return (<svg viewBox={`0 0 ${a.w} ${a.h}`} width="100%" height="100%" style={{ display: 'block' }}><g transform={`translate(${a.w / 2} ${a.h / 2}) rotate(${rot * 90}) translate(${-uw / 2} ${-uh / 2})`}><Upright a={a} w={uw} h={uh} abs /></g></svg>);
+}
+function Upright({ a, w, h, abs }: { a: DAsset; w: number; h: number; abs?: boolean }) {
+  const p = a.props ?? {};
   let inner: React.ReactNode = null;
   if (a.type === 'umd') {
     const text = String(p.text ?? '').slice(0, 40) || ' ';
     inner = (<><rect width={w} height={h} fill="#000" fillOpacity=".78" />
       <text x={w / 2} y={h / 2} fill="#fff" fontFamily="ui-monospace,Menlo,monospace" fontWeight="700" fontSize={Math.min(h * 0.55, (w * 0.94) / (text.length * 0.62))} textAnchor="middle" dominantBaseline="central">{text}</text></>);
   } else if (a.type === 'audio') {
-    const n = num(p.channels, 2, 1, 16), horiz = p.orientation === 'horizontal', along = horiz ? w : h, across = horiz ? h : w, bw = across / n;
+    const n = num(p.channels, 2, 1, 16), horiz = false, along = horiz ? w : h, across = horiz ? h : w, bw = across / n;
     inner = (<><rect width={w} height={h} fill="#000" fillOpacity=".55" />
       {Array.from({ length: n }, (_, i) => {
         const lvl = LEVELS[i % 16] * along, segs: [number, number, string][] = [[0, 0.7, '#1fb865'], [0.7, 0.9, '#f2c230'], [0.9, 1, '#e5352b']];
@@ -30,7 +37,7 @@ export function AssetArt({ a }: { a: DAsset }) {
     inner = (<><rect width={w} height={h} fill="#000" fillOpacity=".6" />
       <text x={w / 2} y={h / 2} fill="#fff" fontFamily="ui-monospace,Menlo,monospace" fontWeight="600" fontSize={Math.min(h * 0.65, (w * 0.92) / (text.length * 0.62))} textAnchor="middle" dominantBaseline="central">{text}</text></>);
   } else inner = <rect width={w} height={h} fill="#444" />;
-  return <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="100%" style={{ display: 'block' }}>{inner}</svg>;
+  return <svg viewBox={`0 0 ${w} ${h}`} width={abs ? w : '100%'} height={abs ? h : '100%'} style={{ display: 'block' }}>{inner}</svg>;
 }
 
 // A whole MV Tile: the 16:9 frame with its assets on top. Used for previews now, and in MV Layouts later.

@@ -8,7 +8,7 @@ export type SaveArgs = { id: number | null; name: string; assets: DAsset[]; asNe
 type Props = {
   kind: string; backHref: string; world: { w: number; h: number }; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
   id: number | null; initialName: string; initial: DAsset[]; onSave: (a: SaveArgs) => Promise<{ id?: number; error?: string }>;
-  canvasName?: string; fitSpace?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
+  canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
 };
 const SNAP = 10, MIN = 20, HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
 const hit = (a: DAsset, b: DAsset) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -34,6 +34,8 @@ const Icon = ({ k }: { k: string }) => {
     pushright: <>{L('M17 2v16')}{L('M4 10h9M10 6l4 4-4 4')}</>,
     pushup: <>{L('M2 3h16')}{L('M10 16V7M6 10l4-4 4 4')}</>,
     pushdown: <>{L('M2 17h16')}{L('M10 4v9M6 10l4 4 4-4')}</>,
+    rotcw: <>{R(6, 7, 8, 6)}{L('M4 8a7 7 0 0 1 12 0M16 4v4h-4')}</>,
+    rotccw: <>{R(6, 7, 8, 6)}{L('M16 8a7 7 0 0 0-12 0M4 4v4h4')}</>,
     fit: <>{L('M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4')}{R(7, 7, 6, 6)}</>,
     tile: <><rect x="2.5" y="3.5" width="15" height="13" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />{R(7, 7, 6, 6)}</>,
   };
@@ -193,6 +195,15 @@ export default function Editor(p: Props) {
     const next = items.map(a => sel.includes(a.id) ? { ...a, x: a.x + dx, y: a.y + dy } : a);
     if (free(next, next.filter(a => sel.includes(a.id)))) apply(next); else setMsg('That would not fit - not applied.');
   }
+  // Turn the selected items a quarter turn, each about its own centre (the box swaps width and height).
+  function rotateSel(dir: 1 | -1) {
+    const S = items.filter(a => sel.includes(a.id)); if (!S.length) { setMsg('Select something first.'); return; }
+    const next = items.map(a => { if (!sel.includes(a.id)) return a;
+      const w = Math.min(a.h, world.w), h = Math.min(a.w, world.h), x = Math.min(Math.max(Math.round(a.x + a.w / 2 - w / 2), 0), world.w - w), y = Math.min(Math.max(Math.round(a.y + a.h / 2 - h / 2), 0), world.h - h);
+      const base = (((Math.round(Number(a.props?.rot)) || 0) + (a.type === 'audio' && a.props?.orientation === 'horizontal' ? 1 : 0)) % 4 + 4) % 4, { orientation: _o, ...rest } = (a.props ?? {}) as Record<string, any>;
+      return { ...a, x, y, w, h, props: { ...rest, rot: (base + dir + 4) % 4 } }; });
+    if (free(next, next.filter(a => sel.includes(a.id)))) apply(next); else setMsg('There is no room to turn it there - not applied.');
+  }
   function align(kind: string) {
     const S = items.filter(a => sel.includes(a.id));
     if (kind === 'tile') { // centre the selection, as a group, on the canvas itself
@@ -308,6 +319,7 @@ export default function Editor(p: Props) {
             <button className="sec small" title="Scale: after Space H or V, make the selected all one size and as big as the free space around them allows, in any direction" aria-label="Scale" disabled={!lastSpace} onClick={() => align('scale')}><Icon k="scale" /></button></div>
           <span className="dz-tgl" title={`Push to edge`}></span>
           <div className="dz-tg">{([['left', 'Push left as far as it will go'], ['right', 'Push right as far as it will go'], ['up', 'Push up as far as it will go'], ['down', 'Push down as far as it will go']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => pushTo(k)}><Icon k={'push' + k} /></button>)}</div>
+          {p.rotatable && <><span className="dz-tgl" title="Rotate"></span><div className="dz-tg"><button className="sec small" title="Rotate anticlockwise (a quarter turn)" aria-label="Rotate anticlockwise" onClick={() => rotateSel(-1)}><Icon k="rotccw" /></button><button className="sec small" title="Rotate clockwise (a quarter turn)" aria-label="Rotate clockwise" onClick={() => rotateSel(1)}><Icon k="rotcw" /></button></div></>}
           <span className="dz-tgl" title={`On the ${p.canvasName ?? 'canvas'}`}></span>
           <div className="dz-tg"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} aria-label={`Centre on ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}><Icon k="tile" /></button>{p.fitSpace && <button className="sec small" title="Fit to space: grow the selected one into the free space around it, keeping 16:9" aria-label="Fit to space" onClick={fitToSpace}><Icon k="fit" /></button>}</div>
         </div>}

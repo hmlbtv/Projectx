@@ -314,6 +314,7 @@ export async function saveTile(p: { id: number | null; name: string; assets: any
     const n = (v: any, lo: number, hi: number) => Math.round(Math.min(Math.max(+v || 0, lo), hi));
     const w = n(a.w, 20, 1600), h = n(a.h, 20, 900), props: Record<string, any> = {};
     for (const k of TILE_PROPS[a.type]) { const v = a.props?.[k]; props[k] = typeof v === 'number' ? n(v, 1, 16) : String(v ?? '').slice(0, 40); }
+    props.rot = ((n(a.props?.rot, 0, 3) % 4) + 4) % 4;
     assets.push({ id: String(a.id).slice(0, 20), type: a.type, name: String(a.name ?? '').slice(0, 60), x: n(a.x, 0, 1600 - w), y: n(a.y, 0, 900 - h), w, h, props });
   }
   const name = String(p.name ?? '').trim().slice(0, 80) || 'Untitled tile', top = me.role === 'webappdev', standard = top && !!p.flags?.standard;
