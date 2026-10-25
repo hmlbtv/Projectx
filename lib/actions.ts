@@ -351,8 +351,11 @@ export async function deleteTile(f: FormData) {
 // ---- MV Layouts: only Admin/Manager create custom ones ----
 export async function saveLayout(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const n = Math.min(Math.max(Number(s(f,'count')) || 1, 1), 36);
-  const cols = Math.ceil(Math.sqrt(n)), rws = Math.ceil(n / cols), tiles: any[] = [];
-  for (let i = 0; i < n; i++) { const c = i % cols, r = Math.floor(i / cols); tiles.push({ n: i + 1, x: Math.round(c * 1920 / cols), y: Math.round(r * 1080 / rws), w: Math.round(1920 / cols), h: Math.round(1080 / rws) }); }
+  // Every monitor is 16:9: pick the grid (columns x rows) with the biggest 16:9 cells that holds n, and centre it in the frame.
+  let cols = 1, rws = n, cw = 0;
+  for (let c = 1; c <= n; c++) { const r = Math.ceil(n / c), w = Math.min(1920 / c, (1080 / r) * 16 / 9); if (w > cw + 1e-9 || (Math.abs(w - cw) < 1e-9 && c * r <= cols * rws)) { cw = w; cols = c; rws = r; } }
+  const ch = cw * 9 / 16, ox = (1920 - cw * cols) / 2, oy = (1080 - ch * rws) / 2, tiles: any[] = [];
+  for (let i = 0; i < n; i++) { const c = i % cols, r = Math.floor(i / cols); tiles.push({ n: i + 1, x: Math.round(ox + c * cw), y: Math.round(oy + r * ch), w: Math.round(cw), h: Math.round(ch) }); }
   // Only the site admin can make a Standard (global) layout, visible to every tenant.
   const standard = me.role === 'webappdev' && s(f, 'standard') === '1';
   await rows('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3)', [standard ? null : tid(me), s(f,'name') || `Custom ${n}`, JSON.stringify(tiles)]);
