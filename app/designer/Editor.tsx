@@ -8,7 +8,7 @@ export type SaveArgs = { id: number | null; name: string; assets: DAsset[]; asNe
 type Props = {
   kind: string; backHref: string; world: { w: number; h: number }; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
   id: number | null; initialName: string; initial: DAsset[]; onSave: (a: SaveArgs) => Promise<{ id?: number; error?: string }>;
-  canvasName?: string; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
+  canvasName?: string; fitSpace?: boolean; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
 };
 const SNAP = 10, MIN = 20, HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
 const hit = (a: DAsset, b: DAsset) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -28,6 +28,7 @@ const Icon = ({ k }: { k: string }) => {
     middle: <>{L('M2 10h16')}{R(4, 4, 4, 12)}{R(12, 6, 4, 8)}</>,
     sph: <>{L('M2.5 3v14M17.5 3v14')}{R(6, 6, 3, 8)}{R(11, 6, 3, 8)}</>,
     spv: <>{L('M3 2.5h14M3 17.5h14')}{R(6, 6, 8, 3)}{R(6, 11, 8, 3)}</>,
+    fit: <>{L('M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4')}{R(7, 7, 6, 6)}</>,
     tile: <><rect x="2.5" y="3.5" width="15" height="13" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />{R(7, 7, 6, 6)}</>,
   };
   return <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">{g[k]}</svg>;
@@ -191,6 +192,26 @@ export default function Editor(p: Props) {
     edit({ props: { ...one.props, [key]: v } });
   };
 
+  // Grow the selected item into the largest free space around it, keeping 16:9.
+  function fitToSpace() {
+    if (sel.length !== 1) { setMsg('Select one to fit it to the space.'); return; }
+    const a = items.find(i => i.id === sel[0]); if (!a) return; const others = items.filter(i => i.id !== a.id);
+    const xs = [0, world.w, ...others.flatMap(o => [o.x, o.x + o.w])], ys = [0, world.h, ...others.flatMap(o => [o.y, o.y + o.h])];
+    let best: { s: number; l: number; r: number; tp: number; b: number } | null = null;
+    for (const l of xs) for (const r of xs) {
+      if (l > a.x || r < a.x + a.w) continue;
+      const inX = others.filter(o => o.x < r && o.x + o.w > l);
+      if (inX.some(o => o.y < a.y + a.h && o.y + o.h > a.y)) continue;
+      const tp = Math.max(0, ...inX.filter(o => o.y + o.h <= a.y).map(o => o.y + o.h)), b = Math.min(world.h, ...inX.filter(o => o.y >= a.y + a.h).map(o => o.y));
+      const s = Math.min((r - l) / 16, (b - tp) / 9); if (!best || s > best.s) best = { s, l, r, tp, b };
+    }
+    if (!best || best.s * 16 < a.w - 0.5 && best.s * 9 < a.h - 0.5) { setMsg('No room to grow.'); return; }
+    const w = Math.floor(best.s * 16), h = Math.round(w * 9 / 16);
+    const x = Math.round(Math.min(Math.max(a.x + a.w / 2 - w / 2, best.l), best.r - w)), y = Math.round(Math.min(Math.max(a.y + a.h / 2 - h / 2, best.tp), best.b - h));
+    if (w === a.w && h === a.h && x === a.x && y === a.y) { setMsg('Already fills the space.'); return; }
+    apply(items.map(i => i.id === a.id ? { ...i, x, y, w, h } : i));
+  }
+
   async function save(asNew: boolean) {
     const nm = (asNew && name === p.initialName ? name + ' copy' : name).trim() || 'Untitled'; setName(nm); setMsg('Saving…');
     const r = await p.onSave({ id: wid, name: nm, assets: items, asNew, flags }); if (r.error) { setMsg(r.error); return; }
@@ -259,7 +280,7 @@ export default function Editor(p: Props) {
           <div className="dz-grp">Space in selection order</div>
           <div className="dz-ic">{([['h', 'Space horizontally (left to right)'], ['v', 'Space vertically (top to bottom)']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={'sp' + k} /></button>)}</div>
           <div className="dz-grp">On the {p.canvasName ?? 'canvas'}</div>
-          <div className="dz-ic"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} aria-label={`Centre on ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}><Icon k="tile" /></button></div>
+          <div className="dz-ic"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} aria-label={`Centre on ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}><Icon k="tile" /></button>{p.fitSpace && <button className="sec small" title="Fit to space: grow the selected one into the free space around it, keeping 16:9" aria-label="Fit to space" onClick={fitToSpace}><Icon k="fit" /></button>}</div>
           <p className="mut dz-help">Select two or more to align or space. The first selected is the reference, and spacing follows the order selected.</p></Sec>}
         {!readOnly && <Sec id="grid" title="Grid" badge={<span className="tag">{snapOn ? `snap ${grid}` : 'snap off'}</span>} open={openSec.grid} toggle={toggleSec}>
           <label className="dz-row dz-chk"><span>Snap to grid</span><input type="checkbox" checked={snapOn} onChange={e => setSnapOn(e.target.checked)} /></label>

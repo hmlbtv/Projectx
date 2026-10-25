@@ -12,7 +12,7 @@ export default function LayoutEditor({ id, name, tiles }: { id: number; name: st
   const initial: DAsset[] = tiles.map(t => ({ id: 't' + t.n, type: 'mv', name: 'Monitor ' + t.n, x: t.x, y: t.y, w: t.w, h: t.h }));
   const [nums, setNums] = useState<Record<string, number>>(() => Object.fromEntries(tiles.map(t => ['t' + t.n, t.n])));
   const fs = (w: number, h: number) => Math.max(40, Math.min(h * 0.5, w * 0.5));
-  return (<Editor kind="MV Layout" canvasName="frame" backHref="/layouts" world={{ w: 1600, h: 900 }} palette={PALETTE}
+  return (<Editor kind="MV Layout" canvasName="frame" fitSpace backHref="/layouts" world={{ w: 1600, h: 900 }} palette={PALETTE}
     renderAsset={a => (<svg viewBox={`0 0 ${a.w} ${a.h}`} width="100%" height="100%" style={{ display: 'block', pointerEvents: 'none' }}>
       <rect x={4} y={4} width={a.w - 8} height={a.h - 8} fill="#1a1f27" stroke="#5a6472" strokeWidth={4} />
       <text x={a.w / 2} y={a.h / 2} fill="#fff" fontSize={fs(a.w, a.h)} textAnchor="middle" dominantBaseline="central">{nums[a.id] ?? '+'}</text></svg>)}
