@@ -386,6 +386,21 @@ export async function importKaleidoLayouts() {
   for (const l of data) { if (have.has(l.name)) continue; await rows('insert into mv_layouts(tenant_id,name,tiles) values(null,$1,$2)', [l.name, JSON.stringify(l.tiles)]); added++; }
   revalidatePath('/layouts'); redirect('/webappdev?imported=' + added + '&of=' + data.length);
 }
+// Site admin: swap the Standard layouts for the neat versions (every window exactly 16:9, equal-size small windows, edges lined up, centred in the frame).
+// Tiles already placed on a window stay on the nearest window of the new layout. Layouts not in the file, and tenants' own layouts, are left alone.
+export async function tidyStandardLayouts() {
+  const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
+  const data: Record<string, any[]> = (await import('../data/tidy-layouts.json')).default as any; let n = 0;
+  for (const l of await rows('select id,name,tiles from mv_layouts where tenant_id is null')) {
+    const next = data[l.name]; if (!next) continue;
+    const old: any[] = (l.tiles || []).filter((o: any) => o.tileId), free = [...old];
+    const tiles = next.map((t: any) => { const cx = t.x + t.w / 2, cy = t.y + t.h / 2; let bi = -1, bd = 1e12;
+      free.forEach((o, i) => { const d = (o.x + o.w / 2 - cx) ** 2 + (o.y + o.h / 2 - cy) ** 2; if (d < bd) { bd = d; bi = i; } });
+      if (bi < 0) return { ...t }; const [o] = free.splice(bi, 1); return { ...t, tileId: o.tileId }; });
+    if (JSON.stringify(tiles) !== JSON.stringify(l.tiles)) { await rows('update mv_layouts set tiles=$1 where id=$2', [JSON.stringify(tiles), l.id]); n++; }
+  }
+  revalidatePath('/layouts'); redirect('/webappdev?tidied=' + n);
+}
 export async function copyLayout(f: FormData) {
   const me = await mgr(); const src = await one('select name,tiles from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
   const r = (await one('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3) returning id', [tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.tiles)]))!;
