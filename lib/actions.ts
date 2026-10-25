@@ -386,15 +386,6 @@ export async function importKaleidoLayouts() {
   for (const l of data) { if (have.has(l.name)) continue; await rows('insert into mv_layouts(tenant_id,name,tiles) values(null,$1,$2)', [l.name, JSON.stringify(l.tiles)]); added++; }
   revalidatePath('/layouts'); redirect('/webappdev?imported=' + added + '&of=' + data.length);
 }
-// Site admin: neaten every Standard layout (level edges, small gaps and overlaps closed). Tenants' own layouts are not touched.
-export async function tidyStandardLayouts() {
-  const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
-  const { tidyTiles } = await import('./tidy'); let n = 0;
-  for (const l of await rows('select id,tiles from mv_layouts where tenant_id is null')) {
-    const next = tidyTiles(l.tiles || []); if (JSON.stringify(next) !== JSON.stringify(l.tiles)) { await rows('update mv_layouts set tiles=$1 where id=$2', [JSON.stringify(next), l.id]); n++; }
-  }
-  revalidatePath('/layouts'); redirect('/webappdev?tidied=' + n);
-}
 export async function copyLayout(f: FormData) {
   const me = await mgr(); const src = await one('select name,tiles from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
   const r = (await one('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3) returning id', [tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.tiles)]))!;
