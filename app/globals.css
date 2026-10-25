@@ -216,3 +216,4 @@ main>div[style*="space-between"]+p{margin-top:10px}
 .dz-stamp span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dz-stamp svg{display:block;width:100%;height:auto}
 .dz-stamp.on{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}.dz-stamp.on.keep{background:#e5352b18}
 .dz-stage.stamping,.dz-stage.stamping .dzi{cursor:copy}
+.dz-pal .sec.on{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}

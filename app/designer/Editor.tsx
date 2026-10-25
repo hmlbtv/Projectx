@@ -101,7 +101,7 @@ export default function Editor(p: Props) {
   function startMove(e: React.PointerEvent, a: DAsset) {
     if (readOnly) return; e.stopPropagation();
     if (brush && p.stamps) { // put the chosen stamp on this item
-      const k = p.stampKey ?? 'stamp'; apply(items.map(i => i.id === a.id ? { ...i, props: { ...i.props, [k]: brush.id } } : i)); setSel([a.id]); if (!brush.keep) setBrush(null); return;
+      const k = p.stampKey ?? 'stamp'; apply(items.map(i => { if (i.id !== a.id) return i; const pr = { ...i.props }; if (brush.id === 0) delete pr[k]; else pr[k] = brush.id; return { ...i, props: pr }; })); setSel([a.id]); if (!brush.keep) setBrush(null); return;
     }
     stage.current?.setPointerCapture(e.pointerId);
     const ids = e.shiftKey ? Array.from(new Set([...sel, a.id])) : sel.includes(a.id) ? sel : [a.id];
@@ -367,8 +367,9 @@ export default function Editor(p: Props) {
         </Sec>
         {!readOnly && <Sec id="add" title="Add" open={openSec.add} toggle={toggleSec}>
           <div className="dz-pal">{palette.map(pi => <button key={pi.type} className="sec small" onClick={() => add(pi)}>+ {pi.label}</button>)}</div>
-          {p.stamps && <div className="dz-stamps"><div className="dz-grp">Tiles{brush ? <em className="dz-stk">{brush.keep ? ' · stays selected - click a monitor, click outside to stop' : ' · click a monitor (tap again to keep it)'}</em> : ''}</div>
-            {brush && <button type="button" className="sec small dz-all" onClick={() => { const k = p.stampKey ?? 'stamp'; apply(items.map(i => ({ ...i, props: { ...i.props, [k]: brush.id } }))); setBrush(null); }}>Assign to all monitors</button>}
+          {p.stamps && <div className="dz-stamps"><div className="dz-grp">Tiles{brush ? <em className="dz-stk">{brush.id === 0 ? (brush.keep ? ' · removing - click monitors, click outside to stop' : ' · click a monitor to remove its tile (tap again to keep removing)') : brush.keep ? ' · stays selected - click a monitor, click outside to stop' : ' · click a monitor (tap again to keep it)'}</em> : ''}</div>
+            <div className="dz-pal"><button type="button" className={'sec small' + (brush?.id === 0 ? ' on' : '')} aria-pressed={brush?.id === 0} title="Take a tile off a window (the window stays). Tap again to keep it selected." onClick={() => pick(0)}>Remove tile</button><button type="button" className="sec small" title="Take the tile off every window" onClick={() => { const k = p.stampKey ?? 'stamp'; apply(items.map(i => { const pr = { ...i.props }; delete pr[k]; return { ...i, props: pr }; })); setBrush(null); }}>Remove all tiles</button></div>
+            {brush && brush.id !== 0 && <button type="button" className="sec small dz-all" onClick={() => { const k = p.stampKey ?? 'stamp'; apply(items.map(i => ({ ...i, props: { ...i.props, [k]: brush.id } }))); setBrush(null); }}>Assign to all monitors</button>}
             {p.stamps.length === 0 ? <p className="mut dz-help">No tiles yet. Make some in the Tile Designer.</p> : ['standard', 'mine'].map(g => { const L = p.stamps!.filter(s => s.group === g); return L.length ? (<div key={g}><div className="dz-help mut">{g === 'standard' ? 'Standard tiles' : 'Your tiles'}</div>
               <div className="dz-stg">{L.map(s => (<button key={s.id} type="button" className={'dz-stamp' + (brush?.id === s.id ? ' on' + (brush.keep ? ' keep' : '') : '')} title={s.name} aria-pressed={brush?.id === s.id} onClick={() => pick(s.id)}>{s.node}<span>{s.name}</span></button>))}</div></div>) : null; })}</div>}
           <div className="dz-pal"><button className="sec small" onClick={() => copy()} disabled={!sel.length} title="Copy (Ctrl+C)">Copy</button><button className="sec small" onClick={paste} title="Paste (Ctrl+V)">Paste</button></div></Sec>}
