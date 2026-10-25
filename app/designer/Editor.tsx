@@ -169,27 +169,26 @@ export default function Editor(p: Props) {
     const next = items.map(a => ({ ...a })), T = sel.map(id => next.find(a => a.id === id)).filter(Boolean) as DAsset[], r = { ...T[0] };
     if (kind === 'size') T.forEach(a => { a.w = r.w; a.h = r.h; a.x = Math.min(a.x, world.w - a.w); a.y = Math.min(a.y, world.h - a.h); });
     if (kind === 'scale') {
-      // After Space H/V: grow the selection, keeping each one's shape, until it fills the free space in that direction (up to the nearest other item or the canvas edge).
+      // After Space H/V: make the selection all one size (the first one's shape), as large as the free space allows in a row (H) or column (V), grown or shrunk as needed, spread out to fill it.
       if (!lastSpace) { setMsg('Press Space H or Space V first, then Scale.'); return; }
-      const hz = lastSpace === 'h', others = items.filter(a => !sel.includes(a.id)), n = T.length;
+      const hz = lastSpace === 'h', others = items.filter(a => !sel.includes(a.id)), n = T.length, ratio = r.w / r.h;
+      const cx = (minX + maxR) / 2, cy = (minY + maxB) / 2;
       const cross = others.filter(o => hz ? o.y < maxB && o.y + o.h > minY : o.x < maxR && o.x + o.w > minX);
       const lo = hz ? Math.max(0, ...cross.filter(o => o.x + o.w <= minX).map(o => o.x + o.w)) : Math.max(0, ...cross.filter(o => o.y + o.h <= minY).map(o => o.y + o.h));
       const hi = hz ? Math.min(world.w, ...cross.filter(o => o.x >= maxR).map(o => o.x)) : Math.min(world.h, ...cross.filter(o => o.y >= maxB).map(o => o.y));
-      const used = T.reduce((s, a) => s + (hz ? a.w : a.h), 0), ord = [...T].sort((a, b) => hz ? a.x - b.x : a.y - b.y);
-      const gap = n > 1 ? Math.max(0, ((hz ? maxR - minX : maxB - minY) - used) / (n - 1)) : 0, s0 = (hi - lo - gap * (n - 1)) / used, o0 = T.map(a => ({ ...a }));
-      if (!(s0 > 1.001)) { setMsg('No more room to scale into.'); return; }
-      for (let k = 0; k <= 60; k++) {
-        const s = s0 - (s0 - 1) * k / 60; let cur = lo;
-        T.forEach((a, i) => { const o = o0[i], w = Math.round(o.w * s), h = Math.round(o.h * s); a.w = w; a.h = h; });
-        for (const anchor of [0.5, 0, 1]) { // keep each one's centre if it can, otherwise grow from its top/left or bottom/right edge
-          cur = lo;
-          for (const id of ord.map(a => a.id)) { const a = T.find(x => x.id === id)!, o = o0[T.indexOf(a)];
-            if (hz) { a.x = Math.round(cur); a.y = Math.round(Math.min(Math.max(o.y + (o.h - a.h) * anchor, 0), world.h - a.h)); cur += a.w + gap; }
-            else { a.y = Math.round(cur); a.x = Math.round(Math.min(Math.max(o.x + (o.w - a.w) * anchor, 0), world.w - a.w)); cur += a.h + gap; } }
-          if (free(next, T)) { apply(next); return; }
-        }
-      }
-      setMsg('They cannot grow without hitting something.'); return;
+      // the free band the other way: nothing else may sit in it, between lo and hi
+      const along = others.filter(o => hz ? o.x < hi && o.x + o.w > lo : o.y < hi && o.y + o.h > lo);
+      const bLo = hz ? Math.max(0, ...along.filter(o => o.y + o.h <= cy).map(o => o.y + o.h)) : Math.max(0, ...along.filter(o => o.x + o.w <= cx).map(o => o.x + o.w));
+      const bHi = hz ? Math.min(world.h, ...along.filter(o => o.y >= cy).map(o => o.y)) : Math.min(world.w, ...along.filter(o => o.x >= cx).map(o => o.x));
+      const span = hi - lo, band = bHi - bLo; if (span <= 0 || band <= 0) { setMsg('No free space to scale into.'); return; }
+      let w: number, h: number;
+      if (hz) { w = Math.min(span / n, band * ratio); h = w / ratio; } else { h = Math.min(span / n, band / ratio); w = h * ratio; }
+      w = Math.floor(w); h = Math.floor(h); if (w < MIN || h < MIN) { setMsg('Not enough room.'); return; }
+      const gap = n > 1 ? ((hz ? span - n * w : span - n * h)) / (n - 1) : 0; let cur = lo;
+      for (const a of [...T]) { a.w = w; a.h = h;
+        if (hz) { a.x = Math.round(cur); a.y = Math.round(Math.min(Math.max(cy - h / 2, bLo), bHi - h)); cur += w + gap; } else { a.y = Math.round(cur); a.x = Math.round(Math.min(Math.max(cx - w / 2, bLo), bHi - w)); cur += h + gap; } }
+      if (free(next, T)) { apply(next); return; }
+      setMsg('That would not fit - not applied.'); return;
     }
     if (kind === 'top') T.forEach(a => a.y = r.y); if (kind === 'bottom') T.forEach(a => a.y = r.y + r.h - a.h);
     if (kind === 'left') T.forEach(a => a.x = r.x); if (kind === 'right') T.forEach(a => a.x = r.x + r.w - a.w);
@@ -311,7 +310,7 @@ export default function Editor(p: Props) {
           <div className="dz-ic">{([['h', 'Space horizontally (left to right)'], ['v', 'Space vertically (top to bottom)']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={'sp' + k} /></button>)}</div>
           <div className="dz-grp">Size</div>
           <div className="dz-ic"><button className="sec small" title="Match size: make all selected the same size as the first selected" aria-label="Match size" onClick={() => align('size')}><Icon k="same" /></button>
-            <button className="sec small" title="Scale: after Space H or V, grow the selected to fill the free space in that direction" aria-label="Scale" disabled={!lastSpace} onClick={() => align('scale')}><Icon k="scale" /></button></div>
+            <button className="sec small" title="Scale: after Space H or V, make the selected all one size and as big as the free space allows, filling it" aria-label="Scale" disabled={!lastSpace} onClick={() => align('scale')}><Icon k="scale" /></button></div>
           <div className="dz-grp">On the {p.canvasName ?? 'canvas'}</div>
           <div className="dz-ic"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} aria-label={`Centre on ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}><Icon k="tile" /></button>{p.fitSpace && <button className="sec small" title="Fit to space: grow the selected one into the free space around it, keeping 16:9" aria-label="Fit to space" onClick={fitToSpace}><Icon k="fit" /></button>}</div>
           <p className="mut dz-help">Select two or more to align or space. The first selected is the reference, and spacing follows the order selected.</p></Sec>}
