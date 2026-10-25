@@ -160,3 +160,12 @@ button.danger{background:#c0392b;color:#fff;border-color:#c0392b}
 .dz-panel{position:sticky;top:72px;max-height:calc(100vh - 88px);overflow-y:auto;overscroll-behavior:contain}
 .dz-sec[open].dz-props .dz-secbody{min-height:330px;align-content:start}
 @media(max-width:800px){.dz-panel{position:static;max-height:none;overflow:visible}}
+
+/* Grouped nav item (Designers) */
+.ngroup{position:relative}
+.navlinks .ngbtn{background:transparent;border:0;font-weight:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font:inherit}
+.navlinks .ngbtn:hover{background:#1e242d;color:#fff}.navlinks .ngbtn.on{background:#f4f5f8;color:#0f1217}
+.caret{width:6px;height:6px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-2px);display:inline-block}
+.ndrop{position:absolute;top:calc(100% + 6px);left:0;min-width:190px;background:#0f1217;border:1px solid #262c36;border-bottom:3px solid var(--acc);border-radius:14px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 20px 40px rgba(0,0,0,.4);animation:drop .15s ease;z-index:30}
+.ndrop .nl{color:#c3cad5;text-decoration:none;padding:9px 14px;border-radius:10px;white-space:nowrap}.ndrop .nl:hover{background:#1e242d;color:#fff}.ndrop .nl.on{background:#f4f5f8;color:#0f1217}
+.sgroup{display:flex;flex-direction:column;gap:2px}.sgtitle{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:#7f8a99;padding:10px 14px 2px}.sgroup .nl{padding-left:26px}
