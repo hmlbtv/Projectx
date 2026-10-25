@@ -137,10 +137,18 @@ export default function Editor(p: Props) {
     if (kind === 'bottom') T.forEach(a => a.y = maxB - a.h);
     if (kind === 'middle') T.forEach(a => a.y = sn((minY + maxB) / 2 - a.h / 2));
     if (kind === 'center') T.forEach(a => a.x = sn((minX + maxR) / 2 - a.w / 2));
-    if (kind === 'h' || kind === 'v') { if (T.length < 3) { setMsg('Select three or more to space evenly.'); return; }
+    if (kind === 'h' || kind === 'v') {
+      // Spreads evenly between the outer edges. If the assets are stacked or overlapping in that direction, they are laid out side by side instead, one grid gap apart.
       const hz = kind === 'h'; T.sort((a, b) => hz ? a.x - b.x : a.y - b.y);
-      const total = hz ? maxR - minX : maxB - minY, used = T.reduce((s, a) => s + (hz ? a.w : a.h), 0), gap = (total - used) / (T.length - 1); let cur = hz ? minX : minY;
-      T.forEach(a => { if (hz) { a.x = Math.round(cur); cur += a.w + gap; } else { a.y = Math.round(cur); cur += a.h + gap; } }); }
+      const lo = hz ? minX : minY, span = hz ? maxR - minX : maxB - minY, used = T.reduce((s, a) => s + (hz ? a.w : a.h), 0), room = hz ? world.w : world.h, n = T.length;
+      let gap = (span - used) / (n - 1), cur = lo;
+      if (gap < 0) {
+        gap = snapOn ? grid : 10; if (used + gap * (n - 1) > room) gap = (room - used) / (n - 1);
+        if (gap < 0) { setMsg('They are too big to sit side by side on this canvas.'); return; }
+        cur = Math.max(0, Math.min(lo, room - used - gap * (n - 1)));
+      }
+      T.forEach(a => { if (hz) { a.x = Math.round(cur); cur += a.w + gap; } else { a.y = Math.round(cur); cur += a.h + gap; } });
+    }
     if (free(next, T)) apply(next); else setMsg('That arrangement would not fit - not applied.');
   }
 
