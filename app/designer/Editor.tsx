@@ -204,7 +204,7 @@ export default function Editor(p: Props) {
         <div data-bg="1" style={{ position: 'absolute', inset: 0 }}>{p.backdrop}</div>
         {showGrid && grid * px >= 4 && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'linear-gradient(to right,#ffffff1c 1px,transparent 1px),linear-gradient(to bottom,#ffffff1c 1px,transparent 1px)', backgroundSize: `${grid * px}px ${grid * px}px` }} />}
         {marq && <div className={'dz-marq' + (marq.x1 >= marq.x0 ? '' : ' win')} style={{ left: Math.min(marq.x0, marq.x1) * px, top: Math.min(marq.y0, marq.y1) * px, width: Math.abs(marq.x1 - marq.x0) * px, height: Math.abs(marq.y1 - marq.y0) * px }} />}
-        {items.map(a => (<div key={a.id} className={'dzi' + (sel.includes(a.id) ? ' sel' : '')} onPointerDown={e => startMove(e, a)} title={a.name}
+        {items.map(a => (<div key={a.id} className={'dzi' + (a.type === 'tally' && a.props?.style === 'border' ? ' ring' : '') + (sel.includes(a.id) ? ' sel' : '')} onPointerDown={e => startMove(e, a)} title={a.name}
           style={{ left: a.x * px, top: a.y * px, width: a.w * px, height: a.h * px }}>{p.renderAsset(a)}
           {sel.length > 1 && sel.includes(a.id) && <span className="dz-ord">{sel.indexOf(a.id) + 1}</span>}
           {!readOnly && sel.length === 1 && sel[0] === a.id && HANDLES.map(h => <span key={h} className={'hdl ' + h} onPointerDown={e => startResize(e, a, h)} />)}</div>))}

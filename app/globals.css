@@ -190,3 +190,6 @@ main>div[style*="space-between"]+p{margin-top:10px}
   .dz-bar .dz-name{max-width:none;flex-basis:100%}
   .navright .who{display:none}
 }
+
+/* A border tally only grabs on its frame, so assets inside stay reachable */
+.dzi.ring{pointer-events:none}.dzi.ring svg *{pointer-events:stroke}.dzi.ring .hdl,.dzi.ring .dz-ord{pointer-events:auto}
