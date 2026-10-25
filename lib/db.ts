@@ -58,6 +58,25 @@ alter table comments add column if not exists guest_email text;
 create table if not exists contacts(id serial primary key, tenant_id int not null references tenants(id) on delete cascade, name text not null, email text not null, company text not null default '', created_at timestamptz not null default now(), unique(tenant_id,email));
 create table if not exists production_contacts(production_id int not null references productions(id) on delete cascade, contact_id int not null references contacts(id) on delete cascade, primary key(production_id, contact_id));
 alter table wall_links add column if not exists contact_id int references contacts(id) on delete set null;
+create index if not exists ix_users_tenant on users(tenant_id);
+create index if not exists ix_sites_tenant on sites(tenant_id);
+create index if not exists ix_wall_templates_tenant on wall_templates(tenant_id);
+create index if not exists ix_mv_layouts_tenant on mv_layouts(tenant_id);
+create index if not exists ix_mv_tiles_tenant on mv_tiles(tenant_id);
+create index if not exists ix_source_sets_tenant on source_sets(tenant_id);
+create index if not exists ix_broadcasters_tenant on broadcasters(tenant_id);
+create index if not exists ix_productions_broadcaster on productions(broadcaster_id);
+create index if not exists ix_jobs_production on jobs(production_id);
+create index if not exists ix_job_users_user on job_users(user_id);
+create index if not exists ix_sessions_user on sessions(user_id);
+create index if not exists ix_wall_links_token on wall_links(token_hash);
+create index if not exists ix_wall_links_email on wall_links(lower(email));
+create index if not exists ix_monitor_plans_job on monitor_plans(job_id, user_id);
+create index if not exists ix_comments_job on comments(job_id);
+create index if not exists ix_locations_site on locations(site_id);
+create index if not exists ix_rooms_location on rooms(location_id);
+create index if not exists ix_room_walls_room on room_walls(room_id);
+create index if not exists ix_job_walls_rw on job_walls(room_wall_id);
 `;
 
 function grid(cols: number, rows: number) {
