@@ -53,7 +53,8 @@ export async function signUpGuest(_: FormState, f: FormData): Promise<FormState>
   if (verify) {
     if (await sendMail(link.email, 'Verify your TelePlanner account', `Welcome to TelePlanner.\nConfirm your email to open the wall shared with you:\n${await baseUrl()}/verify/${vt}\n\nThis link expires in 2 days.`))
       return { ok: `We sent a verification link to ${link.email}. Open it to finish creating your account.` };
-    await rows('update users set email_verified=true where id=$1', [u.id]);
+    await rows('delete from users where id=$1', [u.id]); // never let an unverified address in
+    return { error: 'We could not send the verification email, so the account was not created. Please try again, or ask the person who invited you for help.' };
   }
   await createSession(u.id);
   redirect('/shared');

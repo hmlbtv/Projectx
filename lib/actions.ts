@@ -72,7 +72,9 @@ export async function signUp(_: FormState, f: FormData): Promise<FormState> {
   if (verify) {
     const sent = await sendMail(email, 'Verify your TelePlanner account', `Welcome to TelePlanner.\nConfirm your email to finish setting up your account:\n${await baseUrl()}/verify/${token}\n\nThis link expires in 2 days.`);
     if (sent) return { ok: `We sent a verification link to ${email}. Open it to finish creating your account.` };
-    await rows('update users set email_verified=true where id=$1', [u.id]); // mail failed: don't lock the person out
+    // The email could not be sent. Never let an unverified address in: undo the sign-up so they can try again.
+    await rows('delete from users where id=$1', [u.id]); await rows('delete from tenants where id=$1', [t.id]);
+    return { error: 'We could not send the verification email, so the account was not created. Please check the address and try again, or contact the site administrator.' };
   }
   await createSession(u.id);
   redirect('/');
