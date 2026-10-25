@@ -295,6 +295,46 @@ export async function saveWall(id: number | null, name: string, assets: any[], b
 }
 export async function deleteWall(f: FormData) { const me = await mgr(); await rows('delete from room_walls where wall_template_id in (select id from wall_templates where id=$1 and tenant_id=$2)', [Number(s(f,'id')), tid(me)]); revalidatePath('/tenant'); await rows('delete from wall_templates where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/walls'); }
 
+// ---- MV Tiles (Tile Designer): the site admin makes Standard tiles for everyone; Admin/Manager make custom tiles for their own tenant ----
+const TILE_TYPES = ['umd', 'audio', 'tally', 'clock'];
+const TILE_PROPS: Record<string, string[]> = { umd: ['text'], audio: ['channels', 'orientation'], tally: ['state', 'style'], clock: ['format'] };
+export async function saveTile(p: { id: number | null; name: string; assets: any[]; asNew: boolean; flags?: Record<string, boolean> }): Promise<{ id?: number; error?: string }> {
+  const me = await mgr();
+  if (!Array.isArray(p.assets) || p.assets.length > 60) return { error: 'A tile can hold up to 60 assets.' };
+  const assets: any[] = [];
+  for (const a of p.assets) {
+    if (!a || !TILE_TYPES.includes(a.type)) return { error: 'Unknown asset type.' };
+    const n = (v: any, lo: number, hi: number) => Math.round(Math.min(Math.max(+v || 0, lo), hi));
+    const w = n(a.w, 20, 1600), h = n(a.h, 20, 900), props: Record<string, any> = {};
+    for (const k of TILE_PROPS[a.type]) { const v = a.props?.[k]; props[k] = typeof v === 'number' ? n(v, 1, 16) : String(v ?? '').slice(0, 40); }
+    assets.push({ id: String(a.id).slice(0, 20), type: a.type, name: String(a.name ?? '').slice(0, 60), x: n(a.x, 0, 1600 - w), y: n(a.y, 0, 900 - h), w, h, props });
+  }
+  const name = String(p.name ?? '').trim().slice(0, 80) || 'Untitled tile', top = me.role === 'webappdev', standard = top && !!p.flags?.standard;
+  if (p.id && !p.asNew) {
+    const r = await one(top ? 'select 1 from mv_tiles where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'select 1 from mv_tiles where id=$1 and tenant_id=$2', [p.id, tid(me)]);
+    if (!r) return { error: top ? 'Tile not found.' : 'Only the site admin can change a Standard tile. Copy it to make your own.' };
+    await rows(top ? 'update mv_tiles set name=$1, assets=$2, tenant_id=$4 where id=$3' : 'update mv_tiles set name=$1, assets=$2 where id=$3', top ? [name, JSON.stringify(assets), p.id, standard ? null : tid(me)] : [name, JSON.stringify(assets), p.id]);
+    revalidatePath('/tiles'); return { id: p.id };
+  }
+  if (!top && ((await one('select count(*)::int c from mv_tiles where tenant_id=$1', [tid(me)]))!.c >= 200)) return { error: 'You have reached the limit of 200 custom tiles.' };
+  const r = (await one('insert into mv_tiles(tenant_id,name,assets) values($1,$2,$3) returning id', [standard ? null : tid(me), name, JSON.stringify(assets)]))!;
+  revalidatePath('/tiles'); return { id: r.id };
+}
+export async function copyTile(f: FormData) {
+  const me = await mgr(); const src = await one('select name,assets,tenant_id from mv_tiles where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
+  if (me.role !== 'webappdev' && ((await one('select count(*)::int c from mv_tiles where tenant_id=$1', [tid(me)]))!.c >= 200)) return;
+  const r = await one('insert into mv_tiles(tenant_id,name,assets) values($1,$2,$3) returning id', [me.role === 'webappdev' && !src.tenant_id ? null : tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.assets)]);
+  revalidatePath('/tiles'); redirect(`/tiles?id=${r!.id}`);
+}
+export async function renameTile(f: FormData) {
+  const me = await mgr(); const name = s(f, 'name').slice(0, 80); if (!name) return;
+  await rows(me.role === 'webappdev' ? 'update mv_tiles set name=$1 where id=$2 and (tenant_id=$3 or tenant_id is null)' : 'update mv_tiles set name=$1 where id=$2 and tenant_id=$3', [name, Number(s(f, 'id')), tid(me)]); revalidatePath('/tiles');
+}
+export async function deleteTile(f: FormData) {
+  const me = await mgr();
+  await rows(me.role === 'webappdev' ? 'delete from mv_tiles where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'delete from mv_tiles where id=$1 and tenant_id=$2', [Number(s(f, 'id')), tid(me)]); revalidatePath('/tiles');
+}
+
 // ---- MV Layouts: only Admin/Manager create custom ones ----
 export async function saveLayout(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const n = Math.min(Math.max(Number(s(f,'count')) || 1, 1), 36);

@@ -114,3 +114,20 @@ a.btn.small{min-height:34px;padding:0 12px;font-size:.9rem;border-radius:10px;ba
 button.danger{background:#c0392b;color:#fff;border-color:#c0392b}
 .urow{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;padding:3px 0}
 .tablewrap{overflow-x:auto}.mlog{width:100%;border-collapse:collapse;font-size:.85rem}.mlog th,.mlog td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}.mlog th{font-weight:600;opacity:.7}
+
+/* ---- Designers (shared by Tile, and soon Wall and MV) ---- */
+.dz-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.dz-name{flex:1 1 220px;min-width:160px;max-width:380px;font-weight:600}
+.dz-flag{display:inline-flex;align-items:center;gap:6px;font-size:.9rem}.dz-flag input{width:auto;min-height:0}
+.dz-main{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:12px;align-items:start}
+.dz-stage{width:100%;min-height:200px}.dz-stage:focus{outline:2px solid var(--acc);outline-offset:2px}
+.dzi{position:absolute;cursor:grab;user-select:none;touch-action:none;outline:1px dashed #ffffff40}.dzi.sel{outline:2px solid var(--acc);z-index:2}
+.hdl{position:absolute;width:14px;height:14px;background:var(--acc);border:2px solid #fff;border-radius:4px;z-index:3;touch-action:none}
+.hdl.nw{left:-8px;top:-8px;cursor:nwse-resize}.hdl.ne{right:-8px;top:-8px;cursor:nesw-resize}.hdl.sw{left:-8px;bottom:-8px;cursor:nesw-resize}.hdl.se{right:-8px;bottom:-8px;cursor:nwse-resize}
+.dz-side .card{margin:0 0 12px}.dz-pal{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.dz-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.dz-num{display:flex;flex-direction:column;gap:3px;font-size:.8rem}.dz-num input,.dz-num select{width:100%}
+@media(max-width:800px){.dz-main{grid-template-columns:1fr}}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.dcard{position:relative;margin:0;display:flex;flex-direction:column;gap:8px}.dcard .dots{position:absolute;top:10px;right:10px}
+.dcard a.tilelink{display:flex;flex-direction:column;gap:8px;text-decoration:none;color:inherit}
+.dz-note{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:0 0 12px}

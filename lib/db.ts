@@ -38,6 +38,7 @@ alter table tenants add column if not exists max_productions int not null defaul
 alter table tenants add column if not exists max_jobs_per_production int not null default 4;
 alter table tenants add column if not exists created_at timestamptz not null default now();
 alter table tenants add column if not exists status text not null default 'active';
+create table if not exists mv_tiles(id serial primary key, tenant_id int, name text not null, assets jsonb not null default '[]', created_at timestamptz not null default now());
 alter table users add column if not exists suspended boolean not null default false;
 create table if not exists email_log(id serial primary key, at timestamptz not null default now(), to_email text not null, subject text not null, ok boolean not null, error text, resend_id text);
 create index if not exists email_log_at on email_log(at);
@@ -84,12 +85,23 @@ async function init(): Promise<Client> {
     mkdirSync(dir, { recursive: true });
     client = new PGlite(dir) as unknown as Client;
   }
+  const hadTiles = (await client.query("select to_regclass('public.mv_tiles') t")).rows[0].t;
   const hadJobWalls = (await client.query("select to_regclass('public.job_walls') t")).rows[0].t;
   await client.exec(SCHEMA);
   // One-time: Jobs used to be given whole Rooms; carry that over as the Room's current walls.
   if (!hadJobWalls) await client.query('insert into job_walls(job_id,room_wall_id) select jr.job_id, rw.id from job_rooms jr join room_walls rw on rw.room_id=jr.room_id on conflict do nothing');
   await bootstrap(client);
+  if (!hadTiles) await seedTiles(client);
   return client;
+}
+
+// Standard MV Tiles from the site admin, shared with every tenant (created once, when the table is first made).
+async function seedTiles(db: Client) {
+  const a = (id: string, type: string, name: string, x: number, y: number, w: number, h: number, props: any) => ({ id, type, name, x, y, w, h, props });
+  const umd = a('u1', 'umd', 'UMD', 0, 780, 1600, 120, { text: 'SOURCE NAME' }), tally = a('t1', 'tally', 'Tally', 1490, 10, 100, 100, { state: 'red', style: 'lamp' });
+  const meters = a('m1', 'audio', 'Audio meters', 1470, 130, 110, 620, { channels: 2, orientation: 'vertical' }), clock = a('c1', 'clock', 'Clock / timecode', 20, 20, 420, 110, { format: 'HH:MM:SS' });
+  const sets: [string, any[]][] = [['Standard - UMD + Tally', [umd, tally]], ['Standard - UMD + Tally + Audio meters', [umd, tally, meters]], ['Standard - Full (UMD, Tally, Meters, Clock)', [umd, tally, meters, clock]]];
+  for (const [name, assets] of sets) await db.query('insert into mv_tiles(tenant_id,name,assets) values(null,$1,$2)', [name, JSON.stringify(assets)]);
 }
 
 // First run only: presets, and the first Master Admin from ADMIN_EMAIL / ADMIN_PASSWORD.
