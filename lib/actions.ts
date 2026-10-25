@@ -409,26 +409,6 @@ export async function addComment(f: FormData) {
   revalidatePath('/plans');
 }
 
-// ---- Extra email addresses on one account (so invitations sent to any of them show up together) ----
-export async function addAltEmail(_: FormState, f: FormData): Promise<FormState> {
-  const me = await requireMe(); const email = s(f, 'email').toLowerCase();
-  if (!EMAIL.test(email)) return { error: 'Enter a valid email address.' };
-  if (!(await allow('alt-email', String(me.id), 5, 60))) return TOO_MANY;
-  if (!emailOn() && process.env.DEV_SHOW_CODES !== '1') return { error: 'Email sending is not set up yet, so the address cannot be confirmed.' };
-  if (email === me.email.toLowerCase() || (await one('select 1 from users where lower(email)=$1', [email])) || (await one('select 1 from user_emails where email=$1 and (verified or user_id<>$2)', [email, me.id])))
-    return { error: 'That email address is already in use.' };
-  const token = newToken();
-  await rows(`insert into user_emails(email,user_id,verified,token_hash,expires_at) values($1,$2,false,$3,now() + interval '2 days')
-    on conflict (email) do update set token_hash=$3, expires_at=now() + interval '2 days' where user_emails.user_id=$2 and not user_emails.verified`, [email, me.id, sha256(token)]);
-  const link = `${await baseUrl()}/verify-email/${token}`;
-  if (await sendMail(email, 'Confirm this email for TelePlanner', `Confirm that ${email} should be added to the TelePlanner account of ${me.name}:\n${link}\n\nThis link expires in 2 days. If you did not ask for this, ignore this email.`))
-    return { ok: `We sent a confirmation link to ${email}. Open it to finish adding the address.` };
-  return process.env.DEV_SHOW_CODES === '1' ? { ok: 'Test mode - confirm with this link:', link } : { error: 'The confirmation email could not be sent. Try again later.' };
-}
-export async function removeAltEmail(f: FormData) {
-  const me = await requireMe(); await rows('delete from user_emails where email=$1 and user_id=$2', [s(f, 'email').toLowerCase(), me.id]); revalidatePath('/account');
-}
-
 // One-click sample data for a tenant admin: a Broadcaster, Production, Room with a Wall, two Jobs and saved Monitor Plans.
 export async function loadDemoData() {
   const me = await requireMe(); if (!isAdmin(me) || !me.tenant_id) throw new Error('Admin only');

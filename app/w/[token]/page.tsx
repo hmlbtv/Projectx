@@ -24,7 +24,6 @@ export default async function Invitation({ params }: { params: Promise<{ token: 
   }
   const exists = await one('select 1 from users where email=$1', [link.email]);
   if (exists) redirect(`/signin?next=${encodeURIComponent('/shared/' + link.id)}&email=${encodeURIComponent(link.email)}`);
-  if (await one('select 1 from user_emails where email=$1 and verified', [link.email.toLowerCase()])) redirect(`/signin?next=${encodeURIComponent('/shared/' + link.id)}`);
   return (<div className="auth">{head}<div className="card"><h1>Create your account</h1>
     <p className="mut">{link.tenant} shared a monitor wall with you. Create an account for <b>{link.email}</b>. Everything shared with you will be in one place when you sign in.</p>
     <GuestSignUp token={token} email={link.email} /><p style={{ margin: '12px 0 0' }}>Already have an account? <Link href={`/signin?next=${encodeURIComponent('/shared/' + link.id)}&email=${encodeURIComponent(link.email)}`}>Sign in</Link></p></div></div>);

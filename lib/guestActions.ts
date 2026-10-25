@@ -46,7 +46,7 @@ export async function signUpGuest(_: FormState, f: FormData): Promise<FormState>
   if (!name) return { error: 'Enter your name.' };
   if (pw !== String(f.get('password2') ?? '')) return { error: 'Passwords do not match.' };
   const bad = passwordProblem(pw); if (bad) return { error: bad };
-  if ((await one('select 1 from users where email=$1', [link.email])) || (await one('select 1 from user_emails where email=$1 and verified', [link.email.toLowerCase()]))) return { error: 'An account with this email already exists. Sign in instead.' };
+  if ((await one('select 1 from users where email=$1', [link.email]))) return { error: 'An account with this email already exists. Sign in instead.' };
   const verify = emailOn(), vt = newToken();
   const u = (await one(`insert into users(tenant_id,email,name,role,password_hash,email_verified,verify_hash,verify_expires)
     values(null,$1,$2,'onetime',$3,$4,$5,now() + interval '2 days') returning id`, [link.email, name, await hashPassword(pw), !verify, verify ? sha256(vt) : null]))!;
