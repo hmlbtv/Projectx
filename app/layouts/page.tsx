@@ -17,11 +17,10 @@ export default async function Layouts({ searchParams }: { searchParams: Promise<
   const tl = await rows('select id,name,assets,tenant_id from mv_tiles where tenant_id=$1 or tenant_id is null order by tenant_id nulls first, name', [t]);
   const tileMap: Record<number, any[]> = Object.fromEntries(tl.map((x: any) => [x.id, x.assets]));
   if (id) { const cur = ls.find((x: any) => String(x.id) === id); if (!cur) redirect('/layouts');
-    const ro = !top && !cur.tenant_id;
+    const std = !top && !cur.tenant_id;
     return (<><h1 style={{ margin: '0 0 12px' }}>MV Designer</h1>
-      <LayoutEditor key={cur.id} id={cur.id} name={cur.name} tiles={cur.tiles} readOnly={ro} tileList={tl.map((x: any) => ({ id: x.id, name: x.name, assets: x.assets, mine: !!x.tenant_id }))}
-        notice={ro ? (<div className="card dz-note"><span>This is a Standard layout from the TelePlanner team, so it can't be edited. Make a copy to put your own tiles on it.</span>
-          <form action={copyLayout}><input type="hidden" name="id" value={cur.id} /><button className="small">Copy to my layouts</button></form></div>) : undefined} /></>); }
+      <LayoutEditor key={cur.id} id={cur.id} name={cur.name} tiles={cur.tiles} tileList={tl.map((x: any) => ({ id: x.id, name: x.name, assets: x.assets, mine: !!x.tenant_id }))}
+        notice={std ? (<div className="card dz-note"><span>This is a Standard layout from the TelePlanner team. Change it as you like: Save makes your own copy and the Standard one stays as it is for everyone.</span></div>) : undefined} /></>); }
   return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>MV Designer</h1>
       <AddDialog inline action={saveLayout} label="Add MV Layout" title="New MV Layout" placeholder="Layout name"><label className="mut">Number of tiles<input name="count" type="number" min="1" max="36" defaultValue="4" /></label>
         {me.role === 'webappdev' && <label style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><input type="checkbox" name="standard" value="1" style={{ minHeight: 0, width: 'auto' }} /> Standard (all tenants)</label>}</AddDialog></div>

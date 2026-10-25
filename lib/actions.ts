@@ -361,7 +361,8 @@ export async function saveLayoutTiles(p: { id: number; name: string; tiles: any[
   const me = await mgr(); const top = me.role === 'webappdev';
   if (!Array.isArray(p.tiles) || p.tiles.length < 1 || p.tiles.length > 64) return { error: 'A layout needs 1 to 64 monitors.' };
   const src = await one('select tenant_id from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(p.id), tid(me)]); if (!src) return { error: 'Layout not found.' };
-  if (!top && !p.asNew && !src.tenant_id) return { error: 'Standard layouts can only be changed by the site admin. Save as new to make your own copy.' };
+  // A tenant can't change a Standard layout: saving one makes the tenant's own copy and leaves the Standard one as it was.
+  const fork = !top && !p.asNew && !src.tenant_id; if (fork) p.asNew = true;
   if (!top && !p.asNew && src.tenant_id !== tid(me)) return { error: 'Layout not found.' };
   const seen = new Set<number>(), tiles: any[] = [];
   const vis = new Set<number>((await rows('select id from mv_tiles where tenant_id=$1 or tenant_id is null', [tid(me)])).map((x: any) => x.id));
@@ -371,7 +372,8 @@ export async function saveLayoutTiles(p: { id: number; name: string; tiles: any[
     const w = r(a.w, 20, 1600), h = r(a.h, 20, 900), o: any = { n, x: r(a.x, 0, 1600 - w), y: r(a.y, 0, 900 - h), w, h };
     if (a.tileId && vis.has(Number(a.tileId))) o.tileId = Number(a.tileId); tiles.push(o);
   }
-  tiles.sort((a, b) => a.n - b.n); const name = String(p.name ?? '').trim().slice(0, 80) || 'Untitled layout';
+  tiles.sort((a, b) => a.n - b.n); let name = String(p.name ?? '').trim().slice(0, 80) || 'Untitled layout';
+  if (fork) { const o = await one('select name from mv_layouts where id=$1', [Number(p.id)]); if (o && o.name === name) name = (name + ' (mine)').slice(0, 80); }
   if (!p.asNew) { await rows('update mv_layouts set name=$1, tiles=$2 where id=$3', [name, JSON.stringify(tiles), Number(p.id)]); revalidatePath('/layouts'); revalidatePath('/plans'); return { id: Number(p.id) }; }
   const r = (await one('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3) returning id', [top ? src.tenant_id : tid(me), name, JSON.stringify(tiles)]))!; revalidatePath('/layouts'); return { id: r.id };
 }

@@ -10,7 +10,8 @@ export type TileRef = { id: number; name: string; assets: DAsset[]; mine: boolea
 const PALETTE: PaletteItem[] = [{ type: 'mv', label: 'Monitor', w: 400, h: 225 }];
 
 // Edits an MV Layout on the shared designer. Each monitor keeps its number (Monitor Plans refer to it); new ones take the next free number when saved.
-export default function LayoutEditor({ id, name, tiles, tileList, readOnly, notice }: { id: number; name: string; tiles: T[]; tileList: TileRef[]; readOnly?: boolean; notice?: React.ReactNode }) {
+export default function LayoutEditor({ id: id0, name, tiles, tileList, readOnly, notice }: { id: number; name: string; tiles: T[]; tileList: TileRef[]; readOnly?: boolean; notice?: React.ReactNode }) {
+  const [id, setId] = useState(id0); // becomes the tenant's own copy after the first save of a Standard layout
   const initial: DAsset[] = tiles.map(t => ({ id: 't' + t.n, type: 'mv', name: 'Monitor ' + t.n, x: t.x, y: t.y, w: t.w, h: t.h, ...(t.tileId ? { props: { tileId: t.tileId } } : {}) }));
   const [nums, setNums] = useState<Record<string, number>>(() => Object.fromEntries(tiles.map(t => ['t' + t.n, t.n])));
   const byId: Record<number, TileRef> = Object.fromEntries(tileList.map(x => [x.id, x]));
@@ -27,6 +28,6 @@ export default function LayoutEditor({ id, name, tiles, tileList, readOnly, noti
       for (const x of a.assets) { const m = /^t(\d+)$/.exec(x.id); if (m && !used.has(+m[1])) { map[x.id] = +m[1]; used.add(+m[1]); } }
       let next = 1; for (const x of a.assets) if (!map[x.id]) { while (used.has(next)) next++; map[x.id] = next; used.add(next); }
       const r = await saveLayoutTiles({ id, name: a.name, asNew: a.asNew, tiles: a.assets.map(x => ({ n: map[x.id], x: x.x, y: x.y, w: x.w, h: x.h, tileId: x.props?.tileId })) });
-      if (!r.error) setNums(map); return r;
+      if (!r.error) { setNums(map); if (r.id) setId(r.id); } return r;
     }} />);
 }
