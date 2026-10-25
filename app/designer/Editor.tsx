@@ -12,6 +12,8 @@ type Props = {
 };
 const SNAP = 10, MIN = 20, HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
 const hit = (a: DAsset, b: DAsset) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+// Shared by every designer on the page, so you can copy in one tile and paste into another.
+let clip: DAsset[] = [], pasteN = 0;
 const rid = () => Math.random().toString(36).slice(2, 8);
 
 export default function Editor(p: Props) {
@@ -43,6 +45,17 @@ export default function Editor(p: Props) {
   const duplicate = () => { const S = items.filter(a => sel.includes(a.id)); if (!S.length) return;
     const copies = S.map(a => ({ ...a, id: rid(), x: Math.min(a.x + 20, world.w - a.w), y: Math.min(a.y + 20, world.h - a.h), props: { ...a.props } }));
     if (!free([...items, ...copies], copies)) { setMsg('No room for a copy there.'); return; } apply([...items, ...copies]); setSel(copies.map(c => c.id)); };
+
+  function copy(cut = false) { const S = items.filter(a => sel.includes(a.id)); if (!S.length) return; clip = S.map(a => ({ ...a, props: { ...a.props } })); pasteN = 0; setMsg(`${S.length} copied`); if (cut) remove(); }
+  function paste() {
+    if (readOnly || !clip.length) return; pasteN++;
+    const bx = Math.min(...clip.map(a => a.x)), by = Math.min(...clip.map(a => a.y)), bw = Math.max(...clip.map(a => a.x + a.w)) - bx, bh = Math.max(...clip.map(a => a.y + a.h)) - by;
+    if (bw > world.w || bh > world.h) { setMsg('That is too big for this canvas.'); return; }
+    const nx = Math.min(Math.max(bx + 20 * pasteN, 0), world.w - bw), ny = Math.min(Math.max(by + 20 * pasteN, 0), world.h - bh);
+    const copies = clip.map(a => ({ ...a, id: rid(), x: a.x - bx + nx, y: a.y - by + ny, props: { ...a.props } }));
+    if (!free([...items, ...copies], copies)) { setMsg('No room to paste there - move things and try again.'); return; }
+    apply([...items, ...copies]); setSel(copies.map(c => c.id)); setMsg(`${copies.length} pasted`);
+  }
 
   // ---- pointer: move, and resize from a corner handle ----
   function startMove(e: React.PointerEvent, a: DAsset) {
@@ -78,6 +91,9 @@ export default function Editor(p: Props) {
     if (mod && k.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if (mod && k.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
     if (mod && k.toLowerCase() === 'd') { e.preventDefault(); duplicate(); return; }
+    if (mod && k.toLowerCase() === 'c') { e.preventDefault(); copy(); return; }
+    if (mod && k.toLowerCase() === 'x') { e.preventDefault(); copy(true); return; }
+    if (mod && k.toLowerCase() === 'v') { e.preventDefault(); paste(); return; }
     if (mod && k.toLowerCase() === 'a') { e.preventDefault(); setSel(items.map(a => a.id)); return; }
     if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); remove(); return; }
     const step = e.shiftKey ? 1 : SNAP, d = ({ ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] } as any)[k];
@@ -130,7 +146,8 @@ export default function Editor(p: Props) {
           {!readOnly && sel.length === 1 && sel[0] === a.id && HANDLES.map(h => <span key={h} className={'hdl ' + h} onPointerDown={e => startResize(e, a, h)} />)}</div>))}
       </div>
       <div className="dz-side">
-        {!readOnly && <div className="card"><b>Add</b><div className="dz-pal">{palette.map(pi => <button key={pi.type} className="sec small" onClick={() => add(pi)}>+ {pi.label}</button>)}</div></div>}
+        {!readOnly && <div className="card"><b>Add</b><div className="dz-pal">{palette.map(pi => <button key={pi.type} className="sec small" onClick={() => add(pi)}>+ {pi.label}</button>)}</div>
+          <div className="dz-pal"><button className="sec small" onClick={() => copy()} disabled={!sel.length} title="Copy (Ctrl+C)">Copy</button><button className="sec small" onClick={paste} title="Paste (Ctrl+V)">Paste</button></div></div>}
         {!readOnly && <div className="card"><b>Arrange</b><div className="dz-pal">
           {[['left', 'Left'], ['center', 'Centre'], ['right', 'Right'], ['top', 'Top'], ['middle', 'Middle'], ['bottom', 'Bottom'], ['h', 'Space H'], ['v', 'Space V']].map(([k, l]) => <button key={k} className="sec small" onClick={() => align(k)}>{l}</button>)}</div>
           <label className="dz-flag"><input type="checkbox" checked={lock} onChange={e => setLock(e.target.checked)} /> Lock aspect ratio</label></div>}
@@ -143,7 +160,7 @@ export default function Editor(p: Props) {
                 : <input type={f.kind === 'number' ? 'number' : 'text'} min={f.min} max={f.max} disabled={readOnly} value={one.props?.[f.key] ?? ''} onFocus={push} onChange={e => setProp(f.key, f.kind === 'number' ? Math.min(Math.max(+e.target.value || 0, f.min ?? 0), f.max ?? 9999) : e.target.value.slice(0, 40))} />}</label>))}
             {!readOnly && <div className="dz-pal"><button className="sec small" onClick={duplicate}>Duplicate</button><button className="del small" onClick={remove}>Delete</button></div>}</div>)
             : sel.length > 1 ? <div className="stack" style={{ marginTop: 8 }}><span className="mut">{sel.length} selected</span>{!readOnly && <div className="dz-pal"><button className="sec small" onClick={duplicate}>Duplicate</button><button className="del small" onClick={remove}>Delete</button></div>}</div>
-            : <p className="mut" style={{ margin: '8px 0 0' }}>{readOnly ? 'Select an item to see its properties.' : 'Click an item. Shift-click for several, drag to move, drag a corner to resize, arrows nudge (Shift = fine), Delete removes, Ctrl+Z undoes.'}</p>}
+            : <p className="mut" style={{ margin: '8px 0 0' }}>{readOnly ? 'Select an item to see its properties.' : 'Click an item. Shift-click for several, drag to move, drag a corner to resize, arrows nudge (Shift = fine), Delete removes, Ctrl+C / Ctrl+V copy and paste, Ctrl+Z undoes.'}</p>}
         </div>
       </div></div></div>);
 }

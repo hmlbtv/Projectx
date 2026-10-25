@@ -330,6 +330,11 @@ export async function renameTile(f: FormData) {
   const me = await mgr(); const name = s(f, 'name').slice(0, 80); if (!name) return;
   await rows(me.role === 'webappdev' ? 'update mv_tiles set name=$1 where id=$2 and (tenant_id=$3 or tenant_id is null)' : 'update mv_tiles set name=$1 where id=$2 and tenant_id=$3', [name, Number(s(f, 'id')), tid(me)]); revalidatePath('/tiles');
 }
+// Site admin only: make a tile Standard (visible to every tenant) or back into a tile private to the site admin's own tenant.
+export async function setTileStandard(f: FormData) {
+  const me = await mgr(); if (me.role !== 'webappdev') throw new Error('Site admin only');
+  await rows('update mv_tiles set tenant_id=$1 where id=$2 and (tenant_id=$3 or tenant_id is null)', [s(f, 'standard') === '1' ? null : tid(me), Number(s(f, 'id')), tid(me)]); revalidatePath('/tiles');
+}
 export async function deleteTile(f: FormData) {
   const me = await mgr();
   await rows(me.role === 'webappdev' ? 'delete from mv_tiles where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'delete from mv_tiles where id=$1 and tenant_id=$2', [Number(s(f, 'id')), tid(me)]); revalidatePath('/tiles');

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
 import { requireMe, canManage } from '@/lib/session';
-import { renameTile, copyTile, deleteTile } from '@/lib/actions';
+import { renameTile, copyTile, deleteTile, setTileStandard } from '@/lib/actions';
 import { TileArt } from '../designer/TileArt';
 import Menu from '../Menu';
 import TileEditor from './TileEditor';
@@ -32,6 +32,7 @@ export default async function Tiles({ searchParams }: { searchParams: Promise<{ 
           <span><span className="tag">{std ? 'standard' : 'custom'}</span><span className="tag">{x.assets.length} asset{x.assets.length === 1 ? '' : 's'}</span></span></Link>
         <Menu>
           {canEdit && <><b>Rename</b><form action={renameTile} className="stack"><input type="hidden" name="id" value={x.id} /><input name="name" defaultValue={x.name} required /><button className="sec">Save</button></form></>}
+          {top && <form action={setTileStandard} className="stack"><input type="hidden" name="id" value={x.id} /><label className="dz-flag"><input type="checkbox" name="standard" value="1" defaultChecked={std} /> Standard (all tenants)</label><button className="sec">Save</button></form>}
           <form action={copyTile}><input type="hidden" name="id" value={x.id} /><button className="sec">Copy</button></form>
           {canEdit && <form action={deleteTile} className="del-row"><input type="hidden" name="id" value={x.id} /><span className="mut">Delete this tile?</span><button className="del">Yes, delete</button></form>}
         </Menu></div>); })}</div></>);
