@@ -63,12 +63,12 @@ alter table wall_links add column if not exists contact_id int references contac
 function grid(cols: number, rows: number) {
   const tiles: any[] = []; let n = 1;
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++)
-    tiles.push({ n: n++, x: (c * 1600) / cols, y: (r * 900) / rows, w: 1600 / cols, h: 900 / rows });
+    tiles.push({ n: n++, x: Math.round((c * 1920) / cols), y: Math.round((r * 1080) / rows), w: Math.round(1920 / cols), h: Math.round(1080 / rows) });
   return tiles;
 }
 function oneAndFive() {
-  const t: any[] = [{ n: 1, x: 0, y: 0, w: 1066, h: 600 }];
-  [[1066,0],[1066,300],[0,600],[533,600],[1066,600]].forEach(([x,y],i)=>t.push({n:i+2,x,y,w:533,h:300}));
+  const t: any[] = [{ n: 1, x: 0, y: 0, w: 1280, h: 720 }];
+  [[1280,0],[1280,360],[0,720],[640,720],[1280,720]].forEach(([x,y],i)=>t.push({n:i+2,x,y,w:640,h:360}));
   return t;
 }
 
@@ -88,10 +88,18 @@ async function init(): Promise<Client> {
     client = new PGlite(dir) as unknown as Client;
   }
   const hadTiles = (await client.query("select to_regclass('public.mv_tiles') t")).rows[0].t;
+  const hadTenants = (await client.query("select to_regclass('public.tenants') t")).rows[0].t;
   const hadJobWalls = (await client.query("select to_regclass('public.job_walls') t")).rows[0].t;
   await client.exec(SCHEMA);
   // One-time: Jobs used to be given whole Rooms; carry that over as the Room's current walls.
   if (!hadJobWalls) await client.query('insert into job_walls(job_id,room_wall_id) select jr.job_id, rw.id from job_rooms jr join room_walls rw on rw.room_id=jr.room_id on conflict do nothing');
+  // One-time: the MV canvas changed from 1600x900 to 1920x1080, so scale saved layouts and tiles by 1.2.
+  if (hadTenants && !(await client.query("select 1 from settings where key='canvas'")).rows.length) {
+    const sc = (a: any[]) => a.map(o => ({ ...o, x: Math.round(o.x * 1.2), y: Math.round(o.y * 1.2), w: Math.round(o.w * 1.2), h: Math.round(o.h * 1.2) }));
+    for (const r of (await client.query('select id,tiles from mv_layouts')).rows) await client.query('update mv_layouts set tiles=$1 where id=$2', [JSON.stringify(sc(r.tiles || [])), r.id]);
+    if (hadTiles) for (const r of (await client.query('select id,assets from mv_tiles')).rows) await client.query('update mv_tiles set assets=$1 where id=$2', [JSON.stringify(sc(r.assets || [])), r.id]);
+  }
+  await client.query("insert into settings(key,value) values('canvas','1080') on conflict (key) do nothing");
   await bootstrap(client);
   if (!hadTiles) await seedTiles(client);
   return client;
@@ -100,8 +108,8 @@ async function init(): Promise<Client> {
 // Standard MV Tiles from the site admin, shared with every tenant (created once, when the table is first made).
 async function seedTiles(db: Client) {
   const a = (id: string, type: string, name: string, x: number, y: number, w: number, h: number, props: any) => ({ id, type, name, x, y, w, h, props });
-  const umd = a('u1', 'umd', 'UMD', 0, 780, 1600, 120, { text: 'SOURCE NAME' }), tally = a('t1', 'tally', 'Tally', 1490, 10, 100, 100, { state: 'red', style: 'lamp' });
-  const meters = a('m1', 'audio', 'Audio meters', 1470, 130, 110, 620, { channels: 2, orientation: 'vertical' }), clock = a('c1', 'clock', 'Clock / timecode', 20, 20, 420, 110, { format: 'HH:MM:SS' });
+  const umd = a('u1', 'umd', 'UMD', 0, 936, 1920, 144, { text: 'SOURCE NAME' }), tally = a('t1', 'tally', 'Tally', 1788, 12, 120, 120, { state: 'red', style: 'lamp' });
+  const meters = a('m1', 'audio', 'Audio meters', 1764, 156, 132, 744, { channels: 2, orientation: 'vertical' }), clock = a('c1', 'clock', 'Clock / timecode', 24, 24, 504, 132, { format: 'HH:MM:SS' });
   const sets: [string, any[]][] = [['Standard - UMD + Tally', [umd, tally]], ['Standard - UMD + Tally + Audio meters', [umd, tally, meters]], ['Standard - Full (UMD, Tally, Meters, Clock)', [umd, tally, meters, clock]]];
   for (const [name, assets] of sets) await db.query('insert into mv_tiles(tenant_id,name,assets) values(null,$1,$2)', [name, JSON.stringify(assets)]);
 }
@@ -126,7 +134,7 @@ async function bootstrap(db: Client) {
 
 async function seedPresets(db: Client) {
   const q = async (s: string, p: any[] = []) => (await db.query(s, p)).rows as any[];
-  // Preset MV layouts (WebAppDev, tenant_id null), 16:9 frame = 1600x900
+  // Preset MV layouts (WebAppDev, tenant_id null), 16:9 frame = 1920x1080
   const presets: [string, any][] = [['1 up',grid(1,1)],['2 up',grid(2,1)],['4 up (2x2)',grid(2,2)],['6 up (3x2)',grid(3,2)],['9 up (3x3)',grid(3,3)],['16 up (4x4)',grid(4,4)],['1 + 5',oneAndFive()]];
   for (const [n,tiles] of presets) await q('insert into mv_layouts(tenant_id,name,tiles) values(null,$1,$2)',[n,JSON.stringify(tiles)]);
 }

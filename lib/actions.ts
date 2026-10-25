@@ -312,10 +312,10 @@ export async function saveTile(p: { id: number | null; name: string; assets: any
   for (const a of p.assets) {
     if (!a || !TILE_TYPES.includes(a.type)) return { error: 'Unknown asset type.' };
     const n = (v: any, lo: number, hi: number) => Math.round(Math.min(Math.max(+v || 0, lo), hi));
-    const w = n(a.w, 20, 1600), h = n(a.h, 20, 900), props: Record<string, any> = {};
+    const w = n(a.w, 20, 1920), h = n(a.h, 20, 1080), props: Record<string, any> = {};
     for (const k of TILE_PROPS[a.type]) { const v = a.props?.[k]; props[k] = typeof v === 'number' ? n(v, 1, 16) : String(v ?? '').slice(0, 40); }
     props.rot = ((n(a.props?.rot, 0, 3) % 4) + 4) % 4;
-    assets.push({ id: String(a.id).slice(0, 20), type: a.type, name: String(a.name ?? '').slice(0, 60), x: n(a.x, 0, 1600 - w), y: n(a.y, 0, 900 - h), w, h, props });
+    assets.push({ id: String(a.id).slice(0, 20), type: a.type, name: String(a.name ?? '').slice(0, 60), x: n(a.x, 0, 1920 - w), y: n(a.y, 0, 1080 - h), w, h, props });
   }
   const name = String(p.name ?? '').trim().slice(0, 80) || 'Untitled tile', top = me.role === 'webappdev', standard = top && !!p.flags?.standard;
   if (p.id && !p.asNew) {
@@ -352,7 +352,7 @@ export async function deleteTile(f: FormData) {
 export async function saveLayout(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const n = Math.min(Math.max(Number(s(f,'count')) || 1, 1), 36);
   const cols = Math.ceil(Math.sqrt(n)), rws = Math.ceil(n / cols), tiles: any[] = [];
-  for (let i = 0; i < n; i++) { const c = i % cols, r = Math.floor(i / cols); tiles.push({ n: i + 1, x: c * 1600 / cols, y: r * 900 / rws, w: 1600 / cols, h: 900 / rws }); }
+  for (let i = 0; i < n; i++) { const c = i % cols, r = Math.floor(i / cols); tiles.push({ n: i + 1, x: Math.round(c * 1920 / cols), y: Math.round(r * 1080 / rws), w: Math.round(1920 / cols), h: Math.round(1080 / rws) }); }
   // Only the site admin can make a Standard (global) layout, visible to every tenant.
   const standard = me.role === 'webappdev' && s(f, 'standard') === '1';
   await rows('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3)', [standard ? null : tid(me), s(f,'name') || `Custom ${n}`, JSON.stringify(tiles)]);
@@ -370,7 +370,7 @@ export async function saveLayoutTiles(p: { id: number; name: string; tiles: any[
   for (const a of p.tiles) {
     const n = Math.round(+a?.n), r = (v: any, lo: number, hi: number) => Math.round(Math.min(Math.max(+v || 0, lo), hi));
     if (!(n >= 1 && n <= 999) || seen.has(n)) return { error: 'Monitor numbers must be unique.' }; seen.add(n);
-    const w = r(a.w, 20, 1600), h = r(a.h, 20, 900), o: any = { n, x: r(a.x, 0, 1600 - w), y: r(a.y, 0, 900 - h), w, h };
+    const w = r(a.w, 20, 1920), h = r(a.h, 20, 1080), o: any = { n, x: r(a.x, 0, 1920 - w), y: r(a.y, 0, 1080 - h), w, h };
     if (a.tileId && vis.has(Number(a.tileId))) o.tileId = Number(a.tileId); tiles.push(o);
   }
   tiles.sort((a, b) => a.n - b.n); let name = String(p.name ?? '').trim().slice(0, 80) || 'Untitled layout';
