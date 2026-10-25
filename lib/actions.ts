@@ -177,6 +177,34 @@ export async function setTenantPlan(f: FormData) {
   revalidatePath('/webappdev');
 }
 
+export async function setTenantStatus(f: FormData) {
+  const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
+  const id = Number(s(f, 'id')), status = s(f, 'status');
+  if (!['active', 'suspended', 'archived'].includes(status) || id === me.tenant_id) return;
+  await rows('update tenants set status=$1 where id=$2', [status, id]);
+  if (status !== 'active') await rows('delete from sessions where user_id in (select id from users where tenant_id=$1)', [id]);
+  revalidatePath('/webappdev');
+}
+// Permanently removes a tenant and everything in it. The tenant name must be typed to confirm.
+export async function deleteTenant(f: FormData) {
+  const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
+  const id = Number(s(f, 'id')); if (id === me.tenant_id) return;
+  const t = await one('select name from tenants where id=$1', [id]); if (!t || s(f, 'confirm') !== t.name) return;
+  const U = '(select id from users where tenant_id=$1)';
+  await rows(`delete from job_users where user_id in ${U}`, [id]);
+  await rows('delete from broadcasters where tenant_id=$1', [id]);
+  await rows('delete from sites where tenant_id=$1', [id]);
+  await rows('delete from wall_templates where tenant_id=$1', [id]);
+  await rows('delete from mv_layouts where tenant_id=$1', [id]);
+  await rows('delete from source_sets where tenant_id=$1', [id]);
+  await rows('delete from login_events where tenant_id=$1', [id]);
+  await rows('delete from contacts where tenant_id=$1', [id]);
+  await rows(`delete from comments where user_id in ${U}`, [id]);
+  await rows('delete from users where tenant_id=$1', [id]);
+  await rows('delete from tenants where id=$1', [id]);
+  revalidatePath('/webappdev');
+}
+
 // ---- Tenant Tree (Admin + Manager) ----
 export async function addSite(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); if (s(f,'name')) await rows('insert into sites(tenant_id,name) values($1,$2)', [tid(me), s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }
 export async function addLocation(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); const p = Number(s(f,'parent')); await own('sites', p, me); if (s(f,'name')) await rows('insert into locations(site_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }

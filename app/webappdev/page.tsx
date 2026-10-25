@@ -1,17 +1,20 @@
 import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
 import { requireMe } from '@/lib/session';
-import { setTenantPlan } from '@/lib/actions';
+import { setTenantPlan, setTenantStatus, deleteTenant } from '@/lib/actions';
 import { emailOn, mailFrom, baseUrl } from '@/lib/mail';
 import TestEmail from './TestEmail';
 export const dynamic = 'force-dynamic';
-export default async function SiteAdmin() {
+export default async function SiteAdmin({ searchParams }: { searchParams: Promise<{ q?: string; s?: string }> }) {
+  const { q: q0, s: sf } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
   const me = await requireMe(); if (me.role !== 'webappdev') redirect('/');
-  const ts = await rows(`select t.id,t.name,t.plan,t.max_walls_per_broadcaster m, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j,
+  const ts = await rows(`select t.id,t.name,t.plan,t.max_walls_per_broadcaster m, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j, t.status,
     (select count(*)::int from users u where u.tenant_id=t.id) members,
     (select count(*)::int from wall_templates w where w.tenant_id=t.id) walls,
     (select count(*)::int from contacts c where c.tenant_id=t.id) contacts,
-    (select min(u.email) from users u where u.tenant_id=t.id and u.role='master_admin') owner from tenants t order by t.id desc`);
+    (select min(u.email) from users u where u.tenant_id=t.id and u.role='master_admin') owner from tenants t where ($1='' or t.name ilike '%'||$1||'%' or exists(select 1 from users u where u.tenant_id=t.id and (u.email ilike '%'||$1||'%' or u.name ilike '%'||$1||'%')))
+    and ($2='' or t.status=$2) order by t.id desc`, [q.replace(/[%_\\]/g, ''), ['active', 'suspended', 'archived'].includes(sf ?? '') ? sf : '']);
+  const found = q ? await rows(`select u.tenant_id,u.name,u.email,u.role from users u where u.tenant_id is not null and (u.email ilike '%'||$1||'%' or u.name ilike '%'||$1||'%') order by u.name limit 200`, [q.replace(/[%_\\]/g, '')]) : [];
   const ms = await rows(`select t.id,t.name,t.created_at,
     (select max(e.started_at) from login_events e where e.tenant_id=t.id) last_login,
     (select max(e.last_seen_at) from login_events e where e.tenant_id=t.id) last_seen,
@@ -48,11 +51,18 @@ export default async function SiteAdmin() {
       <p className="mut">Verification, password reset and invitation emails are sent through Resend. Values come from this deployment's environment variables; the key itself is never shown.</p>
       <div className="stats" style={{ gridTemplateColumns: '1fr' }}>{mailRows.map(([k, v, ok]) => (<div key={k} className="stat"><b>{v}</b><span>{k} {ok ? '✓' : '⚠'}</span></div>))}</div>
       <TestEmail defaultTo={me.email} /></details>
-    <p className="mut">One card per tenant. Counts only, never contact emails. Time logged in runs from sign-in to the last page seen. Activity is for the last 30 days unless stated. New sign-ups start on the demo plan: 1 Wall Template per Broadcaster, 2 Broadcasters, 3 Productions each, 4 Jobs each. One-Time guests (no tenant): {g.guests} accounts, {g.guests30} signed in during the last 30 days.</p>
-    {ts.map((t: any) => { const m: any = msById.get(t.id) ?? {}; return (
-      <div key={t.id} className="card tenant">
-        <div className="th"><div><h2 style={{ margin: 0 }}>{t.name}</h2><div className="mut">{t.owner || 'No owner'} · signed up {day(m.created_at)}</div></div>
-          <div className="mut" style={{ textAlign: 'right' }}>Last login<br /><strong style={{ color: 'inherit' }} title={m.last_login ? new Date(m.last_login).toISOString() : ''}>{ago(m.last_login)}</strong></div></div>
+    <p className="mut">Counts only, never contact emails. Time logged in runs from sign-in to the last page seen. Activity is for the last 30 days unless stated. New sign-ups start on the demo plan: 1 Wall Template per Broadcaster, 2 Broadcasters, 3 Productions each, 4 Jobs each. One-Time guests (no tenant): {g.guests} accounts, {g.guests30} signed in during the last 30 days.</p>
+    <form method="get" className="searchbar"><input name="q" defaultValue={q} placeholder="Search tenants, users or emails" aria-label="Search" />
+      <select name="s" defaultValue={sf ?? ''} aria-label="Status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="archived">Archived</option></select>
+      <button>Search</button>{(q || sf) && <a href="/webappdev"><button type="button" className="sec">Clear</button></a>}</form>
+    <p className="mut">{ts.length} tenant{ts.length === 1 ? '' : 's'}{q ? ` matching “${q}”` : ''}. Open a card for details.</p>
+    {ts.length === 0 && <div className="card mut">No tenants match.</div>}
+    {ts.map((t: any) => { const m: any = msById.get(t.id) ?? {}; const mine = found.filter((u: any) => u.tenant_id === t.id); const own = t.id === me.tenant_id; return (
+      <details key={t.id} className={'card acc tenant st-' + t.status} open={!!q && ts.length <= 3}>
+        <summary><b>{t.name}</b> {t.status !== 'active' && <span className={'badge ' + t.status}>{t.status}</span>}
+          <span className="mut">{t.owner || 'No owner'} · {t.members} member{t.members === 1 ? '' : 's'} · last login {ago(m.last_login)}</span></summary>
+        <div className="mut" style={{ margin: '4px 0 12px' }}>Signed up {day(m.created_at)}</div>
+        {mine.length > 0 && <div className="matches"><b>Matching users</b>{mine.map((u: any) => <div key={u.email} className="mut">{u.name} · {u.email} · {u.role}</div>)}</div>}
         <div className="stats">
           <Stat k="Members" v={t.members} /><Stat k="Contacts" v={t.contacts} /><Stat k="Wall Templates" v={t.walls} /><Stat k="Productions" v={m.prods ?? 0} /><Stat k="Jobs" v={m.jobs ?? 0} /><Stat k="Monitor Plans" v={m.plans ?? 0} />
           <Stat k="Logins (30d)" v={m.logins30 ?? 0} /><Stat k="Active users 7d / 30d" v={`${m.active7 ?? 0} / ${m.active30 ?? 0}`} /><Stat k="Avg session" v={m.logins30 ? dur(m.avg_secs) : '—'} /><Stat k="Total time (30d)" v={m.logins30 ? dur(m.total_secs) : '—'} />
@@ -65,5 +75,14 @@ export default async function SiteAdmin() {
           <label>Productions per Broadcaster<input name="p" type="number" min="0" defaultValue={t.p} /></label>
           <label>Jobs per Production<input name="j" type="number" min="0" defaultValue={t.j} /></label>
           <button className="sec">Save limits</button></form>
-      </div>); })}</>);
+        {own ? <p className="mut">This is your own workspace, so it cannot be suspended, archived or deleted.</p> : (
+        <div className="acts">
+          {t.status !== 'suspended' && <form action={setTenantStatus}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="status" value="suspended" /><button className="sec" title="Members are signed out and see a suspended page">Suspend</button></form>}
+          {t.status !== 'archived' && <form action={setTenantStatus}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="status" value="archived" /><button className="sec" title="Same as suspend, kept for finished accounts">Archive</button></form>}
+          {t.status !== 'active' && <form action={setTenantStatus}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="status" value="active" /><button>Reactivate</button></form>}
+          <form action={deleteTenant} className="delete"><input type="hidden" name="id" value={t.id} />
+            <input name="confirm" placeholder={`Type “${t.name}” to delete`} autoComplete="off" aria-label="Type the tenant name to confirm deletion" />
+            <button className="danger">Delete forever</button></form>
+        </div>)}
+      </details>); })}</>);
 }

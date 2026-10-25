@@ -103,3 +103,12 @@ dialog.dlg::backdrop{background:rgba(15,18,23,.5)}
 dialog.dlg label{display:flex;flex-direction:column;gap:4px;font-size:.8rem}
 .addrow{display:flex;justify-content:flex-end;margin:10px 0}.addrow.inline{margin:0}
 a.btn.small{min-height:34px;padding:0 12px;font-size:.9rem;border-radius:10px;background:var(--ink,#0f1217);color:#fff;border-color:transparent}
+
+.searchbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.searchbar input{flex:1 1 220px}
+.badge{font-size:.7rem;padding:2px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.04em;background:var(--line)}
+.badge.suspended{background:#f5c26b;color:#4a3000}.badge.archived{background:#9aa3b2;color:#fff}
+.tenant.st-suspended,.tenant.st-archived{opacity:.85}
+.matches{background:var(--bg);border-radius:10px;padding:8px 10px;margin-bottom:12px}
+.acts{display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.acts .delete{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+button.danger{background:#c0392b;color:#fff;border-color:#c0392b}

@@ -12,6 +12,9 @@ const COOKIE = process.env.NODE_ENV === 'production' ? '__Host-gp_session' : 'gp
 
 // The cookie holds a random token; only its SHA-256 hash is stored, so a database leak can't be used to log in.
 export async function createSession(userId: number) {
+  // Suspended or archived accounts never get a session (the site admin is exempt).
+  const st = await one<{ status: string }>("select t.status from users u join tenants t on t.id=u.tenant_id where u.id=$1 and u.role<>'webappdev'", [userId]);
+  if (st && st.status !== 'active') redirect('/suspended?r=' + st.status);
   const token = newToken();
   await rows("insert into sessions(id,user_id,expires_at) values($1,$2,now() + interval '7 days')", [sha256(token), userId]);
   await rows('insert into login_events(session_id,user_id,tenant_id) select $1,id,tenant_id from users where id=$2', [sha256(token), userId]);
@@ -27,11 +30,18 @@ export async function getMe(): Promise<Me | null> {
   const t = (await cookies()).get(COOKIE)?.value; if (!t) return null;
   const h = sha256(t);
   const me = (await one<Me>(`select u.id,u.name,u.email,u.role,u.tenant_id from sessions s join users u on u.id=s.user_id
-    where s.id=$1 and s.expires_at > now()`, [h])) ?? null;
+    left join tenants t on t.id=u.tenant_id
+    where s.id=$1 and s.expires_at > now() and (u.role='webappdev' or t.id is null or t.status='active')`, [h])) ?? null;
   // Activity heartbeat (at most once a minute) so session length can be measured; stores no page content.
   if (me) await rows("update login_events set last_seen_at=now() where session_id=$1 and last_seen_at < now() - interval '1 minute'", [h]);
   return me;
 }
 export async function requireMe(): Promise<Me> {
-  const me = await getMe(); if (!me) redirect('/signin'); return me;
+  const me = await getMe();
+  if (!me) {
+    const t = (await cookies()).get(COOKIE)?.value;
+    const st = t ? await one<{ status: string }>(`select tn.status from sessions s join users u on u.id=s.user_id join tenants tn on tn.id=u.tenant_id where s.id=$1 and tn.status<>'active'`, [sha256(t)]) : null;
+    redirect(st ? '/suspended?r=' + st.status : '/signin');
+  }
+  return me;
 }
