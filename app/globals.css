@@ -142,11 +142,11 @@ button.danger{background:#c0392b;color:#fff;border-color:#c0392b}
 .dz-sec>summary::-webkit-details-marker{display:none}
 .dz-sec>summary::before{content:"";width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s;opacity:.7;flex:none}
 .dz-sec[open]>summary::before{transform:rotate(45deg)}
-.dz-sec>summary .tag{margin:0 0 0 auto;font-weight:400}
+.dz-sec>summary .tag{margin:0 0 0 auto;font-weight:400;white-space:nowrap}
 .dz-secbody{padding:8px 14px 14px;display:flex;flex-direction:column;gap:6px}
 .dz-grp{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:8px 0 0;padding-top:8px;border-top:1px solid var(--line)}
 .dz-grp:first-child{border-top:0;margin-top:0;padding-top:0}
-.dz-row{display:grid;grid-template-columns:84px minmax(0,1fr);align-items:center;gap:8px;font-size:.85rem}
+.dz-row{display:grid;grid-template-columns:minmax(84px,max-content) minmax(0,1fr);align-items:center;gap:8px;font-size:.85rem}
 .dz-row>span,.dz-row>em{color:var(--mut);font-style:normal}.dz-row>em{color:inherit}
 .dz-row input:not([type=checkbox]),.dz-row select{width:100%;min-height:32px;padding:4px 8px;font-size:.85rem}
 .dz-chk input{justify-self:start;width:auto;min-height:0}
@@ -158,7 +158,7 @@ button.danger{background:#c0392b;color:#fff;border-color:#c0392b}
 .dz-bar{margin-bottom:4px}
 .dz-status{min-height:24px;line-height:24px;margin:0 0 6px;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dz-panel{position:sticky;top:72px;max-height:calc(100vh - 88px);overflow-y:auto;overscroll-behavior:contain}
-.dz-sec[open].dz-props .dz-secbody{min-height:330px;align-content:start}
+.dz-sec[open].dzs-props .dz-secbody{min-height:330px;align-content:start}
 @media(max-width:800px){.dz-panel{position:static;max-height:none;overflow:visible}}
 
 /* Grouped nav item (Designers) */
@@ -178,7 +178,7 @@ main>div[style*="space-between"]+p{margin-top:10px}
 .dz-grp{font-size:.75rem}.mlog{font-size:.9rem}
 .dcard a.tilelink{padding-right:0;min-height:0}
 .dcard .dots>summary{background:rgba(15,18,23,.78);color:#fff;backdrop-filter:blur(4px)}
-.dz-add{order:-1}
+.dzs-add{order:-1}
 @media(pointer:coarse){
   .hdl{width:26px;height:26px;border-radius:7px}.hdl.nw{left:-14px;top:-14px}.hdl.ne{right:-14px;top:-14px}.hdl.sw{left:-14px;bottom:-14px}.hdl.se{right:-14px;bottom:-14px}
   .dots>summary{width:42px;height:42px}.dots{right:4px;top:4px}
@@ -186,7 +186,7 @@ main>div[style*="space-between"]+p{margin-top:10px}
 @media(max-width:700px){
   div.row>input,div.row>select,div.row>textarea{flex:1 1 100%}
   .dz-panel{display:flex;flex-direction:column}
-  .dz-sec[open].dz-props .dz-secbody{min-height:0}
+  .dz-sec[open].dzs-props .dz-secbody{min-height:0}
   .dz-bar .dz-name{max-width:none;flex-basis:100%}
   .navright .who{display:none}
 }
