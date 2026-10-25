@@ -2,7 +2,7 @@ import { rows } from '@/lib/db';
 import { requireMe, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { LayoutPreview } from './Preview';
-import { saveLayout, deleteLayout, copyLayout } from '@/lib/actions';
+import { saveLayout, deleteLayout, copyLayout, setLayoutStandard } from '@/lib/actions';
 import AddDialog from '../AddDialog';
 import Menu from '../Menu';
 import Link from 'next/link';
@@ -27,5 +27,5 @@ export default async function Layouts({ searchParams }: { searchParams: Promise<
     <p className="mut">Standard 16:9 frame. Standard layouts are set by the site admin and shared with every tenant. Custom layouts are private to your Tenant and only Admin/Manager can make them. Click a layout to edit it and put Tiles on its monitors.</p>
     <div className="tiles">
       {ls.map((l: any) => (<div key={l.id} className="card tile"><Link href={`/layouts?id=${l.id}`} className="tilelink"><LayoutPreview tiles={l.tiles} tileMap={tileMap} /><b>{l.name}</b>{!l.tenant_id && <span><span className="tag">standard</span></span>}</Link>
-        {(l.tenant_id || me.role === 'webappdev') && <Menu><form action={deleteLayout} className="del-row"><input type="hidden" name="id" value={l.id} /><span className="mut">Delete this layout? Monitor Plans using it lose their tile layout.</span><button className="del">Yes, delete</button></form></Menu>}</div>))}</div></>);
+        {(l.tenant_id || me.role === 'webappdev') && <Menu>{top && <form action={setLayoutStandard}><input type="hidden" name="id" value={l.id} /><input type="hidden" name="standard" value={l.tenant_id ? '1' : '0'} /><button>{l.tenant_id ? 'Make Standard (all tenants)' : 'Make custom (my tenant only)'}</button></form>}<form action={deleteLayout} className="del-row"><input type="hidden" name="id" value={l.id} /><span className="mut">Delete this layout? Monitor Plans using it lose their tile layout.</span><button className="del">Yes, delete</button></form></Menu>}</div>))}</div></>);
 }

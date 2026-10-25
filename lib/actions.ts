@@ -391,6 +391,13 @@ export async function copyLayout(f: FormData) {
   const r = (await one('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3) returning id', [tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.tiles)]))!;
   revalidatePath('/layouts'); redirect('/layouts?id=' + r.id);
 }
+// Site admin: promote a layout to Standard (shared with every tenant) or move it back to the site admin's own tenant.
+export async function setLayoutStandard(f: FormData) {
+  const me = await mgr(); if (me.role !== 'webappdev') return;
+  const id = Number(s(f, 'id')), std = s(f, 'standard') === '1';
+  await rows('update mv_layouts set tenant_id=$1 where id=$2', [std ? null : tid(me), id]);
+  revalidatePath('/layouts');
+}
 export async function deleteLayout(f: FormData) { const me = await mgr(); await rows(me.role === 'webappdev' ? 'delete from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'delete from mv_layouts where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/layouts'); }
 
 // ---- Productions: Broadcaster > Production > Job ----
