@@ -33,6 +33,10 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
     (select count(*)::int from wall_links l join jobs j on j.id=l.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id
        and exists(select 1 from users g where g.role='onetime' and lower(g.email)=lower(l.email))) links_joined
     from tenants t order by last_login desc nulls last, t.id desc`);
+  const mails = await rows(`select l.at, l.subject, l.ok, l.error,
+    case when exists(select 1 from users u where lower(u.email)=lower(l.to_email)) then l.to_email
+      else left(l.to_email,1)||'***'||substring(l.to_email from '@.*$') end as who from email_log l order by l.at desc limit 50`);
+  const mailCount = (await rows(`select count(*) filter (where ok)::int sent, count(*) filter (where not ok)::int failed from email_log where at > now() - interval '24 hours'`))[0];
   const g = (await rows(`select (select count(*)::int from users where role='onetime') guests,
     (select count(*)::int from users where role='onetime' and last_login_at > now()-interval '30 days') guests30`))[0];
   const ago = (d: any) => { if (!d) return 'never'; const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
@@ -50,7 +54,12 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
     <details className="card acc"><summary><b>Email</b> <span className="mut">{emailOn() ? 'Resend is set up' : 'Not set up'} · send a test email</span></summary>
       <p className="mut">Verification, password reset and invitation emails are sent through Resend. Values come from this deployment's environment variables; the key itself is never shown.</p>
       <div className="stats" style={{ gridTemplateColumns: '1fr' }}>{mailRows.map(([k, v, ok]) => (<div key={k} className="stat"><b>{v}</b><span>{k} {ok ? '✓' : '⚠'}</span></div>))}</div>
-      <TestEmail defaultTo={me.email} /></details>
+      <TestEmail defaultTo={me.email} />
+      <h3 style={{ margin: '16px 0 6px' }}>Email log</h3>
+      <p className="mut" style={{ margin: '0 0 8px' }}>Last 24 hours: {mailCount.sent} sent, {mailCount.failed} failed. Newest 50 attempts, kept 30 days. Addresses of people without an account (such as client contacts) are partly hidden, and email content is never stored.</p>
+      {mails.length === 0 ? <p className="mut">Nothing sent yet.</p> : (<div className="tablewrap"><table className="mlog"><thead><tr><th>Time</th><th>To</th><th>Email</th><th>Result</th></tr></thead><tbody>
+        {mails.map((m: any, i: number) => (<tr key={i}><td title={new Date(m.at).toISOString()}>{ago(m.at)}</td><td>{m.who}</td><td>{m.subject}</td>
+          <td style={{ color: m.ok ? 'inherit' : 'var(--bad)' }}>{m.ok ? 'Sent ✓' : 'Failed: ' + (m.error ?? '')}</td></tr>))}</tbody></table></div>)}</details>
     <p className="mut">Counts only, never contact emails. Time logged in runs from sign-in to the last page seen. Activity is for the last 30 days unless stated. New sign-ups start on the demo plan: 1 Wall Template per Broadcaster, 2 Broadcasters, 3 Productions each, 4 Jobs each. One-Time guests (no tenant): {g.guests} accounts, {g.guests30} signed in during the last 30 days.</p>
     <form method="get" className="searchbar"><input name="q" defaultValue={q} placeholder="Search tenants, users or emails" aria-label="Search" />
       <select name="s" defaultValue={sf ?? ''} aria-label="Status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="archived">Archived</option></select>

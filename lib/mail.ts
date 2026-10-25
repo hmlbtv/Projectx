@@ -1,10 +1,21 @@
 import { headers } from 'next/headers';
+import { rows } from './db';
 
 // Email goes through Resend. Without RESEND_API_KEY nothing is sent.
 export const emailOn = () => !!process.env.RESEND_API_KEY;
 export const mailFrom = () => process.env.MAIL_FROM || 'TelePlanner <onboarding@resend.dev>';
 // Like sendMail, but says why it failed (Resend's own message) so an admin can fix the setup.
-export async function sendMailDetailed(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string; id?: string }> {
+// Every send attempt is logged (recipient, subject, result only - never the body, which holds sign-in links). Kept 30 days.
+async function logMail(to: string, subject: string, r: { ok: boolean; error?: string; id?: string }) {
+  try {
+    await rows('insert into email_log(to_email,subject,ok,error,resend_id) values($1,$2,$3,$4,$5)', [to.slice(0, 200), subject.slice(0, 200), r.ok, r.error ?? null, r.id ?? null]);
+    if (Math.random() < 0.05) await rows("delete from email_log where at < now() - interval '30 days'");
+  } catch { /* logging must never break sending */ }
+}
+export async function sendMailDetailed(to: string, subject: string, text: string) {
+  const r = await send(to, subject, text); await logMail(to, subject, r); return r;
+}
+async function send(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string; id?: string }> {
   if (!emailOn()) return { ok: false, error: 'RESEND_API_KEY is not set on this deployment.' };
   try {
     const r = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
