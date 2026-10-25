@@ -193,3 +193,6 @@ main>div[style*="space-between"]+p{margin-top:10px}
 
 /* A border tally only grabs on its frame, so assets inside stay reachable */
 .dzi.ring{pointer-events:none}.dzi.ring svg *{pointer-events:stroke}.dzi.ring .hdl,.dzi.ring .dz-ord{pointer-events:auto}
+
+.dz-ic{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:8px 0}.dz-ic button{display:flex;align-items:center;justify-content:center;padding:0;min-height:34px}.dz-ic button svg{display:block}
+@media(max-width:700px){.dz-ic button{min-height:44px}}

@@ -16,6 +16,22 @@ const hit = (a: DAsset, b: DAsset) => a.x < b.x + b.w && a.x + a.w > b.x && a.y 
 let pasteN = 0;
 const getClip = (): DAsset[] => { try { const v = JSON.parse(sessionStorage.getItem('dz-clip') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
 const setClip = (v: DAsset[]) => { try { sessionStorage.setItem('dz-clip', JSON.stringify(v)); } catch {} };
+const Icon = ({ k }: { k: string }) => {
+  const L = (d: string) => <path d={d} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />;
+  const R = (x: number, y: number, w: number, h: number) => <rect x={x} y={y} width={w} height={h} rx="1" fill="currentColor" />;
+  const g: Record<string, any> = {
+    left: <>{L('M3 2v16')}{R(5, 4, 11, 4)}{R(5, 12, 7, 4)}</>,
+    right: <>{L('M17 2v16')}{R(4, 4, 11, 4)}{R(8, 12, 7, 4)}</>,
+    top: <>{L('M2 3h16')}{R(4, 5, 4, 11)}{R(12, 5, 4, 7)}</>,
+    bottom: <>{L('M2 17h16')}{R(4, 4, 4, 11)}{R(12, 8, 4, 7)}</>,
+    center: <>{L('M10 2v16')}{R(4, 4, 12, 4)}{R(6, 12, 8, 4)}</>,
+    middle: <>{L('M2 10h16')}{R(4, 4, 4, 12)}{R(12, 6, 4, 8)}</>,
+    sph: <>{L('M2.5 3v14M17.5 3v14')}{R(6, 6, 3, 8)}{R(11, 6, 3, 8)}</>,
+    spv: <>{L('M3 2.5h14M3 17.5h14')}{R(6, 6, 8, 3)}{R(6, 11, 8, 3)}</>,
+    tile: <><rect x="2.5" y="3.5" width="15" height="13" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />{R(7, 7, 6, 6)}</>,
+  };
+  return <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">{g[k]}</svg>;
+};
 const rid = () => Math.random().toString(36).slice(2, 8);
 
 export default function Editor(p: Props) {
@@ -239,11 +255,11 @@ export default function Editor(p: Props) {
           <div className="dz-pal"><button className="sec small" onClick={() => copy()} disabled={!sel.length} title="Copy (Ctrl+C)">Copy</button><button className="sec small" onClick={paste} title="Paste (Ctrl+V)">Paste</button></div></Sec>}
         {!readOnly && <Sec id="arrange" title="Arrange" open={openSec.arrange} toggle={toggleSec}>
           <div className="dz-grp">Align to the first selected</div>
-          <div className="dz-pal">{[['left', 'Left', 'Line up left edges'], ['right', 'Right', 'Line up right edges'], ['top', 'Top', 'Line up top edges'], ['bottom', 'Bottom', 'Line up bottom edges'], ['center', 'Centre horizontally', 'Line up horizontal centres (a vertical column)'], ['middle', 'Centre vertically', 'Line up vertical centres (a horizontal row)']].map(([k, l, tip]) => <button key={k} className="sec small" title={tip} onClick={() => align(k)}>{l}</button>)}</div>
+          <div className="dz-ic">{([['left', 'Align left edges'], ['center', 'Centre horizontally (a vertical column)'], ['right', 'Align right edges'], ['top', 'Align top edges'], ['middle', 'Centre vertically (a horizontal row)'], ['bottom', 'Align bottom edges']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={k} /></button>)}</div>
           <div className="dz-grp">Space in selection order</div>
-          <div className="dz-pal">{[['h', 'Space H', 'Spread left to right'], ['v', 'Space V', 'Spread top to bottom']].map(([k, l, tip]) => <button key={k} className="sec small" title={tip} onClick={() => align(k)}>{l}</button>)}</div>
+          <div className="dz-ic">{([['h', 'Space horizontally (left to right)'], ['v', 'Space vertically (top to bottom)']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={'sp' + k} /></button>)}</div>
           <div className="dz-grp">On the {p.canvasName ?? 'canvas'}</div>
-          <div className="dz-pal"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}>Centre on {p.canvasName ?? 'canvas'}</button></div>
+          <div className="dz-ic"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} aria-label={`Centre on ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}><Icon k="tile" /></button></div>
           <p className="mut dz-help">Select two or more to align or space. The first selected is the reference, and spacing follows the order selected.</p></Sec>}
         {!readOnly && <Sec id="grid" title="Grid" badge={<span className="tag">{snapOn ? `snap ${grid}` : 'snap off'}</span>} open={openSec.grid} toggle={toggleSec}>
           <label className="dz-row dz-chk"><span>Snap to grid</span><input type="checkbox" checked={snapOn} onChange={e => setSnapOn(e.target.checked)} /></label>
