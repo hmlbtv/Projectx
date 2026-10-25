@@ -200,3 +200,4 @@ main>div[style*="space-between"]+p{margin-top:10px}
 .navlinks{flex-wrap:nowrap;min-width:0}.navright{flex:none;white-space:nowrap}.navright button,.navright .btn{white-space:nowrap}
 @media(max-width:1500px){.navlinks .nl,.navlinks .ngbtn{padding:6px 9px;font-size:.93rem}nav{gap:6px 10px}.navright .who{max-width:150px;overflow:hidden;text-overflow:ellipsis}}
 @media(max-width:1340px){.navlinks,.navright{display:none}.burger{display:block}}
+.dzi.bad{outline:2px dashed #e5352b;z-index:3}
