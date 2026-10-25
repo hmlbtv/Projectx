@@ -21,6 +21,10 @@ const rid = () => Math.random().toString(36).slice(2, 8);
 export default function Editor(p: Props) {
   const { world, palette, readOnly } = p;
   const [name, setName] = useState(p.initialName), [items, setItems] = useState<DAsset[]>(p.initial), [sel, setSel] = useState<string[]>([]);
+  const [snapOn, setSnapOn] = useState(true), [grid, setGrid] = useState(10), [showGrid, setShowGrid] = useState(true);
+  useEffect(() => { try { const v = JSON.parse(localStorage.getItem('dz-grid') || 'null'); if (v) { setSnapOn(!!v.snapOn); setGrid([10, 20, 50, 100].includes(v.grid) ? v.grid : 10); setShowGrid(!!v.showGrid); } } catch {} }, []);
+  useEffect(() => { try { localStorage.setItem('dz-grid', JSON.stringify({ snapOn, grid, showGrid })); } catch {} }, [snapOn, grid, showGrid]);
+  const g = snapOn ? grid : 1, sn = (v: number) => Math.round(v / g) * g;
   const [msg, setMsg] = useState(''), [wid, setWid] = useState<number | null>(p.id), [lock, setLock] = useState(true), [dirty, setDirty] = useState(false);
   const [flags, setFlags] = useState<Record<string, boolean>>(Object.fromEntries((p.flags ?? []).map(f => [f.key, f.initial])));
   const hist = useRef<{ past: DAsset[][]; future: DAsset[][] }>({ past: [], future: [] }), [, bump] = useState(0);
@@ -44,9 +48,14 @@ export default function Editor(p: Props) {
     const a: DAsset = { id: rid(), type: pi.type, name: pi.label, ...pos, w, h, props: { ...pi.props } }; apply([...items, a]); setSel([a.id]);
   }
   const remove = () => { if (!sel.length) return; apply(items.filter(a => !sel.includes(a.id))); setSel([]); };
+  // Duplicates sit beside the original (to the right); duplicating again carries on in the same line, wrapping below if the row is full.
   const duplicate = () => { const S = items.filter(a => sel.includes(a.id)); if (!S.length) return;
-    const copies = S.map(a => ({ ...a, id: rid(), x: Math.min(a.x + 20, world.w - a.w), y: Math.min(a.y + 20, world.h - a.h), props: { ...a.props } }));
-    if (!free([...items, ...copies], copies)) { setMsg('No room for a copy there.'); return; } apply([...items, ...copies]); setSel(copies.map(c => c.id)); };
+    const bw = Math.max(...S.map(a => a.x + a.w)) - Math.min(...S.map(a => a.x)), bh = Math.max(...S.map(a => a.y + a.h)) - Math.min(...S.map(a => a.y)), gap = snapOn ? grid : 10;
+    for (const [dx, dy] of [[bw + gap, 0], [0, bh + gap], [-(bw + gap), 0], [0, -(bh + gap)]]) {
+      const copies = S.map(a => ({ ...a, id: rid(), x: a.x + dx, y: a.y + dy, props: { ...a.props } }));
+      if (free([...items, ...copies], copies)) { apply([...items, ...copies]); setSel(copies.map(c => c.id)); return; }
+    }
+    setMsg('No room for a copy next to it.'); };
 
   function copy(cut = false) { const S = items.filter(a => sel.includes(a.id)); if (!S.length) return; setClip(S.map(a => ({ ...a, props: { ...a.props } }))); pasteN = 0; setMsg(`${S.length} copied`); if (cut) remove(); }
   function paste() {
@@ -63,7 +72,7 @@ export default function Editor(p: Props) {
   function startMove(e: React.PointerEvent, a: DAsset) {
     if (readOnly) return; e.stopPropagation(); stage.current?.setPointerCapture(e.pointerId);
     const ids = e.shiftKey ? Array.from(new Set([...sel, a.id])) : sel.includes(a.id) ? sel : [a.id];
-    setSel(ids); drag.current = { mode: 'move', sx: e.clientX, sy: e.clientY, orig: items, ids, pushed: false };
+    setSel(ids); drag.current = { mode: 'move', primary: a.id, sx: e.clientX, sy: e.clientY, orig: items, ids, pushed: false };
   }
   function startResize(e: React.PointerEvent, a: DAsset, hd: string) {
     if (readOnly) return; e.stopPropagation(); stage.current?.setPointerCapture(e.pointerId);
@@ -71,18 +80,21 @@ export default function Editor(p: Props) {
   }
   function onMove(e: React.PointerEvent) {
     const d = drag.current; if (!d) return;
-    const dx = Math.round((e.clientX - d.sx) / px / SNAP) * SNAP, dy = Math.round((e.clientY - d.sy) / px / SNAP) * SNAP; if (!dx && !dy && !d.pushed) return;
-    let next: DAsset[];
-    if (d.mode === 'move') next = d.orig.map((a: DAsset) => d.ids.includes(a.id) ? { ...a, x: a.x + dx, y: a.y + dy } : a);
-    else {
-      const r = d.r0 as DAsset, hd = d.hd as string; let { x, y, w, h } = r;
-      if (hd.includes('e')) w = r.w + dx; if (hd.includes('w')) w = r.w - dx; if (hd.includes('s')) h = r.h + dy; if (hd.includes('n')) h = r.h - dy;
-      w = Math.max(MIN, w); h = Math.max(MIN, h);
-      if (lock) { const ratio = r.w / r.h; if (Math.abs(w - r.w) * 1 >= Math.abs(h - r.h) * ratio) h = Math.round(w / ratio); else w = Math.round(h * ratio); }
-      if (hd.includes('w')) x = r.x + r.w - w; if (hd.includes('n')) y = r.y + r.h - h;
+    const rx = (e.clientX - d.sx) / px, ry = (e.clientY - d.sy) / px; let next: DAsset[];
+    if (d.mode === 'move') {
+      const prim = d.orig.find((a: DAsset) => a.id === d.primary) ?? d.orig.find((a: DAsset) => d.ids.includes(a.id)); // the grabbed item lands on the grid; the rest keep their offsets
+      const dx = sn(prim.x + rx) - prim.x, dy = sn(prim.y + ry) - prim.y;
+      next = d.orig.map((a: DAsset) => d.ids.includes(a.id) ? { ...a, x: a.x + dx, y: a.y + dy } : a);
+    } else {
+      const r = d.r0 as DAsset, hd = d.hd as string; let l = r.x, tp = r.y, rt = r.x + r.w, bt = r.y + r.h;
+      if (hd.includes('e')) rt = sn(rt + rx); if (hd.includes('w')) l = sn(l + rx); if (hd.includes('s')) bt = sn(bt + ry); if (hd.includes('n')) tp = sn(tp + ry);
+      let w = Math.max(MIN, rt - l), h = Math.max(MIN, bt - tp);
+      if (lock) { const ratio = r.w / r.h; if (Math.abs(w - r.w) >= Math.abs(h - r.h) * ratio) h = Math.round(w / ratio); else w = Math.round(h * ratio); }
+      const x = hd.includes('w') ? r.x + r.w - w : r.x, y = hd.includes('n') ? r.y + r.h - h : r.y;
       next = d.orig.map((a: DAsset) => a.id === r.id ? { ...a, x, y, w, h } : a);
     }
     const moved = next.filter(a => d.ids.includes(a.id));
+    if (!d.pushed && moved.every(m => { const o = d.orig.find((a: DAsset) => a.id === m.id); return o && o.x === m.x && o.y === m.y && o.w === m.w && o.h === m.h; })) return;
     if (!free(next, moved)) return;
     if (!d.pushed) { hist.current.past.push(d.orig); hist.current.future = []; d.pushed = true; bump(n => n + 1); }
     setItems(next); setDirty(true);
@@ -98,7 +110,7 @@ export default function Editor(p: Props) {
     if (mod && k.toLowerCase() === 'v') { e.preventDefault(); paste(); return; }
     if (mod && k.toLowerCase() === 'a') { e.preventDefault(); setSel(items.map(a => a.id)); return; }
     if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); remove(); return; }
-    const step = e.shiftKey ? 1 : SNAP, d = ({ ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] } as any)[k];
+    const step = e.shiftKey ? 1 : snapOn ? grid : SNAP, d = ({ ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] } as any)[k];
     if (d && sel.length) { e.preventDefault(); const next = items.map(a => sel.includes(a.id) ? { ...a, x: a.x + d[0], y: a.y + d[1] } : a); if (free(next, next.filter(a => sel.includes(a.id)))) apply(next); }
   }
 
@@ -108,8 +120,8 @@ export default function Editor(p: Props) {
     const next = items.map(a => ({ ...a })), T = next.filter(a => sel.includes(a.id));
     if (kind === 'top') T.forEach(a => a.y = minY); if (kind === 'left') T.forEach(a => a.x = minX); if (kind === 'right') T.forEach(a => a.x = maxR - a.w);
     if (kind === 'bottom') T.forEach(a => a.y = maxB - a.h);
-    if (kind === 'middle') T.forEach(a => a.y = Math.round(((minY + maxB) / 2 - a.h / 2) / SNAP) * SNAP);
-    if (kind === 'center') T.forEach(a => a.x = Math.round(((minX + maxR) / 2 - a.w / 2) / SNAP) * SNAP);
+    if (kind === 'middle') T.forEach(a => a.y = sn((minY + maxB) / 2 - a.h / 2));
+    if (kind === 'center') T.forEach(a => a.x = sn((minX + maxR) / 2 - a.w / 2));
     if (kind === 'h' || kind === 'v') { if (T.length < 3) { setMsg('Select three or more to space evenly.'); return; }
       const hz = kind === 'h'; T.sort((a, b) => hz ? a.x - b.x : a.y - b.y);
       const total = hz ? maxR - minX : maxB - minY, used = T.reduce((s, a) => s + (hz ? a.w : a.h), 0), gap = (total - used) / (T.length - 1); let cur = hz ? minX : minY;
@@ -143,6 +155,7 @@ export default function Editor(p: Props) {
       <div ref={stage} className="canvas dz-stage" tabIndex={0} onKeyDown={onKey} onPointerMove={onMove} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}
         onPointerDown={e => { if (e.target === e.currentTarget || (e.target as HTMLElement).dataset.bg) setSel([]); }} style={{ height: cw * world.h / world.w }}>
         <div data-bg="1" style={{ position: 'absolute', inset: 0 }}>{p.backdrop}</div>
+        {showGrid && grid * px >= 4 && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'linear-gradient(to right,#ffffff1c 1px,transparent 1px),linear-gradient(to bottom,#ffffff1c 1px,transparent 1px)', backgroundSize: `${grid * px}px ${grid * px}px` }} />}
         {items.map(a => (<div key={a.id} className={'dzi' + (sel.includes(a.id) ? ' sel' : '')} onPointerDown={e => startMove(e, a)} title={a.name}
           style={{ left: a.x * px, top: a.y * px, width: a.w * px, height: a.h * px }}>{p.renderAsset(a)}
           {!readOnly && sel.length === 1 && sel[0] === a.id && HANDLES.map(h => <span key={h} className={'hdl ' + h} onPointerDown={e => startResize(e, a, h)} />)}</div>))}
@@ -150,6 +163,10 @@ export default function Editor(p: Props) {
       <div className="dz-side">
         {!readOnly && <div className="card"><b>Add</b><div className="dz-pal">{palette.map(pi => <button key={pi.type} className="sec small" onClick={() => add(pi)}>+ {pi.label}</button>)}</div>
           <div className="dz-pal"><button className="sec small" onClick={() => copy()} disabled={!sel.length} title="Copy (Ctrl+C)">Copy</button><button className="sec small" onClick={paste} title="Paste (Ctrl+V)">Paste</button></div></div>}
+        {!readOnly && <div className="card"><b>Grid</b><div className="stack" style={{ marginTop: 8 }}>
+          <label className="dz-flag"><input type="checkbox" checked={snapOn} onChange={e => setSnapOn(e.target.checked)} /> Snap to grid</label>
+          <label className="dz-flag"><input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)} /> Show grid</label>
+          <label className="dz-num">Grid size<select value={grid} onChange={e => setGrid(+e.target.value)}>{[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}</select></label></div></div>}
         {!readOnly && <div className="card"><b>Arrange</b><div className="dz-pal">
           {[['left', 'Left'], ['center', 'Centre'], ['right', 'Right'], ['top', 'Top'], ['middle', 'Middle'], ['bottom', 'Bottom'], ['h', 'Space H'], ['v', 'Space V']].map(([k, l]) => <button key={k} className="sec small" onClick={() => align(k)}>{l}</button>)}</div>
           <label className="dz-flag"><input type="checkbox" checked={lock} onChange={e => setLock(e.target.checked)} /> Lock aspect ratio</label></div>}
