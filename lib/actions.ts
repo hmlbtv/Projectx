@@ -300,7 +300,7 @@ const TILE_TYPES = ['umd', 'audio', 'tally', 'clock'];
 const TILE_PROPS: Record<string, string[]> = { umd: ['text'], audio: ['channels', 'orientation'], tally: ['state', 'style'], clock: ['format'] };
 export async function saveTile(p: { id: number | null; name: string; assets: any[]; asNew: boolean; flags?: Record<string, boolean> }): Promise<{ id?: number; error?: string }> {
   const me = await mgr();
-  if (!Array.isArray(p.assets) || p.assets.length > 60) return { error: 'A tile can hold up to 60 assets.' };
+  if (!Array.isArray(p.assets) || p.assets.length > 500) return { error: 'A tile can hold up to 500 assets.' };
   const assets: any[] = [];
   for (const a of p.assets) {
     if (!a || !TILE_TYPES.includes(a.type)) return { error: 'Unknown asset type.' };
