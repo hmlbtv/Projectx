@@ -34,8 +34,8 @@ const Icon = ({ k }: { k: string }) => {
     pushright: <>{L('M17 2v16')}{L('M4 10h9M10 6l4 4-4 4')}</>,
     pushup: <>{L('M2 3h16')}{L('M10 16V7M6 10l4-4 4 4')}</>,
     pushdown: <>{L('M2 17h16')}{L('M10 4v9M6 10l4 4 4-4')}</>,
-    rotcw: <>{R(6, 7, 8, 6)}{L('M4 8a7 7 0 0 1 12 0M16 4v4h-4')}</>,
-    rotccw: <>{R(6, 7, 8, 6)}{L('M16 8a7 7 0 0 0-12 0M4 4v4h4')}</>,
+    rotcw: <>{R(8, 8, 4, 4)}<path d="M16.5 10a6.5 6.5 0 1 1-2-4.7M14.8 1.8v3.8h-3.8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></>,
+    rotccw: <>{R(8, 8, 4, 4)}<path d="M3.5 10a6.5 6.5 0 1 0 2-4.7M5.2 1.8v3.8h3.8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></>,
     fit: <>{L('M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4')}{R(7, 7, 6, 6)}</>,
     tile: <><rect x="2.5" y="3.5" width="15" height="13" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />{R(7, 7, 6, 6)}</>,
   };
