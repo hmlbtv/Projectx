@@ -21,6 +21,7 @@ const rid = () => Math.random().toString(36).slice(2, 8);
 export default function Editor(p: Props) {
   const { world, palette, readOnly } = p;
   const [name, setName] = useState(p.initialName), [items, setItems] = useState<DAsset[]>(p.initial), [sel, setSel] = useState<string[]>([]);
+  const [marq, setMarq] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null);
   const [snapOn, setSnapOn] = useState(true), [grid, setGrid] = useState(10), [showGrid, setShowGrid] = useState(true);
   useEffect(() => { try { const v = JSON.parse(localStorage.getItem('dz-grid') || 'null'); if (v) { setSnapOn(!!v.snapOn); setGrid([10, 20, 50, 100].includes(v.grid) ? v.grid : 10); setShowGrid(!!v.showGrid); } } catch {} }, []);
   useEffect(() => { try { localStorage.setItem('dz-grid', JSON.stringify({ snapOn, grid, showGrid })); } catch {} }, [snapOn, grid, showGrid]);
@@ -80,6 +81,7 @@ export default function Editor(p: Props) {
   }
   function onMove(e: React.PointerEvent) {
     const d = drag.current; if (!d) return;
+    if (d.mode === 'marquee') { const r = stage.current!.getBoundingClientRect(); setMarq(m => m && { ...m, x1: (e.clientX - r.left) / px, y1: (e.clientY - r.top) / px }); return; }
     const rx = (e.clientX - d.sx) / px, ry = (e.clientY - d.sy) / px; let next: DAsset[];
     if (d.mode === 'move') {
       const prim = d.orig.find((a: DAsset) => a.id === d.primary) ?? d.orig.find((a: DAsset) => d.ids.includes(a.id)); // the grabbed item lands on the grid; the rest keep their offsets
@@ -98,6 +100,19 @@ export default function Editor(p: Props) {
     if (!free(next, moved)) return;
     if (!d.pushed) { hist.current.past.push(d.orig); hist.current.future = []; d.pushed = true; bump(n => n + 1); }
     setItems(next); setDirty(true);
+  }
+  // Drag a box on empty canvas: left-to-right selects anything the box touches; right-to-left only what is completely inside it.
+  function endDrag() {
+    const d = drag.current; drag.current = null;
+    if (d?.mode !== 'marquee') return;
+    if (marq) {
+      const x = Math.min(marq.x0, marq.x1), y = Math.min(marq.y0, marq.y1), w = Math.abs(marq.x1 - marq.x0), h = Math.abs(marq.y1 - marq.y0), touch = marq.x1 >= marq.x0;
+      if (w * px >= 4 || h * px >= 4) {
+        const ids = items.filter(a => touch ? a.x < x + w && a.x + a.w > x && a.y < y + h && a.y + a.h > y : a.x >= x && a.y >= y && a.x + a.w <= x + w && a.y + a.h <= y + h).map(a => a.id);
+        setSel(Array.from(new Set([...d.base, ...ids])));
+      }
+    }
+    setMarq(null);
   }
   function onKey(e: React.KeyboardEvent) {
     if (readOnly || (e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'SELECT') return;
@@ -132,7 +147,14 @@ export default function Editor(p: Props) {
   const one = sel.length === 1 ? items.find(a => a.id === sel[0]) : undefined, def = one ? palette.find(x => x.type === one.type) : undefined;
   const edit = (patch: Partial<DAsset>, record = false) => { if (!one) return; const next = items.map(a => a.id === one.id ? { ...a, ...patch } : a); if (free(next, next.filter(a => a.id === one.id))) apply(next, record); };
   const editSize = (k: 'w' | 'h', v: number) => { if (!one || !(v >= MIN)) return; const r = one.w / one.h; edit(lock ? (k === 'w' ? { w: v, h: Math.round(v / r) } : { h: v, w: Math.round(v * r) }) : { [k]: v }); };
-  const setProp = (key: string, v: any) => edit({ props: { ...one!.props, [key]: v } });
+  const setProp = (key: string, v: any) => {
+    if (!one) return; const f = def?.fields?.find(x => x.key === key);
+    if (f?.rotates && one.props?.[key] !== v) { // turn the box on its side around its centre, so it can then be stretched the other way
+      const w = Math.min(one.h, world.w), h = Math.min(one.w, world.h), x = Math.min(Math.max(Math.round(one.x + one.w / 2 - w / 2), 0), world.w - w), y = Math.min(Math.max(Math.round(one.y + one.h / 2 - h / 2), 0), world.h - h);
+      edit({ props: { ...one.props, [key]: v }, w, h, x, y }); return;
+    }
+    edit({ props: { ...one.props, [key]: v } });
+  };
 
   async function save(asNew: boolean) {
     const nm = (asNew && name === p.initialName ? name + ' copy' : name).trim() || 'Untitled'; setName(nm); setMsg('Saving…');
@@ -152,10 +174,16 @@ export default function Editor(p: Props) {
       <span className="mut" role="status">{msg || (dirty ? 'Unsaved changes' : '')}</span></div>
     {p.notice}
     <div className="dz-main">
-      <div ref={stage} className="canvas dz-stage" tabIndex={0} onKeyDown={onKey} onPointerMove={onMove} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}
-        onPointerDown={e => { if (e.target === e.currentTarget || (e.target as HTMLElement).dataset.bg) setSel([]); }} style={{ height: cw * world.h / world.w }}>
+      <div ref={stage} className="canvas dz-stage" tabIndex={0} onKeyDown={onKey} onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={endDrag}
+        onPointerDown={e => {
+          if (!(e.target === e.currentTarget || (e.target as HTMLElement).dataset.bg)) return;
+          if (readOnly) { setSel([]); return; }
+          const r = stage.current!.getBoundingClientRect(), x = (e.clientX - r.left) / px, y = (e.clientY - r.top) / px;
+          stage.current!.setPointerCapture(e.pointerId); drag.current = { mode: 'marquee', base: e.shiftKey ? sel : [] }; if (!e.shiftKey) setSel([]); setMarq({ x0: x, y0: y, x1: x, y1: y });
+        }} style={{ height: cw * world.h / world.w }}>
         <div data-bg="1" style={{ position: 'absolute', inset: 0 }}>{p.backdrop}</div>
         {showGrid && grid * px >= 4 && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'linear-gradient(to right,#ffffff1c 1px,transparent 1px),linear-gradient(to bottom,#ffffff1c 1px,transparent 1px)', backgroundSize: `${grid * px}px ${grid * px}px` }} />}
+        {marq && <div className={'dz-marq' + (marq.x1 >= marq.x0 ? '' : ' win')} style={{ left: Math.min(marq.x0, marq.x1) * px, top: Math.min(marq.y0, marq.y1) * px, width: Math.abs(marq.x1 - marq.x0) * px, height: Math.abs(marq.y1 - marq.y0) * px }} />}
         {items.map(a => (<div key={a.id} className={'dzi' + (sel.includes(a.id) ? ' sel' : '')} onPointerDown={e => startMove(e, a)} title={a.name}
           style={{ left: a.x * px, top: a.y * px, width: a.w * px, height: a.h * px }}>{p.renderAsset(a)}
           {!readOnly && sel.length === 1 && sel[0] === a.id && HANDLES.map(h => <span key={h} className={'hdl ' + h} onPointerDown={e => startResize(e, a, h)} />)}</div>))}
