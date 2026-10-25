@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
 import { requireMe } from '@/lib/session';
 import { setTenantPlan } from '@/lib/actions';
+import { emailOn, mailFrom, baseUrl } from '@/lib/mail';
+import TestEmail from './TestEmail';
 export const dynamic = 'force-dynamic';
 export default async function SiteAdmin() {
   const me = await requireMe(); if (me.role !== 'webappdev') redirect('/');
@@ -36,7 +38,16 @@ export default async function SiteAdmin() {
   const day = (d: any) => d ? new Date(d).toISOString().slice(0, 10) : '';
   const msById = new Map(ms.map((m: any) => [m.id, m]));
   const Stat = ({ k, v }: { k: string; v: any }) => (<div className="stat"><b>{v}</b><span>{k}</span></div>);
+  const mailRows: [string, string, boolean][] = [
+    ['Email key (RESEND_API_KEY)', emailOn() ? 'Set' : 'Not set - no emails can be sent', emailOn()],
+    ['Sender (MAIL_FROM)', process.env.MAIL_FROM ? mailFrom() : `${mailFrom()} (default test sender)`, !!process.env.MAIL_FROM],
+    ['Site address in emails (APP_URL)', process.env.APP_URL ? await baseUrl() : `${await baseUrl()} (not set, using fallback)`, !!process.env.APP_URL],
+  ];
   return (<><h1>Site admin · Tenants</h1>
+    <details className="card acc"><summary><b>Email</b> <span className="mut">{emailOn() ? 'Resend is set up' : 'Not set up'} · send a test email</span></summary>
+      <p className="mut">Verification, password reset and invitation emails are sent through Resend. Values come from this deployment's environment variables; the key itself is never shown.</p>
+      <div className="stats" style={{ gridTemplateColumns: '1fr' }}>{mailRows.map(([k, v, ok]) => (<div key={k} className="stat"><b>{v}</b><span>{k} {ok ? '✓' : '⚠'}</span></div>))}</div>
+      <TestEmail defaultTo={me.email} /></details>
     <p className="mut">One card per tenant. Counts only, never contact emails. Time logged in runs from sign-in to the last page seen. Activity is for the last 30 days unless stated. New sign-ups start on the demo plan: 1 Wall Template per Broadcaster, 2 Broadcasters, 3 Productions each, 4 Jobs each. One-Time guests (no tenant): {g.guests} accounts, {g.guests30} signed in during the last 30 days.</p>
     {ts.map((t: any) => { const m: any = msById.get(t.id) ?? {}; return (
       <div key={t.id} className="card tenant">

@@ -398,7 +398,7 @@ export async function loadDemoData() {
 
 // Settings page: send a test email so an admin can check the Resend setup.
 export async function sendTestEmail(_: FormState, f: FormData): Promise<FormState> {
-  const me = await requireMe(); if (me.role !== 'webappdev' && me.role !== 'master_admin') throw new Error('Admin only');
+  const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
   if (!(await allow('test-mail', String(me.id), 10, 60))) return { error: 'Too many test emails. Please wait a while and try again.' };
   const to = (s(f, 'to') || me.email).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return { error: 'Enter a valid email address.' };
