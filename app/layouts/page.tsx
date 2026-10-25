@@ -19,7 +19,7 @@ export default async function Layouts({ searchParams }: { searchParams: Promise<
   if (id) { const cur = ls.find((x: any) => String(x.id) === id); if (!cur) redirect('/layouts');
     const std = !top && !cur.tenant_id;
     return (<><h1 style={{ margin: '0 0 12px' }}>MV Designer</h1>
-      <LayoutEditor key={cur.id} id={cur.id} name={cur.name} tiles={cur.tiles} tileList={tl.map((x: any) => ({ id: x.id, name: x.name, assets: x.assets, mine: !!x.tenant_id }))}
+      <LayoutEditor canNeaten={top} key={cur.id} id={cur.id} name={cur.name} tiles={cur.tiles} tileList={tl.map((x: any) => ({ id: x.id, name: x.name, assets: x.assets, mine: !!x.tenant_id }))}
         notice={std ? (<div className="card dz-note"><span>This is a Standard layout from the TelePlanner team. Change it as you like: Save makes your own copy and the Standard one stays as it is for everyone.</span></div>) : undefined} /></>); }
   return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>MV Designer</h1>
       <AddDialog inline action={saveLayout} label="Add MV Layout" title="New MV Layout" placeholder="Layout name"><label className="mut">Number of tiles<input name="count" type="number" min="1" max="36" defaultValue="4" /></label>

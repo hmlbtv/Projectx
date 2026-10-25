@@ -8,7 +8,7 @@ export type SaveArgs = { id: number | null; name: string; assets: DAsset[]; asNe
 type Props = {
   kind: string; backHref: string; world: { w: number; h: number }; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
   id: number | null; initialName: string; initial: DAsset[]; onSave: (a: SaveArgs) => Promise<{ id?: number; error?: string }>;
-  canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
+  canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; neaten?: (items: DAsset[]) => DAsset[] | null; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
 };
 const SNAP = 10, MIN = 20, HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
 const hit = (a: DAsset, b: DAsset) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -321,6 +321,7 @@ export default function Editor(p: Props) {
           <div className="dz-tg">{([['left', 'Push left as far as it will go'], ['right', 'Push right as far as it will go'], ['up', 'Push up as far as it will go'], ['down', 'Push down as far as it will go']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => pushTo(k)}><Icon k={'push' + k} /></button>)}</div>
           {p.rotatable && <><span className="dz-tgl" title="Rotate"></span><div className="dz-tg"><button className="sec small" title="Rotate anticlockwise (a quarter turn)" aria-label="Rotate anticlockwise" onClick={() => rotateSel(-1)}><Icon k="rotccw" /></button><button className="sec small" title="Rotate clockwise (a quarter turn)" aria-label="Rotate clockwise" onClick={() => rotateSel(1)}><Icon k="rotcw" /></button></div></>}
           <span className="dz-tgl" title={`On the ${p.canvasName ?? 'canvas'}`}></span>
+          {p.neaten && <div className="dz-tg"><button className="sec small" style={{ whiteSpace: "nowrap" }} title="Neaten this layout: every window exactly 16:9 on one grid, equal sizes, edges lined up, centred" onClick={() => { const n = p.neaten!(items); if (!n) { setMsg('Could not find a neat grid for this layout.'); return; } apply(n); setSel([]); }}>Neaten layout</button></div>}
           <div className="dz-tg"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} aria-label={`Centre on ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}><Icon k="tile" /></button>{p.fitSpace && <button className="sec small" title="Fit to space: grow the selected one into the free space around it, keeping 16:9" aria-label="Fit to space" onClick={fitToSpace}><Icon k="fit" /></button>}</div>
         </div>}
       <div ref={stage} className={'canvas dz-stage' + (brush ? ' stamping' : '')} tabIndex={0} onKeyDown={onKey} onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={endDrag}
