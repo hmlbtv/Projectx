@@ -1,12 +1,12 @@
 import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
 import { requireMe, sessionLimits } from '@/lib/session';
-import { setTenantPlan, setTenantStatus, deleteTenant, setUserSuspended, saveSessionSettings, importKaleidoLayouts } from '@/lib/actions';
+import { setTenantPlan, setTenantStatus, deleteTenant, setUserSuspended, saveSessionSettings, importKaleidoLayouts, tidyStandardLayouts } from '@/lib/actions';
 import { emailOn, mailFrom, baseUrl } from '@/lib/mail';
 import TestEmail from './TestEmail';
 export const dynamic = 'force-dynamic';
-export default async function SiteAdmin({ searchParams }: { searchParams: Promise<{ q?: string; s?: string; imported?: string; of?: string }> }) {
-  const { q: q0, s: sf, imported, of } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
+export default async function SiteAdmin({ searchParams }: { searchParams: Promise<{ q?: string; s?: string; imported?: string; of?: string; tidied?: string }> }) {
+  const { q: q0, s: sf, imported, of, tidied } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
   const me = await requireMe(); if (me.role !== 'webappdev') redirect('/');
   const ts = await rows(`select t.id,t.name,t.plan,t.max_walls_per_broadcaster m, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j, t.status,
     (select count(*)::int from users u where u.tenant_id=t.id) members,
@@ -55,6 +55,9 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
     <details className="card acc" open={imported !== undefined}><summary><b>Kaleido layouts</b> <span className="mut">add the MV layouts converted from the Kaleido database</span></summary>
       {imported !== undefined && <p><b>{imported}</b> new Standard layout{imported === '1' ? '' : 's'} added{of ? ` (${of} in the file${Number(imported) < Number(of) ? ', the rest were already there' : ''})` : ''}.</p>}
       <form action={importKaleidoLayouts} className="stack"><p className="mut">47 layouts from the KMX database: even grids, one-big-plus-small, and with-timecode variants. Each monitor is placed and sized as in Kaleido and numbered left to right, top to bottom. Clock-only layouts are left out, and clocks inside layouts are not added as monitors. Safe to press again; layouts already added are skipped.</p><button className="sec">Add Kaleido layouts</button></form></details>
+    <details className="card acc" open={tidied !== undefined}><summary><b>Tidy Standard layouts</b> <span className="mut">level the edges and close small gaps in every Standard MV layout</span></summary>
+      {tidied !== undefined && <p><b>{tidied}</b> layout{tidied === '1' ? '' : 's'} tidied.</p>}
+      <form action={tidyStandardLayouts} className="stack"><p className="mut">Edges that are nearly level are made exactly level, and gaps or overlaps of 56 px or less between windows are closed. Layouts that are already neat are left alone. Tenants' own layouts are not touched.</p><button className="sec">Tidy Standard layouts</button></form></details>
     <details className="card acc"><summary><b>Sign-in length</b> <span className="mut">{lim.idleHours ? `signed out after ${lim.idleHours} h idle` : 'no idle sign-out'} · {lim.maxDays} day maximum</span></summary>
       <form action={saveSessionSettings} className="stack"><label className="mut">Sign out after this many hours with no activity (0 = never)<input name="idle" type="number" min="0" max="720" defaultValue={lim.idleHours} /></label>
         <label className="mut">Always sign out after this many days (1 to 90)<input name="days" type="number" min="1" max="90" defaultValue={lim.maxDays} /></label>
