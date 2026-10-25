@@ -158,6 +158,16 @@ export async function removeMember(f: FormData) {
   await rows("delete from users where id=$1 and tenant_id=$2 and role in ('user','manager','admin')", [id, tid(me)]); revalidatePath('/team');
 }
 
+export async function setUserRole(f: FormData) {
+  const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
+  const id = Number(s(f, 'id')), role = s(f, 'role');
+  // Only the Master Admin (or site admin) can make another Admin; nobody changes their own role or the Master Admin's.
+  const allowed = me.role === 'admin' ? ['user', 'manager'] : ['user', 'manager', 'admin'];
+  if (id === me.id || !allowed.includes(role)) return;
+  await rows("update users set role=$1 where id=$2 and tenant_id=$3 and role in ('user','manager','admin') and ($4 or role<>'admin')", [role, id, tid(me), me.role !== 'admin']);
+  await rows('delete from sessions where user_id=$1', [id]); // signs them out so the new role applies cleanly
+  revalidatePath('/team');
+}
 export async function setUserMaxJobs(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
   const max = Math.min(Math.max(parseInt(s(f, 'max')), 0) || 0, 1000);
