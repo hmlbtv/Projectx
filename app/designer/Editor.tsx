@@ -8,7 +8,7 @@ export type SaveArgs = { id: number | null; name: string; assets: DAsset[]; asNe
 type Props = {
   kind: string; backHref: string; world: { w: number; h: number }; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
   id: number | null; initialName: string; initial: DAsset[]; onSave: (a: SaveArgs) => Promise<{ id?: number; error?: string }>;
-  allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
+  canvasName?: string; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
 };
 const SNAP = 10, MIN = 20, HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
 const hit = (a: DAsset, b: DAsset) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -133,7 +133,14 @@ export default function Editor(p: Props) {
   }
 
   function align(kind: string) {
-    const S = items.filter(a => sel.includes(a.id)); if (S.length < 2) { setMsg('Select two or more to arrange.'); return; }
+    const S = items.filter(a => sel.includes(a.id));
+    if (kind === 'tile') { // centre the selection, as a group, on the canvas itself
+      if (!S.length) { setMsg('Select something first.'); return; }
+      const gx = Math.min(...S.map(a => a.x)), gy = Math.min(...S.map(a => a.y)), gw = Math.max(...S.map(a => a.x + a.w)) - gx, gh = Math.max(...S.map(a => a.y + a.h)) - gy;
+      const dx = Math.round((world.w - gw) / 2 - gx), dy = Math.round((world.h - gh) / 2 - gy), next = items.map(a => sel.includes(a.id) ? { ...a, x: a.x + dx, y: a.y + dy } : a);
+      if (free(next, next.filter(a => sel.includes(a.id)))) apply(next); else setMsg('That would not fit - not applied.'); return;
+    }
+    if (S.length < 2) { setMsg('Select two or more to arrange.'); return; }
     const minX = Math.min(...S.map(a => a.x)), maxR = Math.max(...S.map(a => a.x + a.w)), minY = Math.min(...S.map(a => a.y)), maxB = Math.max(...S.map(a => a.y + a.h));
     // T is in the order the assets were selected: the first one selected is the reference for aligning, and sets the order for spacing.
     const next = items.map(a => ({ ...a })), T = sel.map(id => next.find(a => a.id === id)).filter(Boolean) as DAsset[], r = { ...T[0] };
@@ -183,7 +190,8 @@ export default function Editor(p: Props) {
       <button className="sec small" onClick={redo} disabled={readOnly || !hist.current.future.length} title="Redo (Ctrl+Y)">↷ Redo</button>
       {!readOnly && <><button className="small" onClick={() => save(false)}>Save</button><button className="sec small" onClick={() => save(true)} title="Save a new copy under this name">Save as new</button></>}
       {(p.flags ?? []).map(f => (<label key={f.key} className="dz-flag"><input type="checkbox" checked={!!flags[f.key]} disabled={readOnly} onChange={e => { setFlags({ ...flags, [f.key]: e.target.checked }); setDirty(true); }} /> {f.label}</label>))}
-      <span className="mut" role="status">{msg || (dirty ? 'Unsaved changes' : '')}</span></div>
+    </div>
+    <div className="dz-status mut" role="status">{msg || (dirty ? 'Unsaved changes' : '')}</div>
     {p.notice}
     <div className="dz-main">
       <div ref={stage} className="canvas dz-stage" tabIndex={0} onKeyDown={onKey} onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={endDrag}
@@ -230,8 +238,13 @@ export default function Editor(p: Props) {
           <div className="dz-pal">{palette.map(pi => <button key={pi.type} className="sec small" onClick={() => add(pi)}>+ {pi.label}</button>)}</div>
           <div className="dz-pal"><button className="sec small" onClick={() => copy()} disabled={!sel.length} title="Copy (Ctrl+C)">Copy</button><button className="sec small" onClick={paste} title="Paste (Ctrl+V)">Paste</button></div></Sec>}
         {!readOnly && <Sec id="arrange" title="Arrange" open={openSec.arrange} toggle={toggleSec}>
-          <div className="dz-pal">{[['left', 'Left'], ['center', 'Centre'], ['right', 'Right'], ['top', 'Top'], ['middle', 'Middle'], ['bottom', 'Bottom'], ['h', 'Space H'], ['v', 'Space V']].map(([k, l]) => <button key={k} className="sec small" onClick={() => align(k)}>{l}</button>)}</div>
-          <p className="mut dz-help">Select two or more. The first selected is the reference; spacing follows the order selected.</p></Sec>}
+          <div className="dz-grp">Align to the first selected</div>
+          <div className="dz-pal">{[['left', 'Left', 'Line up left edges'], ['right', 'Right', 'Line up right edges'], ['top', 'Top', 'Line up top edges'], ['bottom', 'Bottom', 'Line up bottom edges'], ['center', 'Centre horizontally', 'Line up horizontal centres (a vertical column)'], ['middle', 'Centre vertically', 'Line up vertical centres (a horizontal row)']].map(([k, l, tip]) => <button key={k} className="sec small" title={tip} onClick={() => align(k)}>{l}</button>)}</div>
+          <div className="dz-grp">Space in selection order</div>
+          <div className="dz-pal">{[['h', 'Space H', 'Spread left to right'], ['v', 'Space V', 'Spread top to bottom']].map(([k, l, tip]) => <button key={k} className="sec small" title={tip} onClick={() => align(k)}>{l}</button>)}</div>
+          <div className="dz-grp">On the {p.canvasName ?? 'canvas'}</div>
+          <div className="dz-pal"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}>Centre on {p.canvasName ?? 'canvas'}</button></div>
+          <p className="mut dz-help">Select two or more to align or space. The first selected is the reference, and spacing follows the order selected.</p></Sec>}
         {!readOnly && <Sec id="grid" title="Grid" badge={<span className="tag">{snapOn ? `snap ${grid}` : 'snap off'}</span>} open={openSec.grid} toggle={toggleSec}>
           <label className="dz-row dz-chk"><span>Snap to grid</span><input type="checkbox" checked={snapOn} onChange={e => setSnapOn(e.target.checked)} /></label>
           <label className="dz-row dz-chk"><span>Show grid</span><input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)} /></label>
@@ -240,5 +253,5 @@ export default function Editor(p: Props) {
 }
 
 function Sec({ id, title, badge, open, toggle, children }: { id: string; title: string; badge?: React.ReactNode; open: boolean; toggle: (id: string, v: boolean) => void; children: React.ReactNode }) {
-  return (<details className="dz-sec" open={open} onToggle={e => toggle(id, (e.currentTarget as HTMLDetailsElement).open)}><summary><span>{title}</span>{badge}</summary><div className="dz-secbody">{children}</div></details>);
+  return (<details className={'dz-sec' + (id === 'props' ? ' dz-props' : '')} open={open} onToggle={e => toggle(id, (e.currentTarget as HTMLDetailsElement).open)}><summary><span>{title}</span>{badge}</summary><div className="dz-secbody">{children}</div></details>);
 }
