@@ -215,6 +215,13 @@ export async function setTenantPlan(f: FormData) {
   revalidatePath('/webappdev');
 }
 
+export async function saveSessionSettings(f: FormData) {
+  const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
+  const idle = Math.min(Math.max(Math.round(Number(s(f, 'idle'))), 0), 720), days = Math.min(Math.max(Math.round(Number(s(f, 'days'))), 1), 90);
+  if (!Number.isFinite(idle) || !Number.isFinite(days)) return;
+  for (const [k, v] of [['idle_hours', idle], ['max_days', days]]) await rows('insert into settings(key,value) values($1,$2) on conflict (key) do update set value=excluded.value', [k, String(v)]);
+  revalidatePath('/webappdev');
+}
 export async function setTenantStatus(f: FormData) {
   const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
   const id = Number(s(f, 'id')), status = s(f, 'status');

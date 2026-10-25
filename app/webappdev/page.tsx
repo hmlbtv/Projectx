@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
-import { requireMe } from '@/lib/session';
-import { setTenantPlan, setTenantStatus, deleteTenant, setUserSuspended } from '@/lib/actions';
+import { requireMe, sessionLimits } from '@/lib/session';
+import { setTenantPlan, setTenantStatus, deleteTenant, setUserSuspended, saveSessionSettings } from '@/lib/actions';
 import { emailOn, mailFrom, baseUrl } from '@/lib/mail';
 import TestEmail from './TestEmail';
 export const dynamic = 'force-dynamic';
@@ -50,7 +50,13 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
     ['Sender (MAIL_FROM)', process.env.MAIL_FROM ? mailFrom() : `${mailFrom()} (default test sender)`, !!process.env.MAIL_FROM],
     ['Site address in emails (APP_URL)', process.env.APP_URL ? await baseUrl() : `${await baseUrl()} (not set, using fallback)`, !!process.env.APP_URL],
   ];
+  const lim = await sessionLimits();
   return (<><h1>Site admin · Tenants</h1>
+    <details className="card acc"><summary><b>Sign-in length</b> <span className="mut">{lim.idleHours ? `signed out after ${lim.idleHours} h idle` : 'no idle sign-out'} · {lim.maxDays} day maximum</span></summary>
+      <form action={saveSessionSettings} className="stack"><label className="mut">Sign out after this many hours with no activity (0 = never)<input name="idle" type="number" min="0" max="720" defaultValue={lim.idleHours} /></label>
+        <label className="mut">Always sign out after this many days (1 to 90)<input name="days" type="number" min="1" max="90" defaultValue={lim.maxDays} /></label>
+        <button className="sec">Save</button>
+        <p className="mut">Applies to everyone. Idle time resets whenever a page is used. A new maximum applies to people who sign in after you save; the idle limit applies straight away.</p></form></details>
     <details className="card acc"><summary><b>Email</b> <span className="mut">{emailOn() ? 'Resend is set up' : 'Not set up'} · send a test email</span></summary>
       <p className="mut">Verification, password reset and invitation emails are sent through Resend. Values come from this deployment's environment variables; the key itself is never shown.</p>
       <div className="stats" style={{ gridTemplateColumns: '1fr' }}>{mailRows.map(([k, v, ok]) => (<div key={k} className="stat"><b>{v}</b><span>{k} {ok ? '✓' : '⚠'}</span></div>))}</div>

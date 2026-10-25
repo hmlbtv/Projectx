@@ -29,6 +29,8 @@ alter table monitor_plans add column if not exists link_id int references wall_l
 create table if not exists user_emails(email text primary key, user_id int not null references users(id) on delete cascade, verified boolean not null default false, token_hash text, expires_at timestamptz);
 create table if not exists attempts(key text not null, at timestamptz not null default now());
 create index if not exists attempts_key_at on attempts(key, at);
+create table if not exists settings(key text primary key, value text not null);
+alter table sessions add column if not exists last_active timestamptz not null default now();
 alter table tenants add column if not exists plan text not null default 'demo';
 alter table tenants add column if not exists max_wall_templates int not null default 1;
 alter table tenants add column if not exists max_walls_per_broadcaster int not null default 1;
