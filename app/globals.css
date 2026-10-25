@@ -201,3 +201,10 @@ main>div[style*="space-between"]+p{margin-top:10px}
 @media(max-width:1500px){.navlinks .nl,.navlinks .ngbtn{padding:6px 9px;font-size:.93rem}nav{gap:6px 10px}.navright .who{max-width:150px;overflow:hidden;text-overflow:ellipsis}}
 @media(max-width:1340px){.navlinks,.navright{display:none}.burger{display:block}}
 .dzi.bad{outline:2px dashed #e5352b;z-index:3}
+
+/* Arrange toolbar above the canvas */
+.dz-left{min-width:0}
+.dz-tools{display:flex;flex-wrap:wrap;align-items:center;gap:6px 4px;margin:0 0 10px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.dz-tools .dz-tg{display:flex;gap:4px}.dz-tools .dz-tg button{width:36px;min-height:34px;padding:0;display:flex;align-items:center;justify-content:center}
+.dz-tools .dz-tgl{align-self:stretch;width:1px;margin:2px 6px;background:var(--line)}.dz-tools .dz-tgl:first-child{display:none}
+@media(max-width:700px){.dz-tools .dz-tg button{width:40px;min-height:44px}.dz-tools .dz-tgl{display:none}.dz-tools{gap:6px}}

@@ -283,6 +283,20 @@ export default function Editor(p: Props) {
     <div className="dz-status mut" role="status">{msg || (dirty ? 'Unsaved changes' : '')}</div>
     {p.notice}
     <div className="dz-main">
+      <div className="dz-left">
+        {!readOnly && <div className="dz-tools" role="toolbar" aria-label="Arrange">
+          <span className="dz-tgl" title={`Align to the first selected`}></span>
+          <div className="dz-tg">{([['left', 'Align left edges'], ['center', 'Centre horizontally (a vertical column)'], ['right', 'Align right edges'], ['top', 'Align top edges'], ['middle', 'Centre vertically (a horizontal row)'], ['bottom', 'Align bottom edges']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={k} /></button>)}</div>
+          <span className="dz-tgl" title={`Space in selection order`}></span>
+          <div className="dz-tg">{([['h', 'Space horizontally (left to right)'], ['v', 'Space vertically (top to bottom)']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={'sp' + k} /></button>)}</div>
+          <span className="dz-tgl" title={`Size`}></span>
+          <div className="dz-tg"><button className="sec small" title="Match size: make all selected the same size as the first selected" aria-label="Match size" onClick={() => align('size')}><Icon k="same" /></button>
+            <button className="sec small" title="Scale: after Space H or V, make the selected all one size and as big as the free space around them allows, in any direction" aria-label="Scale" disabled={!lastSpace} onClick={() => align('scale')}><Icon k="scale" /></button></div>
+          <span className="dz-tgl" title={`Push to edge`}></span>
+          <div className="dz-tg">{([['left', 'Push left as far as it will go'], ['right', 'Push right as far as it will go'], ['up', 'Push up as far as it will go'], ['down', 'Push down as far as it will go']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => pushTo(k)}><Icon k={'push' + k} /></button>)}</div>
+          <span className="dz-tgl" title={`On the ${p.canvasName ?? 'canvas'}`}></span>
+          <div className="dz-tg"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} aria-label={`Centre on ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}><Icon k="tile" /></button>{p.fitSpace && <button className="sec small" title="Fit to space: grow the selected one into the free space around it, keeping 16:9" aria-label="Fit to space" onClick={fitToSpace}><Icon k="fit" /></button>}</div>
+        </div>}
       <div ref={stage} className="canvas dz-stage" tabIndex={0} onKeyDown={onKey} onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={endDrag}
         onPointerDown={e => {
           if (!(e.target === e.currentTarget || (e.target as HTMLElement).dataset.bg)) return;
@@ -297,6 +311,7 @@ export default function Editor(p: Props) {
           style={{ left: a.x * px, top: a.y * px, width: a.w * px, height: a.h * px }}>{p.renderAsset(a)}
           {sel.length > 1 && sel.includes(a.id) && <span className="dz-ord">{sel.indexOf(a.id) + 1}</span>}
           {!readOnly && sel.length === 1 && sel[0] === a.id && HANDLES.map(h => <span key={h} className={'hdl ' + h} onPointerDown={e => startResize(e, a, h)} />)}</div>))}
+      </div>
       </div>
       <div className="dz-side dz-panel">
         <Sec id="props" title="Properties" badge={one ? <span className="tag">{def?.label ?? one.type}</span> : sel.length > 1 ? <span className="tag">{sel.length} selected</span> : undefined} open={openSec.props} toggle={toggleSec}>
@@ -326,19 +341,6 @@ export default function Editor(p: Props) {
         {!readOnly && <Sec id="add" title="Add" open={openSec.add} toggle={toggleSec}>
           <div className="dz-pal">{palette.map(pi => <button key={pi.type} className="sec small" onClick={() => add(pi)}>+ {pi.label}</button>)}</div>
           <div className="dz-pal"><button className="sec small" onClick={() => copy()} disabled={!sel.length} title="Copy (Ctrl+C)">Copy</button><button className="sec small" onClick={paste} title="Paste (Ctrl+V)">Paste</button></div></Sec>}
-        {!readOnly && <Sec id="arrange" title="Arrange" open={openSec.arrange} toggle={toggleSec}>
-          <div className="dz-grp">Align to the first selected</div>
-          <div className="dz-ic">{([['left', 'Align left edges'], ['center', 'Centre horizontally (a vertical column)'], ['right', 'Align right edges'], ['top', 'Align top edges'], ['middle', 'Centre vertically (a horizontal row)'], ['bottom', 'Align bottom edges']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={k} /></button>)}</div>
-          <div className="dz-grp">Space in selection order</div>
-          <div className="dz-ic">{([['h', 'Space horizontally (left to right)'], ['v', 'Space vertically (top to bottom)']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={'sp' + k} /></button>)}</div>
-          <div className="dz-grp">Size</div>
-          <div className="dz-ic"><button className="sec small" title="Match size: make all selected the same size as the first selected" aria-label="Match size" onClick={() => align('size')}><Icon k="same" /></button>
-            <button className="sec small" title="Scale: after Space H or V, make the selected all one size and as big as the free space around them allows, in any direction" aria-label="Scale" disabled={!lastSpace} onClick={() => align('scale')}><Icon k="scale" /></button></div>
-          <div className="dz-grp">Push to edge</div>
-          <div className="dz-ic">{([['left', 'Push left as far as it will go'], ['right', 'Push right as far as it will go'], ['up', 'Push up as far as it will go'], ['down', 'Push down as far as it will go']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => pushTo(k)}><Icon k={'push' + k} /></button>)}</div>
-          <div className="dz-grp">On the {p.canvasName ?? 'canvas'}</div>
-          <div className="dz-ic"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} aria-label={`Centre on ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}><Icon k="tile" /></button>{p.fitSpace && <button className="sec small" title="Fit to space: grow the selected one into the free space around it, keeping 16:9" aria-label="Fit to space" onClick={fitToSpace}><Icon k="fit" /></button>}</div>
-          <p className="mut dz-help">Select two or more to align or space. The first selected is the reference, and spacing follows the order selected.</p></Sec>}
         {!readOnly && <Sec id="grid" title="Grid" badge={<span className="tag">{snapOn ? `snap ${grid}` : 'snap off'}</span>} open={openSec.grid} toggle={toggleSec}>
           <label className="dz-row dz-chk"><span>Snap to grid</span><input type="checkbox" checked={snapOn} onChange={e => setSnapOn(e.target.checked)} /></label>
           <label className="dz-row dz-chk"><span>Show grid</span><input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)} /></label>
