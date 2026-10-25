@@ -28,6 +28,8 @@ const Icon = ({ k }: { k: string }) => {
     middle: <>{L('M2 10h16')}{R(4, 4, 4, 12)}{R(12, 6, 4, 8)}</>,
     sph: <>{L('M2.5 3v14M17.5 3v14')}{R(6, 6, 3, 8)}{R(11, 6, 3, 8)}</>,
     spv: <>{L('M3 2.5h14M3 17.5h14')}{R(6, 6, 8, 3)}{R(6, 11, 8, 3)}</>,
+    same: <>{R(2, 4, 7, 7)}{R(11, 4, 7, 7)}{L('M3 15h14')}</>,
+    scale: <>{R(5, 7, 6, 6)}{L('M13 4h3v3M16 4l-4 4M13 16h3v-3M16 16l-4-4')}</>,
     fit: <>{L('M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4')}{R(7, 7, 6, 6)}</>,
     tile: <><rect x="2.5" y="3.5" width="15" height="13" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />{R(7, 7, 6, 6)}</>,
   };
@@ -151,6 +153,8 @@ export default function Editor(p: Props) {
     if (d && sel.length) { e.preventDefault(); const next = items.map(a => sel.includes(a.id) ? { ...a, x: a.x + d[0], y: a.y + d[1] } : a); if (free(next, next.filter(a => sel.includes(a.id)))) apply(next); }
   }
 
+  const [lastSpace, setLastSpace] = useState<'h' | 'v' | null>(null);
+  useEffect(() => { setLastSpace(null); }, [sel.join(',')]);
   function align(kind: string) {
     const S = items.filter(a => sel.includes(a.id));
     if (kind === 'tile') { // centre the selection, as a group, on the canvas itself
@@ -163,6 +167,30 @@ export default function Editor(p: Props) {
     const minX = Math.min(...S.map(a => a.x)), maxR = Math.max(...S.map(a => a.x + a.w)), minY = Math.min(...S.map(a => a.y)), maxB = Math.max(...S.map(a => a.y + a.h));
     // T is in the order the assets were selected: the first one selected is the reference for aligning, and sets the order for spacing.
     const next = items.map(a => ({ ...a })), T = sel.map(id => next.find(a => a.id === id)).filter(Boolean) as DAsset[], r = { ...T[0] };
+    if (kind === 'size') T.forEach(a => { a.w = r.w; a.h = r.h; a.x = Math.min(a.x, world.w - a.w); a.y = Math.min(a.y, world.h - a.h); });
+    if (kind === 'scale') {
+      // After Space H/V: grow the selection, keeping each one's shape, until it fills the free space in that direction (up to the nearest other item or the canvas edge).
+      if (!lastSpace) { setMsg('Press Space H or Space V first, then Scale.'); return; }
+      const hz = lastSpace === 'h', others = items.filter(a => !sel.includes(a.id)), n = T.length;
+      const cross = others.filter(o => hz ? o.y < maxB && o.y + o.h > minY : o.x < maxR && o.x + o.w > minX);
+      const lo = hz ? Math.max(0, ...cross.filter(o => o.x + o.w <= minX).map(o => o.x + o.w)) : Math.max(0, ...cross.filter(o => o.y + o.h <= minY).map(o => o.y + o.h));
+      const hi = hz ? Math.min(world.w, ...cross.filter(o => o.x >= maxR).map(o => o.x)) : Math.min(world.h, ...cross.filter(o => o.y >= maxB).map(o => o.y));
+      const used = T.reduce((s, a) => s + (hz ? a.w : a.h), 0), ord = [...T].sort((a, b) => hz ? a.x - b.x : a.y - b.y);
+      const gap = n > 1 ? Math.max(0, ((hz ? maxR - minX : maxB - minY) - used) / (n - 1)) : 0, s0 = (hi - lo - gap * (n - 1)) / used, o0 = T.map(a => ({ ...a }));
+      if (!(s0 > 1.001)) { setMsg('No more room to scale into.'); return; }
+      for (let k = 0; k <= 60; k++) {
+        const s = s0 - (s0 - 1) * k / 60; let cur = lo;
+        T.forEach((a, i) => { const o = o0[i], w = Math.round(o.w * s), h = Math.round(o.h * s); a.w = w; a.h = h; });
+        for (const anchor of [0.5, 0, 1]) { // keep each one's centre if it can, otherwise grow from its top/left or bottom/right edge
+          cur = lo;
+          for (const id of ord.map(a => a.id)) { const a = T.find(x => x.id === id)!, o = o0[T.indexOf(a)];
+            if (hz) { a.x = Math.round(cur); a.y = Math.round(Math.min(Math.max(o.y + (o.h - a.h) * anchor, 0), world.h - a.h)); cur += a.w + gap; }
+            else { a.y = Math.round(cur); a.x = Math.round(Math.min(Math.max(o.x + (o.w - a.w) * anchor, 0), world.w - a.w)); cur += a.h + gap; } }
+          if (free(next, T)) { apply(next); return; }
+        }
+      }
+      setMsg('They cannot grow without hitting something.'); return;
+    }
     if (kind === 'top') T.forEach(a => a.y = r.y); if (kind === 'bottom') T.forEach(a => a.y = r.y + r.h - a.h);
     if (kind === 'left') T.forEach(a => a.x = r.x); if (kind === 'right') T.forEach(a => a.x = r.x + r.w - a.w);
     if (kind === 'middle') T.forEach(a => a.y = Math.round(r.y + r.h / 2 - a.h / 2));
@@ -179,7 +207,7 @@ export default function Editor(p: Props) {
       }
       T.forEach(a => { if (hz) { a.x = Math.round(cur); cur += a.w + gap; } else { a.y = Math.round(cur); cur += a.h + gap; } });
     }
-    if (free(next, T)) apply(next); else setMsg('That arrangement would not fit - not applied.');
+    if (free(next, T)) { apply(next); if (kind === 'h' || kind === 'v') setLastSpace(kind); } else setMsg('That arrangement would not fit - not applied.');
   }
 
   const one = sel.length === 1 ? items.find(a => a.id === sel[0]) : undefined, def = one ? palette.find(x => x.type === one.type) : undefined;
@@ -281,6 +309,9 @@ export default function Editor(p: Props) {
           <div className="dz-ic">{([['left', 'Align left edges'], ['center', 'Centre horizontally (a vertical column)'], ['right', 'Align right edges'], ['top', 'Align top edges'], ['middle', 'Centre vertically (a horizontal row)'], ['bottom', 'Align bottom edges']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={k} /></button>)}</div>
           <div className="dz-grp">Space in selection order</div>
           <div className="dz-ic">{([['h', 'Space horizontally (left to right)'], ['v', 'Space vertically (top to bottom)']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={'sp' + k} /></button>)}</div>
+          <div className="dz-grp">Size</div>
+          <div className="dz-ic"><button className="sec small" title="Match size: make all selected the same size as the first selected" aria-label="Match size" onClick={() => align('size')}><Icon k="same" /></button>
+            <button className="sec small" title="Scale: after Space H or V, grow the selected to fill the free space in that direction" aria-label="Scale" disabled={!lastSpace} onClick={() => align('scale')}><Icon k="scale" /></button></div>
           <div className="dz-grp">On the {p.canvasName ?? 'canvas'}</div>
           <div className="dz-ic"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} aria-label={`Centre on ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}><Icon k="tile" /></button>{p.fitSpace && <button className="sec small" title="Fit to space: grow the selected one into the free space around it, keeping 16:9" aria-label="Fit to space" onClick={fitToSpace}><Icon k="fit" /></button>}</div>
           <p className="mut dz-help">Select two or more to align or space. The first selected is the reference, and spacing follows the order selected.</p></Sec>}
