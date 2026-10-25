@@ -13,7 +13,9 @@ type Props = {
 const SNAP = 10, MIN = 20, HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
 const hit = (a: DAsset, b: DAsset) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 // Shared by every designer on the page, so you can copy in one tile and paste into another.
-let clip: DAsset[] = [], pasteN = 0;
+let pasteN = 0;
+const getClip = (): DAsset[] => { try { const v = JSON.parse(sessionStorage.getItem('dz-clip') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
+const setClip = (v: DAsset[]) => { try { sessionStorage.setItem('dz-clip', JSON.stringify(v)); } catch {} };
 const rid = () => Math.random().toString(36).slice(2, 8);
 
 export default function Editor(p: Props) {
@@ -46,13 +48,13 @@ export default function Editor(p: Props) {
     const copies = S.map(a => ({ ...a, id: rid(), x: Math.min(a.x + 20, world.w - a.w), y: Math.min(a.y + 20, world.h - a.h), props: { ...a.props } }));
     if (!free([...items, ...copies], copies)) { setMsg('No room for a copy there.'); return; } apply([...items, ...copies]); setSel(copies.map(c => c.id)); };
 
-  function copy(cut = false) { const S = items.filter(a => sel.includes(a.id)); if (!S.length) return; clip = S.map(a => ({ ...a, props: { ...a.props } })); pasteN = 0; setMsg(`${S.length} copied`); if (cut) remove(); }
+  function copy(cut = false) { const S = items.filter(a => sel.includes(a.id)); if (!S.length) return; setClip(S.map(a => ({ ...a, props: { ...a.props } }))); pasteN = 0; setMsg(`${S.length} copied`); if (cut) remove(); }
   function paste() {
-    if (readOnly || !clip.length) return; pasteN++;
+    const clip = getClip(); if (readOnly || !clip.length) return; pasteN++;
     const bx = Math.min(...clip.map(a => a.x)), by = Math.min(...clip.map(a => a.y)), bw = Math.max(...clip.map(a => a.x + a.w)) - bx, bh = Math.max(...clip.map(a => a.y + a.h)) - by;
     if (bw > world.w || bh > world.h) { setMsg('That is too big for this canvas.'); return; }
     const nx = Math.min(Math.max(bx + 20 * pasteN, 0), world.w - bw), ny = Math.min(Math.max(by + 20 * pasteN, 0), world.h - bh);
-    const copies = clip.map(a => ({ ...a, id: rid(), x: a.x - bx + nx, y: a.y - by + ny, props: { ...a.props } }));
+    const copies = clip.filter(a => a && typeof a.x === 'number').map(a => ({ ...a, id: rid(), x: a.x - bx + nx, y: a.y - by + ny, props: { ...a.props } }));
     if (!free([...items, ...copies], copies)) { setMsg('No room to paste there - move things and try again.'); return; }
     apply([...items, ...copies]); setSel(copies.map(c => c.id)); setMsg(`${copies.length} pasted`);
   }
