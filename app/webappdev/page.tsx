@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
 import { requireMe } from '@/lib/session';
-import { setTenantPlan, setTenantStatus, deleteTenant } from '@/lib/actions';
+import { setTenantPlan, setTenantStatus, deleteTenant, setUserSuspended } from '@/lib/actions';
 import { emailOn, mailFrom, baseUrl } from '@/lib/mail';
 import TestEmail from './TestEmail';
 export const dynamic = 'force-dynamic';
@@ -14,7 +14,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
     (select count(*)::int from contacts c where c.tenant_id=t.id) contacts,
     (select min(u.email) from users u where u.tenant_id=t.id and u.role='master_admin') owner from tenants t where ($1='' or t.name ilike '%'||$1||'%' or exists(select 1 from users u where u.tenant_id=t.id and (u.email ilike '%'||$1||'%' or u.name ilike '%'||$1||'%')))
     and ($2='' or t.status=$2) order by t.id desc`, [q.replace(/[%_\\]/g, ''), ['active', 'suspended', 'archived'].includes(sf ?? '') ? sf : '']);
-  const found = q ? await rows(`select u.tenant_id,u.name,u.email,u.role from users u where u.tenant_id is not null and (u.email ilike '%'||$1||'%' or u.name ilike '%'||$1||'%') order by u.name limit 200`, [q.replace(/[%_\\]/g, '')]) : [];
+  const found = await rows(`select u.id,u.tenant_id,u.name,u.email,u.role,u.suspended from users u where u.tenant_id is not null and ($1='' or u.email ilike '%'||$1||'%' or u.name ilike '%'||$1||'%') order by u.name limit 500`, [q.replace(/[%_\\]/g, '')]);
   const ms = await rows(`select t.id,t.name,t.created_at,
     (select max(e.started_at) from login_events e where e.tenant_id=t.id) last_login,
     (select max(e.last_seen_at) from login_events e where e.tenant_id=t.id) last_seen,
@@ -62,7 +62,8 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
         <summary><b>{t.name}</b> {t.status !== 'active' && <span className={'badge ' + t.status}>{t.status}</span>}
           <span className="mut">{t.owner || 'No owner'} · {t.members} member{t.members === 1 ? '' : 's'} · last login {ago(m.last_login)}</span></summary>
         <div className="mut" style={{ margin: '4px 0 12px' }}>Signed up {day(m.created_at)}</div>
-        {mine.length > 0 && <div className="matches"><b>Matching users</b>{mine.map((u: any) => <div key={u.email} className="mut">{u.name} · {u.email} · {u.role}</div>)}</div>}
+        {mine.length > 0 && <div className="matches"><b>{q ? 'Matching users' : 'Users'}</b>{mine.map((u: any) => <div key={u.email} className="urow"><span className="mut">{u.name} · {u.email} · {u.role}{u.suspended ? ' · suspended' : ''}</span>
+          {u.id !== me.id && u.role !== 'webappdev' && <form action={setUserSuspended}><input type="hidden" name="id" value={u.id} /><input type="hidden" name="suspend" value={u.suspended ? '0' : '1'} /><button className="sec small">{u.suspended ? 'Reactivate' : 'Suspend'}</button></form>}</div>)}</div>}
         <div className="stats">
           <Stat k="Members" v={t.members} /><Stat k="Contacts" v={t.contacts} /><Stat k="Wall Templates" v={t.walls} /><Stat k="Productions" v={m.prods ?? 0} /><Stat k="Jobs" v={m.jobs ?? 0} /><Stat k="Monitor Plans" v={m.plans ?? 0} />
           <Stat k="Logins (30d)" v={m.logins30 ?? 0} /><Stat k="Active users 7d / 30d" v={`${m.active7 ?? 0} / ${m.active30 ?? 0}`} /><Stat k="Avg session" v={m.logins30 ? dur(m.avg_secs) : '—'} /><Stat k="Total time (30d)" v={m.logins30 ? dur(m.total_secs) : '—'} />

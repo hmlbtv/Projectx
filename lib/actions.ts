@@ -149,7 +149,8 @@ export async function inviteUser(_: FormState, f: FormData): Promise<FormState> 
 }
 export async function inviteTeam(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr();
-  const role = isAdmin(me) && s(f, 'role') === 'manager' ? 'manager' : 'user';
+  const want = s(f, 'role'), top = me.role === 'master_admin' || me.role === 'webappdev';
+  const role = top && want === 'master_admin' ? 'master_admin' : isAdmin(me) && want === 'manager' ? 'manager' : 'user';
   return invite(me, s(f, 'email').toLowerCase(), role);
 }
 // New link (valid 7 days) for someone who was invited but has not set a password yet; the old link stops working.
@@ -162,18 +163,38 @@ export async function resendInvite(_: FormState, f: FormData): Promise<FormState
 export async function removeMember(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
   const id = Number(s(f, 'id')); if (id === me.id) return;
-  await rows("delete from users where id=$1 and tenant_id=$2 and role in ('user','manager','admin')", [id, tid(me)]); revalidatePath('/team');
+  const tgt = await one('select role from users where id=$1 and tenant_id=$2', [id, tid(me)]); if (!tgt) return;
+  if (tgt.role === 'master_admin' && (me.role === 'admin' || id === await founder(tid(me)))) return;
+  if (!['user', 'manager', 'admin', 'master_admin'].includes(tgt.role)) return;
+  await rows('delete from users where id=$1 and tenant_id=$2', [id, tid(me)]); revalidatePath('/team');
 }
 
+// The founding Master Admin (first one on the account) can't be changed by other Master Admins, so an account always keeps an owner.
+const founder = async (tenant: number) => (await one("select min(id) id from users where tenant_id=$1 and role='master_admin'", [tenant]))?.id ?? 0;
 export async function setUserRole(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
-  const id = Number(s(f, 'id')), role = s(f, 'role');
-  // Only the Master Admin (or site admin) can make another Admin; nobody changes their own role or the Master Admin's.
-  const allowed = me.role === 'admin' ? ['user', 'manager'] : ['user', 'manager', 'admin'];
+  const id = Number(s(f, 'id')), role = s(f, 'role'), top = me.role === 'master_admin' || me.role === 'webappdev';
+  const allowed = top ? ['user', 'manager', 'admin', 'master_admin'] : ['user', 'manager'];
   if (id === me.id || !allowed.includes(role)) return;
-  await rows("update users set role=$1 where id=$2 and tenant_id=$3 and role in ('user','manager','admin') and ($4 or role<>'admin')", [role, id, tid(me), me.role !== 'admin']);
+  const tgt = await one('select role,tenant_id from users where id=$1', [id]);
+  if (!tgt || tgt.tenant_id !== tid(me) && me.role !== 'webappdev') return;
+  if (tgt.role === 'webappdev' || (tgt.role === 'admin' && !top) || (tgt.role === 'master_admin' && (!top || (me.role !== 'webappdev' && id === await founder(tgt.tenant_id))))) return;
+  await rows('update users set role=$1 where id=$2', [role, id]);
   await rows('delete from sessions where user_id=$1', [id]); // signs them out so the new role applies cleanly
   revalidatePath('/team');
+}
+// Pause or restore one person. They are signed out and see the suspended page until restored.
+export async function setUserSuspended(f: FormData) {
+  const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
+  const id = Number(s(f, 'id')), on = s(f, 'suspend') === '1', top = me.role === 'master_admin' || me.role === 'webappdev';
+  if (id === me.id) return;
+  const tgt = await one('select role,tenant_id from users where id=$1', [id]);
+  if (!tgt || tgt.role === 'webappdev' || (tgt.tenant_id !== tid(me) && me.role !== 'webappdev')) return;
+  if ((tgt.role === 'admin' || tgt.role === 'master_admin') && !top) return;
+  if (tgt.role === 'master_admin' && me.role !== 'webappdev' && id === await founder(tgt.tenant_id)) return;
+  await rows('update users set suspended=$1 where id=$2', [on, id]);
+  if (on) await rows('delete from sessions where user_id=$1', [id]);
+  revalidatePath('/team'); revalidatePath('/webappdev');
 }
 export async function setUserMaxJobs(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');

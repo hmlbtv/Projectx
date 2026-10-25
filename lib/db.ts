@@ -38,6 +38,7 @@ alter table tenants add column if not exists max_productions int not null defaul
 alter table tenants add column if not exists max_jobs_per_production int not null default 4;
 alter table tenants add column if not exists created_at timestamptz not null default now();
 alter table tenants add column if not exists status text not null default 'active';
+alter table users add column if not exists suspended boolean not null default false;
 alter table users add column if not exists created_at timestamptz not null default now();
 alter table users add column if not exists last_login_at timestamptz;
 alter table users add column if not exists login_count int not null default 0;
