@@ -378,6 +378,14 @@ export async function saveLayoutTiles(p: { id: number; name: string; tiles: any[
   if (!p.asNew) { await rows('update mv_layouts set name=$1, tiles=$2 where id=$3', [name, JSON.stringify(tiles), Number(p.id)]); revalidatePath('/layouts'); revalidatePath('/plans'); return { id: Number(p.id) }; }
   const r = (await one('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3) returning id', [top ? src.tenant_id : tid(me), name, JSON.stringify(tiles)]))!; revalidatePath('/layouts'); return { id: r.id };
 }
+// One-off: adds the layouts converted from a Kaleido database (data/kaleido-layouts.json) as Standard layouts. Safe to repeat: names that already exist are skipped.
+export async function importKaleidoLayouts() {
+  const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
+  const data: { name: string; tiles: any[] }[] = (await import('../data/kaleido-layouts.json')).default as any;
+  const have = new Set((await rows('select name from mv_layouts where tenant_id is null')).map((r: any) => r.name)); let added = 0;
+  for (const l of data) { if (have.has(l.name)) continue; await rows('insert into mv_layouts(tenant_id,name,tiles) values(null,$1,$2)', [l.name, JSON.stringify(l.tiles)]); added++; }
+  revalidatePath('/layouts'); redirect('/webappdev?imported=' + added + '&of=' + data.length);
+}
 export async function copyLayout(f: FormData) {
   const me = await mgr(); const src = await one('select name,tiles from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
   const r = (await one('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3) returning id', [tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.tiles)]))!;
