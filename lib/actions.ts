@@ -64,7 +64,12 @@ export async function signUp(_: FormState, f: FormData): Promise<FormState> {
   if (!EMAIL.test(email)) return { error: 'Enter a valid email address.' };
   if (pw !== String(f.get('password2') ?? '')) return { error: 'Passwords do not match.' };
   const bad = passwordProblem(pw); if (bad) return { error: bad };
-  if (await one('select 1 from users where email=$1', [email])) return { error: 'An account with this email already exists. Sign in instead.' };
+  if (await one('select 1 from users where email=$1', [email])) {
+    // With email set up, answer exactly as for a new sign-up so nobody can use this form to find out who has an account; the real owner gets a note instead.
+    if (!emailOn()) return { error: 'An account with this email already exists. Sign in instead.' };
+    await sendMail(email, 'Someone tried to create a TelePlanner account with your email', `Someone tried to sign up for TelePlanner with this email address, but you already have an account.\nSign in here: ${await baseUrl()}/signin\nForgot your password? Use "Forgot password" on that page.\n\nIf this was not you, you can ignore this email.`);
+    return { ok: `We sent a verification link to ${email}. Open it to finish creating your account.` };
+  }
   const t = await one('insert into tenants(name,plan,max_walls_per_broadcaster) values($1,\'demo\',1) returning id', [org]);
   const verify = emailOn(), token = newToken();
   const u = await one(`insert into users(tenant_id,email,name,role,password_hash,email_verified,verify_hash,verify_expires)
@@ -123,7 +128,10 @@ async function invite(me: Me, email: string, role: string, jobId?: number): Prom
   if (!(await allow('invite', String(me.id), 40, 60))) return TOO_MANY;
   if (!EMAIL.test(email)) return { error: 'Enter a valid email address.' };
   let u = await one('select id,tenant_id,password_hash from users where email=$1', [email]);
-  if (u && u.tenant_id && u.tenant_id !== tid(me)) return { error: 'That email already belongs to another team.' };
+  if (u && u.tenant_id && u.tenant_id !== tid(me)) { // already in another team: don't tell the inviter, tell the person
+    await sendMail(email, 'A TelePlanner invitation could not be used', `${me.name} tried to invite you to TelePlanner, but this email address is already part of another team.\nIf you want to join them, ask them to invite a different email address.`);
+    return { ok: `Invite emailed to ${email}.` };
+  }
   // Every account, including One-Time Users, belongs to exactly one tenant.
   if (!u) u = await one("insert into users(email,name,role,tenant_id,email_verified) values($1,$1,$2,$3,true) returning id,tenant_id,password_hash", [email, role, tid(me)]);
   if (jobId) {
