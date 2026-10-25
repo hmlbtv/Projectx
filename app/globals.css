@@ -102,7 +102,7 @@ dialog.dlg{border:1px solid var(--line);border-radius:16px;padding:20px;width:mi
 dialog.dlg::backdrop{background:rgba(15,18,23,.5)}
 dialog.dlg label{display:flex;flex-direction:column;gap:4px;font-size:.8rem}
 .addrow{display:flex;justify-content:flex-end;margin:10px 0}.addrow.inline{margin:0}
-a.btn.small{min-height:34px;padding:0 12px;font-size:.9rem;border-radius:10px;background:var(--ink,#0f1217);color:#fff;border-color:transparent}
+a.btn.small{min-height:34px;padding:0 12px;font-size:.9rem;font-weight:600;border-radius:10px;background:transparent;color:var(--text);border:1px solid var(--line)}a.btn.small:hover{border-color:var(--text)}
 
 .searchbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.searchbar input{flex:1 1 220px}
 .badge{font-size:.7rem;padding:2px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.04em;background:var(--line)}
@@ -169,3 +169,24 @@ button.danger{background:#c0392b;color:#fff;border-color:#c0392b}
 .ndrop{position:absolute;top:calc(100% + 6px);left:0;min-width:190px;background:#0f1217;border:1px solid #262c36;border-bottom:3px solid var(--acc);border-radius:14px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 20px 40px rgba(0,0,0,.4);animation:drop .15s ease;z-index:30}
 .ndrop .nl{color:#c3cad5;text-decoration:none;padding:9px 14px;border-radius:10px;white-space:nowrap}.ndrop .nl:hover{background:#1e242d;color:#fff}.ndrop .nl.on{background:#f4f5f8;color:#0f1217}
 .sgroup{display:flex;flex-direction:column;gap:2px}.sgtitle{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:#7f8a99;padding:10px 14px 2px}.sgroup .nl{padding-left:26px}
+
+/* ---- Phone polish ---- */
+div.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+main>div[style*="space-between"]+p{margin-top:10px}
+.tag button{min-height:0;width:22px;height:22px;padding:0;margin-left:2px;border-radius:50%;line-height:1;font-size:15px;background:transparent;color:inherit;border:0;vertical-align:middle}
+.tag button:hover{background:var(--line)}
+.dz-grp{font-size:.75rem}.mlog{font-size:.9rem}
+.dcard a.tilelink{padding-right:0;min-height:0}
+.dcard .dots>summary{background:rgba(15,18,23,.78);color:#fff;backdrop-filter:blur(4px)}
+.dz-add{order:-1}
+@media(pointer:coarse){
+  .hdl{width:26px;height:26px;border-radius:7px}.hdl.nw{left:-14px;top:-14px}.hdl.ne{right:-14px;top:-14px}.hdl.sw{left:-14px;bottom:-14px}.hdl.se{right:-14px;bottom:-14px}
+  .dots>summary{width:42px;height:42px}.dots{right:4px;top:4px}
+}
+@media(max-width:700px){
+  div.row>input,div.row>select,div.row>textarea{flex:1 1 100%}
+  .dz-panel{display:flex;flex-direction:column}
+  .dz-sec[open].dz-props .dz-secbody{min-height:0}
+  .dz-bar .dz-name{max-width:none;flex-basis:100%}
+  .navright .who{display:none}
+}

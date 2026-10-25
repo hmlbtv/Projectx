@@ -253,5 +253,5 @@ export default function Editor(p: Props) {
 }
 
 function Sec({ id, title, badge, open, toggle, children }: { id: string; title: string; badge?: React.ReactNode; open: boolean; toggle: (id: string, v: boolean) => void; children: React.ReactNode }) {
-  return (<details className={'dz-sec' + (id === 'props' ? ' dz-props' : '')} open={open} onToggle={e => toggle(id, (e.currentTarget as HTMLDetailsElement).open)}><summary><span>{title}</span>{badge}</summary><div className="dz-secbody">{children}</div></details>);
+  return (<details className={'dz-sec dz-' + id} open={open} onToggle={e => toggle(id, (e.currentTarget as HTMLDetailsElement).open)}><summary><span>{title}</span>{badge}</summary><div className="dz-secbody">{children}</div></details>);
 }
