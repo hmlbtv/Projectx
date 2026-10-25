@@ -18,7 +18,7 @@ export default async function Tiles({ searchParams }: { searchParams: Promise<{ 
     if (!cur) redirect('/tiles');
     const std = cur.id && !cur.tenant_id, ro = !!std && !top;
     return (<><h1 style={{ margin: '0 0 12px' }}>Tile Designer</h1>
-      <TileEditor key={String(cur.id)} id={cur.id} name={cur.name} assets={cur.assets} readOnly={ro} flags={top ? [{ key: 'standard', label: 'Standard (all tenants)', initial: !!std }] : []}
+      <TileEditor canNeaten={top} key={String(cur.id)} id={cur.id} name={cur.name} assets={cur.assets} readOnly={ro} flags={top ? [{ key: 'standard', label: 'Standard (all tenants)', initial: !!std }] : []}
         notice={ro ? (<div className="card dz-note"><span>This is a Standard tile from the TelePlanner team, so it can't be edited. Make a copy to customise it for your tenant.</span>
           <form action={copyTile}><input type="hidden" name="id" value={cur.id} /><button className="small">Copy to my tiles</button></form></div>) : undefined} /></>);
   }

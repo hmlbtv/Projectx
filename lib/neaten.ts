@@ -36,3 +36,14 @@ export function neatenWithPreset(t: R[], preset?: R[]): R[] | null {
   }
   return neatenTiles(t);
 }
+
+/** For free-form designs (Tile Designer): edges that are nearly level are made exactly level, small gaps and overlaps are closed and edges near the border sit on it. Sizes stay as drawn apart from that. */
+export function neatenEdges(t: R[], Wd = W, Hd = H, T = 24): R[] {
+  const snap = (vals: number[], max: number) => {
+    const all = [...new Set([0, max, ...vals])].sort((a, b) => a - b), map = new Map<number, number>(); let g: number[] = [];
+    const flush = () => { if (!g.length) return; const v = g.includes(0) ? 0 : g.includes(max) ? max : Math.round(g.reduce((s, n) => s + n, 0) / g.length); g.forEach(n => map.set(n, v)); g = []; };
+    for (const v of all) { if (g.length && v - g[0] > T) flush(); g.push(v); } flush(); return map;
+  };
+  const mx = snap(t.flatMap(a => [a.x, a.x + a.w]), Wd), my = snap(t.flatMap(a => [a.y, a.y + a.h]), Hd);
+  return t.map(a => { const x = mx.get(a.x)!, y = my.get(a.y)!; return { x, y, w: Math.max(20, mx.get(a.x + a.w)! - x), h: Math.max(20, my.get(a.y + a.h)! - y) }; });
+}

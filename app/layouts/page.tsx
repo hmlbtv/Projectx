@@ -19,7 +19,7 @@ export default async function Layouts({ searchParams }: { searchParams: Promise<
   if (id) { const cur = ls.find((x: any) => String(x.id) === id); if (!cur) redirect('/layouts');
     const std = !top && !cur.tenant_id;
     return (<><h1 style={{ margin: '0 0 12px' }}>MV Designer</h1>
-      <LayoutEditor canNeaten={top} key={cur.id} id={cur.id} name={cur.name} tiles={cur.tiles} tileList={tl.map((x: any) => ({ id: x.id, name: x.name, assets: x.assets, mine: !!x.tenant_id }))}
+      <LayoutEditor canNeaten={top} standard={top ? !cur.tenant_id : null} key={cur.id} id={cur.id} name={cur.name} tiles={cur.tiles} tileList={tl.map((x: any) => ({ id: x.id, name: x.name, assets: x.assets, mine: !!x.tenant_id }))}
         notice={std ? (<div className="card dz-note"><span>This is a Standard layout from the TelePlanner team. Change it as you like: Save makes your own copy and the Standard one stays as it is for everyone.</span></div>) : undefined} /></>); }
   const q = (q0 ?? '').trim().slice(0, 80), f = ['standard', 'mine', 'tiles', 'notiles'].includes(fl ?? '') ? fl! : 'all', sort = ['name', 'namez', 'new', 'old', 'most', 'fewest', 'type', 'typez', 'tmost', 'tfewest'].includes(so ?? '') ? so! : 'default', view = vw === 'list' ? 'list' : 'cards';
   const nt = (l: any) => (l.tiles || []).filter((x: any) => x.tileId).length;
