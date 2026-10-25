@@ -25,6 +25,9 @@ export default function Editor(p: Props) {
   const [snapOn, setSnapOn] = useState(true), [grid, setGrid] = useState(10), [showGrid, setShowGrid] = useState(true);
   useEffect(() => { try { const v = JSON.parse(localStorage.getItem('dz-grid') || 'null'); if (v) { setSnapOn(!!v.snapOn); setGrid([10, 20, 50, 100].includes(v.grid) ? v.grid : 10); setShowGrid(!!v.showGrid); } } catch {} }, []);
   useEffect(() => { try { localStorage.setItem('dz-grid', JSON.stringify({ snapOn, grid, showGrid })); } catch {} }, [snapOn, grid, showGrid]);
+  const [openSec, setOpenSec] = useState<Record<string, boolean>>({ props: true, add: true, arrange: true, grid: false });
+  useEffect(() => { try { const v = JSON.parse(localStorage.getItem('dz-open') || 'null'); if (v) setOpenSec(o => ({ ...o, ...v })); } catch {} }, []);
+  const toggleSec = (id: string, v: boolean) => setOpenSec(o => { if (o[id] === v) return o; const n = { ...o, [id]: v }; try { localStorage.setItem('dz-open', JSON.stringify(n)); } catch {} return n; });
   const g = snapOn ? grid : 1, sn = (v: number) => Math.round(v / g) * g;
   const [msg, setMsg] = useState(''), [wid, setWid] = useState<number | null>(p.id), [lock, setLock] = useState(true), [dirty, setDirty] = useState(false);
   const [flags, setFlags] = useState<Record<string, boolean>>(Object.fromEntries((p.flags ?? []).map(f => [f.key, f.initial])));
@@ -132,14 +135,15 @@ export default function Editor(p: Props) {
   function align(kind: string) {
     const S = items.filter(a => sel.includes(a.id)); if (S.length < 2) { setMsg('Select two or more to arrange.'); return; }
     const minX = Math.min(...S.map(a => a.x)), maxR = Math.max(...S.map(a => a.x + a.w)), minY = Math.min(...S.map(a => a.y)), maxB = Math.max(...S.map(a => a.y + a.h));
-    const next = items.map(a => ({ ...a })), T = next.filter(a => sel.includes(a.id));
-    if (kind === 'top') T.forEach(a => a.y = minY); if (kind === 'left') T.forEach(a => a.x = minX); if (kind === 'right') T.forEach(a => a.x = maxR - a.w);
-    if (kind === 'bottom') T.forEach(a => a.y = maxB - a.h);
-    if (kind === 'middle') T.forEach(a => a.y = sn((minY + maxB) / 2 - a.h / 2));
-    if (kind === 'center') T.forEach(a => a.x = sn((minX + maxR) / 2 - a.w / 2));
+    // T is in the order the assets were selected: the first one selected is the reference for aligning, and sets the order for spacing.
+    const next = items.map(a => ({ ...a })), T = sel.map(id => next.find(a => a.id === id)).filter(Boolean) as DAsset[], r = { ...T[0] };
+    if (kind === 'top') T.forEach(a => a.y = r.y); if (kind === 'bottom') T.forEach(a => a.y = r.y + r.h - a.h);
+    if (kind === 'left') T.forEach(a => a.x = r.x); if (kind === 'right') T.forEach(a => a.x = r.x + r.w - a.w);
+    if (kind === 'middle') T.forEach(a => a.y = Math.round(r.y + r.h / 2 - a.h / 2));
+    if (kind === 'center') T.forEach(a => a.x = Math.round(r.x + r.w / 2 - a.w / 2));
     if (kind === 'h' || kind === 'v') {
-      // Spreads evenly between the outer edges. If the assets are stacked or overlapping in that direction, they are laid out side by side instead, one grid gap apart.
-      const hz = kind === 'h'; T.sort((a, b) => hz ? a.x - b.x : a.y - b.y);
+      // Placed in selection order, spread evenly between the outer edges. If the assets are stacked or overlapping in that direction, they are laid out side by side instead, one grid gap apart.
+      const hz = kind === 'h';
       const lo = hz ? minX : minY, span = hz ? maxR - minX : maxB - minY, used = T.reduce((s, a) => s + (hz ? a.w : a.h), 0), room = hz ? world.w : world.h, n = T.length;
       let gap = (span - used) / (n - 1), cur = lo;
       if (gap < 0) {
@@ -169,7 +173,7 @@ export default function Editor(p: Props) {
     const r = await p.onSave({ id: wid, name: nm, assets: items, asNew, flags }); if (r.error) { setMsg(r.error); return; }
     if (r.id) { setWid(r.id); try { history.replaceState(null, '', `${p.backHref}?id=${r.id}`); } catch {} } setDirty(false); setMsg('Saved ✓');
   }
-  const numIn = (label: string, v: number, on: (n: number) => void, step = SNAP) => (<label className="dz-num">{label}<input type="number" step={step} value={Math.round(v)} disabled={readOnly} onFocus={push} onChange={e => on(+e.target.value)} /></label>);
+  const numIn = (label: string, v: number, on: (n: number) => void) => (<label className="dz-row"><span>{label}</span><input type="number" step={snapOn ? grid : 1} value={Math.round(v)} disabled={readOnly} onFocus={push} onChange={e => on(+e.target.value)} /></label>);
 
   return (<div className="dz">
     <div className="dz-bar">
@@ -194,28 +198,47 @@ export default function Editor(p: Props) {
         {marq && <div className={'dz-marq' + (marq.x1 >= marq.x0 ? '' : ' win')} style={{ left: Math.min(marq.x0, marq.x1) * px, top: Math.min(marq.y0, marq.y1) * px, width: Math.abs(marq.x1 - marq.x0) * px, height: Math.abs(marq.y1 - marq.y0) * px }} />}
         {items.map(a => (<div key={a.id} className={'dzi' + (sel.includes(a.id) ? ' sel' : '')} onPointerDown={e => startMove(e, a)} title={a.name}
           style={{ left: a.x * px, top: a.y * px, width: a.w * px, height: a.h * px }}>{p.renderAsset(a)}
+          {sel.length > 1 && sel.includes(a.id) && <span className="dz-ord">{sel.indexOf(a.id) + 1}</span>}
           {!readOnly && sel.length === 1 && sel[0] === a.id && HANDLES.map(h => <span key={h} className={'hdl ' + h} onPointerDown={e => startResize(e, a, h)} />)}</div>))}
       </div>
-      <div className="dz-side">
-        {!readOnly && <div className="card"><b>Add</b><div className="dz-pal">{palette.map(pi => <button key={pi.type} className="sec small" onClick={() => add(pi)}>+ {pi.label}</button>)}</div>
-          <div className="dz-pal"><button className="sec small" onClick={() => copy()} disabled={!sel.length} title="Copy (Ctrl+C)">Copy</button><button className="sec small" onClick={paste} title="Paste (Ctrl+V)">Paste</button></div></div>}
-        {!readOnly && <div className="card"><b>Grid</b><div className="stack" style={{ marginTop: 8 }}>
-          <label className="dz-flag"><input type="checkbox" checked={snapOn} onChange={e => setSnapOn(e.target.checked)} /> Snap to grid</label>
-          <label className="dz-flag"><input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)} /> Show grid</label>
-          <label className="dz-num">Grid size<select value={grid} onChange={e => setGrid(+e.target.value)}>{[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}</select></label></div></div>}
-        {!readOnly && <div className="card"><b>Arrange</b><div className="dz-pal">
-          {[['left', 'Left'], ['center', 'Centre'], ['right', 'Right'], ['top', 'Top'], ['middle', 'Middle'], ['bottom', 'Bottom'], ['h', 'Space H'], ['v', 'Space V']].map(([k, l]) => <button key={k} className="sec small" onClick={() => align(k)}>{l}</button>)}</div>
-          <label className="dz-flag"><input type="checkbox" checked={lock} onChange={e => setLock(e.target.checked)} /> Lock aspect ratio</label></div>}
-        <div className="card"><b>Properties</b>
-          {one ? (<div className="stack" style={{ marginTop: 8 }}>
-            <label className="dz-num">Name<input value={one.name} disabled={readOnly} onFocus={push} onChange={e => edit({ name: e.target.value })} /></label>
-            <div className="dz-grid">{numIn('X', one.x, v => edit({ x: v }))}{numIn('Y', one.y, v => edit({ y: v }))}{numIn('W', one.w, v => editSize('w', v))}{numIn('H', one.h, v => editSize('h', v))}</div>
-            {def?.fields?.map(f => (<label key={f.key} className="dz-num">{f.label}
+      <div className="dz-side dz-panel">
+        <Sec id="props" title="Properties" badge={one ? <span className="tag">{def?.label ?? one.type}</span> : sel.length > 1 ? <span className="tag">{sel.length} selected</span> : undefined} open={openSec.props} toggle={toggleSec}>
+          {one ? (<>
+            <div className="dz-grp">General</div>
+            <label className="dz-row"><span>Name</span><input value={one.name} disabled={readOnly} onFocus={push} onChange={e => edit({ name: e.target.value })} /></label>
+            <div className="dz-row"><span>Type</span><em>{def?.label ?? one.type}</em></div>
+            <div className="dz-grp">Position &amp; size</div>
+            <div className="dz-two">{numIn('X', one.x, v => edit({ x: v }))}{numIn('Y', one.y, v => edit({ y: v }))}{numIn('W', one.w, v => editSize('w', v))}{numIn('H', one.h, v => editSize('h', v))}</div>
+            {!readOnly && <label className="dz-row dz-chk"><span>Lock aspect</span><input type="checkbox" checked={lock} onChange={e => setLock(e.target.checked)} /></label>}
+            {def?.fields && def.fields.length > 0 && <div className="dz-grp">{def.label} settings</div>}
+            {def?.fields?.map(f => (<label key={f.key} className="dz-row"><span>{f.label}</span>
               {f.kind === 'select' ? <select disabled={readOnly} value={String(one.props?.[f.key] ?? '')} onChange={e => { push(); setProp(f.key, e.target.value); }}>{f.options!.map(o => <option key={o}>{o}</option>)}</select>
                 : <input type={f.kind === 'number' ? 'number' : 'text'} min={f.min} max={f.max} disabled={readOnly} value={one.props?.[f.key] ?? ''} onFocus={push} onChange={e => setProp(f.key, f.kind === 'number' ? Math.min(Math.max(+e.target.value || 0, f.min ?? 0), f.max ?? 9999) : e.target.value.slice(0, 40))} />}</label>))}
-            {!readOnly && <div className="dz-pal"><button className="sec small" onClick={duplicate}>Duplicate</button><button className="del small" onClick={remove}>Delete</button></div>}</div>)
-            : sel.length > 1 ? <div className="stack" style={{ marginTop: 8 }}><span className="mut">{sel.length} selected</span>{!readOnly && <div className="dz-pal"><button className="sec small" onClick={duplicate}>Duplicate</button><button className="del small" onClick={remove}>Delete</button></div>}</div>
-            : <p className="mut" style={{ margin: '8px 0 0' }}>{readOnly ? 'Select an item to see its properties.' : 'Click an item. Shift-click for several, drag to move, drag a corner to resize, arrows nudge (Shift = fine), Delete removes, Ctrl+C / Ctrl+V copy and paste, Ctrl+Z undoes.'}</p>}
-        </div>
+            {!readOnly && <div className="dz-pal"><button className="sec small" onClick={duplicate}>Duplicate</button><button className="sec small" onClick={() => copy()}>Copy</button><button className="del small" onClick={remove}>Delete</button></div>}</>)
+          : sel.length > 1 ? (<>
+            <div className="dz-grp">Selection order</div>
+            <ol className="dz-order">{sel.map(id => items.find(a => a.id === id)).filter(Boolean).map(a => <li key={a!.id}>{a!.name}</li>)}</ol>
+            <p className="mut dz-help">The first one is the reference for Arrange; Space H and V follow this order.</p>
+            {!readOnly && <div className="dz-pal"><button className="sec small" onClick={duplicate}>Duplicate</button><button className="sec small" onClick={() => copy()}>Copy</button><button className="del small" onClick={remove}>Delete</button></div>}</>)
+          : (<>
+            <div className="dz-grp">{p.kind}</div>
+            <div className="dz-row"><span>Canvas</span><em>{world.w} × {world.h}</em></div>
+            <div className="dz-row"><span>Assets</span><em>{items.length}</em></div>
+            <p className="mut dz-help">{readOnly ? 'Select an item to see its properties.' : 'Click an item to edit it. Drag on empty canvas to select several (left to right touches, right to left encloses). Shift-click adds. Drag a corner to resize; arrows nudge (Shift = fine). Ctrl+C / V / D copy, paste, duplicate; Ctrl+Z undoes.'}</p></>)}
+        </Sec>
+        {!readOnly && <Sec id="add" title="Add" open={openSec.add} toggle={toggleSec}>
+          <div className="dz-pal">{palette.map(pi => <button key={pi.type} className="sec small" onClick={() => add(pi)}>+ {pi.label}</button>)}</div>
+          <div className="dz-pal"><button className="sec small" onClick={() => copy()} disabled={!sel.length} title="Copy (Ctrl+C)">Copy</button><button className="sec small" onClick={paste} title="Paste (Ctrl+V)">Paste</button></div></Sec>}
+        {!readOnly && <Sec id="arrange" title="Arrange" open={openSec.arrange} toggle={toggleSec}>
+          <div className="dz-pal">{[['left', 'Left'], ['center', 'Centre'], ['right', 'Right'], ['top', 'Top'], ['middle', 'Middle'], ['bottom', 'Bottom'], ['h', 'Space H'], ['v', 'Space V']].map(([k, l]) => <button key={k} className="sec small" onClick={() => align(k)}>{l}</button>)}</div>
+          <p className="mut dz-help">Select two or more. The first selected is the reference; spacing follows the order selected.</p></Sec>}
+        {!readOnly && <Sec id="grid" title="Grid" badge={<span className="tag">{snapOn ? `snap ${grid}` : 'snap off'}</span>} open={openSec.grid} toggle={toggleSec}>
+          <label className="dz-row dz-chk"><span>Snap to grid</span><input type="checkbox" checked={snapOn} onChange={e => setSnapOn(e.target.checked)} /></label>
+          <label className="dz-row dz-chk"><span>Show grid</span><input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)} /></label>
+          <label className="dz-row"><span>Grid size</span><select value={grid} onChange={e => setGrid(+e.target.value)}>{[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}</select></label></Sec>}
       </div></div></div>);
+}
+
+function Sec({ id, title, badge, open, toggle, children }: { id: string; title: string; badge?: React.ReactNode; open: boolean; toggle: (id: string, v: boolean) => void; children: React.ReactNode }) {
+  return (<details className="dz-sec" open={open} onToggle={e => toggle(id, (e.currentTarget as HTMLDetailsElement).open)}><summary><span>{title}</span>{badge}</summary><div className="dz-secbody">{children}</div></details>);
 }

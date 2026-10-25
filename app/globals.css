@@ -132,3 +132,24 @@ button.danger{background:#c0392b;color:#fff;border-color:#c0392b}
 .dcard a.tilelink{display:flex;flex-direction:column;gap:8px;text-decoration:none;color:inherit}
 .dz-note{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:0 0 12px}
 .dz-marq{position:absolute;z-index:4;pointer-events:none;border:1px solid var(--acc);background:rgba(229,53,43,.12)}.dz-marq.win{border-style:dashed;background:rgba(80,140,255,.12);border-color:#5b8cff}
+.dz-ord{position:absolute;left:3px;top:3px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--acc);color:#fff;font:700 11px/18px system-ui;text-align:center;pointer-events:none;z-index:3}
+
+/* Inspector-style side panel */
+.dz-main{grid-template-columns:minmax(0,1fr) 300px}
+.dz-panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.dz-sec{border-bottom:1px solid var(--line)}.dz-sec:last-child{border-bottom:0}
+.dz-sec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:10px 14px;font-weight:700;font-size:.9rem;user-select:none;background:var(--bg)}
+.dz-sec>summary::-webkit-details-marker{display:none}
+.dz-sec>summary::before{content:"";width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s;opacity:.7;flex:none}
+.dz-sec[open]>summary::before{transform:rotate(45deg)}
+.dz-sec>summary .tag{margin:0 0 0 auto;font-weight:400}
+.dz-secbody{padding:8px 14px 14px;display:flex;flex-direction:column;gap:6px}
+.dz-grp{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:8px 0 0;padding-top:8px;border-top:1px solid var(--line)}
+.dz-grp:first-child{border-top:0;margin-top:0;padding-top:0}
+.dz-row{display:grid;grid-template-columns:84px minmax(0,1fr);align-items:center;gap:8px;font-size:.85rem}
+.dz-row>span,.dz-row>em{color:var(--mut);font-style:normal}.dz-row>em{color:inherit}
+.dz-row input:not([type=checkbox]),.dz-row select{width:100%;min-height:32px;padding:4px 8px;font-size:.85rem}
+.dz-chk input{justify-self:start;width:auto;min-height:0}
+.dz-two{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}.dz-two .dz-row{grid-template-columns:18px minmax(0,1fr);gap:6px}
+.dz-order{margin:0;padding-left:20px;font-size:.85rem}.dz-help{font-size:.78rem;margin:4px 0 0}
+@media(max-width:800px){.dz-main{grid-template-columns:1fr}}
