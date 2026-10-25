@@ -128,7 +128,8 @@ async function invite(me: Me, email: string, role: string, jobId?: number): Prom
   if (!(await allow('invite', String(me.id), 40, 60))) return TOO_MANY;
   if (!EMAIL.test(email)) return { error: 'Enter a valid email address.' };
   let u = await one('select id,tenant_id,password_hash from users where email=$1', [email]);
-  if (u && u.tenant_id && u.tenant_id !== tid(me)) { // already in another team: don't tell the inviter, tell the person
+  if (u && u.tenant_id && u.tenant_id !== tid(me)) { // already in another team: don't tell the inviter, tell the person (can only be hidden when email is set up)
+    if (!emailOn()) return { error: 'That email already belongs to another team.' };
     await sendMail(email, 'A TelePlanner invitation could not be used', `${me.name} tried to invite you to TelePlanner, but this email address is already part of another team.\nIf you want to join them, ask them to invite a different email address.`);
     return { ok: `Invite emailed to ${email}.` };
   }
