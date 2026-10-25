@@ -358,18 +358,27 @@ export async function saveLayout(_: FormState, f: FormData): Promise<FormState> 
   revalidatePath('/layouts'); return { ok: 'Added.' };
 }
 export async function saveLayoutTiles(p: { id: number; name: string; tiles: any[]; asNew: boolean }): Promise<{ id?: number; error?: string }> {
-  const me = await mgr(); if (me.role !== 'webappdev') return { error: 'Only the site admin can edit layouts.' };
+  const me = await mgr(); const top = me.role === 'webappdev';
   if (!Array.isArray(p.tiles) || p.tiles.length < 1 || p.tiles.length > 64) return { error: 'A layout needs 1 to 64 monitors.' };
+  const src = await one('select tenant_id from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(p.id), tid(me)]); if (!src) return { error: 'Layout not found.' };
+  if (!top && !p.asNew && !src.tenant_id) return { error: 'Standard layouts can only be changed by the site admin. Save as new to make your own copy.' };
+  if (!top && !p.asNew && src.tenant_id !== tid(me)) return { error: 'Layout not found.' };
   const seen = new Set<number>(), tiles: any[] = [];
+  const vis = new Set<number>((await rows('select id from mv_tiles where tenant_id=$1 or tenant_id is null', [tid(me)])).map((x: any) => x.id));
   for (const a of p.tiles) {
     const n = Math.round(+a?.n), r = (v: any, lo: number, hi: number) => Math.round(Math.min(Math.max(+v || 0, lo), hi));
     if (!(n >= 1 && n <= 999) || seen.has(n)) return { error: 'Monitor numbers must be unique.' }; seen.add(n);
-    const w = r(a.w, 20, 1600), h = r(a.h, 20, 900); tiles.push({ n, x: r(a.x, 0, 1600 - w), y: r(a.y, 0, 900 - h), w, h });
+    const w = r(a.w, 20, 1600), h = r(a.h, 20, 900), o: any = { n, x: r(a.x, 0, 1600 - w), y: r(a.y, 0, 900 - h), w, h };
+    if (a.tileId && vis.has(Number(a.tileId))) o.tileId = Number(a.tileId); tiles.push(o);
   }
   tiles.sort((a, b) => a.n - b.n); const name = String(p.name ?? '').trim().slice(0, 80) || 'Untitled layout';
-  const src = await one('select tenant_id from mv_layouts where id=$1', [Number(p.id)]); if (!src) return { error: 'Layout not found.' };
   if (!p.asNew) { await rows('update mv_layouts set name=$1, tiles=$2 where id=$3', [name, JSON.stringify(tiles), Number(p.id)]); revalidatePath('/layouts'); revalidatePath('/plans'); return { id: Number(p.id) }; }
-  const r = (await one('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3) returning id', [src.tenant_id, name, JSON.stringify(tiles)]))!; revalidatePath('/layouts'); return { id: r.id };
+  const r = (await one('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3) returning id', [top ? src.tenant_id : tid(me), name, JSON.stringify(tiles)]))!; revalidatePath('/layouts'); return { id: r.id };
+}
+export async function copyLayout(f: FormData) {
+  const me = await mgr(); const src = await one('select name,tiles from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
+  const r = (await one('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3) returning id', [tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.tiles)]))!;
+  revalidatePath('/layouts'); redirect('/layouts?id=' + r.id);
 }
 export async function deleteLayout(f: FormData) { const me = await mgr(); await rows(me.role === 'webappdev' ? 'delete from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'delete from mv_layouts where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/layouts'); }
 

@@ -34,6 +34,9 @@ export function AssetArt({ a }: { a: DAsset }) {
 }
 
 // A whole MV Tile: the 16:9 frame with its assets on top. Used for previews now, and in MV Layouts later.
+export function TileInner({ assets }: { assets: DAsset[] }) {
+  return (<><rect width={TILE_W} height={TILE_H} fill="#1a2029" />{assets.map(a => (<svg key={a.id} x={a.x} y={a.y} width={a.w} height={a.h} viewBox={`0 0 ${a.w} ${a.h}`}><AssetArt a={a} /></svg>))}</>);
+}
 export function TileArt({ assets, width = 240 }: { assets: DAsset[]; width?: number | string }) {
   return (<svg viewBox={`0 0 ${TILE_W} ${TILE_H}`} width={width} style={{ background: '#12161c', border: '1px solid #444', display: 'block', maxWidth: '100%' }}>
     <rect width={TILE_W} height={TILE_H} fill="#1a2029" />

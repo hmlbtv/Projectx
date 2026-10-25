@@ -208,3 +208,11 @@ main>div[style*="space-between"]+p{margin-top:10px}
 .dz-tools .dz-tg{display:flex;gap:4px}.dz-tools .dz-tg button{width:36px;min-height:34px;padding:0;display:flex;align-items:center;justify-content:center}
 .dz-tools .dz-tgl{align-self:stretch;width:1px;margin:2px 6px;background:var(--line)}.dz-tools .dz-tgl:first-child{display:none}
 @media(max-width:700px){.dz-tools .dz-tg button{width:40px;min-height:44px}.dz-tools .dz-tgl{display:none}.dz-tools{gap:6px}}
+
+/* Tile stamps for MV layouts */
+.dz-stamps{margin:6px 0 2px}.dz-stk{font-style:normal;text-transform:none;letter-spacing:0;color:var(--acc);font-weight:600}
+.dz-stg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:6px 0 8px}
+.dz-stamp{display:flex;flex-direction:column;align-items:stretch;gap:4px;padding:5px;min-height:0;text-align:left;border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:10px;cursor:pointer;font-size:.72rem;font-weight:600}
+.dz-stamp span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dz-stamp svg{display:block;width:100%;height:auto}
+.dz-stamp.on{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}.dz-stamp.on.keep{background:#e5352b18}
+.dz-stage.stamping,.dz-stage.stamping .dzi{cursor:copy}

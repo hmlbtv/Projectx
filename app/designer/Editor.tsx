@@ -8,7 +8,7 @@ export type SaveArgs = { id: number | null; name: string; assets: DAsset[]; asNe
 type Props = {
   kind: string; backHref: string; world: { w: number; h: number }; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
   id: number | null; initialName: string; initial: DAsset[]; onSave: (a: SaveArgs) => Promise<{ id?: number; error?: string }>;
-  canvasName?: string; fitSpace?: boolean; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
+  canvasName?: string; fitSpace?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
 };
 const SNAP = 10, MIN = 20, HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
 const hit = (a: DAsset, b: DAsset) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -97,7 +97,11 @@ export default function Editor(p: Props) {
 
   // ---- pointer: move, and resize from a corner handle ----
   function startMove(e: React.PointerEvent, a: DAsset) {
-    if (readOnly) return; e.stopPropagation(); stage.current?.setPointerCapture(e.pointerId);
+    if (readOnly) return; e.stopPropagation();
+    if (brush && p.stamps) { // put the chosen stamp on this item
+      const k = p.stampKey ?? 'stamp'; apply(items.map(i => i.id === a.id ? { ...i, props: { ...i.props, [k]: brush.id } } : i)); setSel([a.id]); if (!brush.keep) setBrush(null); return;
+    }
+    stage.current?.setPointerCapture(e.pointerId);
     const ids = e.shiftKey ? Array.from(new Set([...sel, a.id])) : sel.includes(a.id) ? sel : [a.id];
     setSel(ids); drag.current = { mode: 'move', primary: a.id, sx: e.clientX, sy: e.clientY, orig: items, ids, pushed: false };
   }
@@ -160,6 +164,16 @@ export default function Editor(p: Props) {
     if (d && sel.length) { e.preventDefault(); const next = items.map(a => sel.includes(a.id) ? { ...a, x: a.x + d[0], y: a.y + d[1] } : a); if (free(next, next.filter(a => sel.includes(a.id)))) apply(next); }
   }
 
+  // Stamps (e.g. ready-made Tiles for a monitor): tap one to use it once, tap it again to keep it for several, click outside to put it down.
+  const [brush, setBrush] = useState<{ id: number; keep: boolean } | null>(null);
+  useEffect(() => {
+    if (!brush) return;
+    const away = (e: PointerEvent) => { const el = e.target as HTMLElement; if (!el.closest('.dz-stage') && !el.closest('.dz-stamps')) setBrush(null); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setBrush(null); };
+    document.addEventListener('pointerdown', away); document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc); };
+  }, [brush]);
+  const pick = (id: number) => setBrush(b => !b || b.id !== id ? { id, keep: false } : !b.keep ? { id, keep: true } : null);
   const [lastSpace, setLastSpace] = useState<'h' | 'v' | null>(null);
   useEffect(() => { setLastSpace(null); }, [sel.join(',')]);
   // Slide the selection as far as it will go in one direction: to the canvas edge, or up to the nearest other item (items that may overlap only stop at the edge).
@@ -297,7 +311,7 @@ export default function Editor(p: Props) {
           <span className="dz-tgl" title={`On the ${p.canvasName ?? 'canvas'}`}></span>
           <div className="dz-tg"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} aria-label={`Centre on ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}><Icon k="tile" /></button>{p.fitSpace && <button className="sec small" title="Fit to space: grow the selected one into the free space around it, keeping 16:9" aria-label="Fit to space" onClick={fitToSpace}><Icon k="fit" /></button>}</div>
         </div>}
-      <div ref={stage} className="canvas dz-stage" tabIndex={0} onKeyDown={onKey} onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={endDrag}
+      <div ref={stage} className={'canvas dz-stage' + (brush ? ' stamping' : '')} tabIndex={0} onKeyDown={onKey} onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={endDrag}
         onPointerDown={e => {
           if (!(e.target === e.currentTarget || (e.target as HTMLElement).dataset.bg)) return;
           if (readOnly) { setSel([]); return; }
@@ -340,6 +354,9 @@ export default function Editor(p: Props) {
         </Sec>
         {!readOnly && <Sec id="add" title="Add" open={openSec.add} toggle={toggleSec}>
           <div className="dz-pal">{palette.map(pi => <button key={pi.type} className="sec small" onClick={() => add(pi)}>+ {pi.label}</button>)}</div>
+          {p.stamps && <div className="dz-stamps"><div className="dz-grp">Tiles{brush ? <em className="dz-stk">{brush.keep ? ' · stays selected - click a monitor, click outside to stop' : ' · click a monitor (tap again to keep it)'}</em> : ''}</div>
+            {p.stamps.length === 0 ? <p className="mut dz-help">No tiles yet. Make some in the Tile Designer.</p> : ['standard', 'mine'].map(g => { const L = p.stamps!.filter(s => s.group === g); return L.length ? (<div key={g}><div className="dz-help mut">{g === 'standard' ? 'Standard tiles' : 'Your tiles'}</div>
+              <div className="dz-stg">{L.map(s => (<button key={s.id} type="button" className={'dz-stamp' + (brush?.id === s.id ? ' on' + (brush.keep ? ' keep' : '') : '')} title={s.name} aria-pressed={brush?.id === s.id} onClick={() => pick(s.id)}>{s.node}<span>{s.name}</span></button>))}</div></div>) : null; })}</div>}
           <div className="dz-pal"><button className="sec small" onClick={() => copy()} disabled={!sel.length} title="Copy (Ctrl+C)">Copy</button><button className="sec small" onClick={paste} title="Paste (Ctrl+V)">Paste</button></div></Sec>}
         {!readOnly && <Sec id="grid" title="Grid" badge={<span className="tag">{snapOn ? `snap ${grid}` : 'snap off'}</span>} open={openSec.grid} toggle={toggleSec}>
           <label className="dz-row dz-chk"><span>Snap to grid</span><input type="checkbox" checked={snapOn} onChange={e => setSnapOn(e.target.checked)} /></label>
