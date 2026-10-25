@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { one, rows } from './db';
 import { requireMe, canManage, isAdmin, createSession, destroySession, type Me } from './session';
 import { allow, clientIp } from './security';
-import { emailOn, sendMail, baseUrl } from './mail';
+import { emailOn, sendMail, sendMailDetailed, mailFrom, baseUrl } from './mail';
 import { verifyPassword, hashPassword, passwordProblem, newToken, sha256 } from './password';
 
 const tid = (me: any) => me.tenant_id ?? 0;
@@ -392,4 +392,14 @@ export async function loadDemoData() {
   await plan(j1, 'Backup plan', lays[1] ?? lays[0], ['Camera 3', 'Remote guest', 'Programme', 'Satellite 1']);
   await plan(j2, 'Main plan', lays[1] ?? lays[0], ['Camera 1', 'Graphics', 'Satellite 1', 'Programme']);
   revalidatePath('/'); redirect('/');
+}
+
+// Settings page: send a test email so an admin can check the Resend setup.
+export async function sendTestEmail(_: FormState, f: FormData): Promise<FormState> {
+  const me = await requireMe(); if (me.role !== 'webappdev' && me.role !== 'master_admin') throw new Error('Admin only');
+  if (!(await allow('test-mail', String(me.id), 10, 60))) return { error: 'Too many test emails. Please wait a while and try again.' };
+  const to = (s(f, 'to') || me.email).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return { error: 'Enter a valid email address.' };
+  const r = await sendMailDetailed(to, 'TelePlanner test email', `This is a test email from TelePlanner.\n\nSent: ${new Date().toISOString()}\nFrom: ${mailFrom()}\nSite: ${await baseUrl()}\n\nIf you can read this, email sending works.`);
+  return r.ok ? { ok: `Test email sent to ${to}. It should arrive within a minute (check spam too). Resend id: ${r.id ?? 'n/a'}` } : { error: r.error };
 }

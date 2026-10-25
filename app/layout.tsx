@@ -19,6 +19,7 @@ export default async function Root({ children }: { children: React.ReactNode }) 
         ...(me.role === 'onetime' ? [] : [{ href: '/plans', label: 'Monitor Plans' }, { href: '/archive', label: 'Archive' }]),
         { href: '/shared', label: 'Shared with me' },
         ...(me.role === 'webappdev' ? [{ href: '/webappdev', label: 'Site admin' }] : []),
+        ...(me.role === 'webappdev' || me.role === 'master_admin' ? [{ href: '/settings', label: 'Settings' }] : []),
       ]}>
         <Link href="/account" className="who">{me.name} <span className="tag">{me.role}</span></Link>
         <form action={signOut}><button className="sec">Sign out</button></form>
