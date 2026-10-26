@@ -13,7 +13,7 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
   const sites = await rows('select * from sites where tenant_id=$1 order by name', [t]);
   const locs = await rows('select l.* from locations l join sites s on s.id=l.site_id where s.tenant_id=$1 order by l.name', [t]);
   const rms = await rows('select r.* from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by r.name', [t]);
-  const walls = await rows('select id,name from wall_templates where tenant_id=$1 order by name', [t]);
+  const walls = await rows('select id,name,site_id from wall_templates where tenant_id=$1 order by name', [t]);
   const rw = await rows('select rw.*, w.name wall from room_walls rw join wall_templates w on w.id=rw.wall_template_id join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by rw.name', [t]);
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
   const Edit = ({ table, id, name, what }: { table: string; id: number; name: string; what: string }) => (<>
@@ -26,12 +26,12 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
   const rid = Number(q.r) || 0;
   if (rid) {
     const r = rms.find((x: any) => x.id === rid); if (!r) redirect('/tenant');
-    const l = locs.find((x: any) => x.id === r.location_id)!; const s = sites.find((x: any) => x.id === l.site_id)!; const mine = rw.filter((x: any) => x.room_id === r.id);
+    const l = locs.find((x: any) => x.id === r.location_id)!; const s = sites.find((x: any) => x.id === l.site_id)!; const mine = rw.filter((x: any) => x.room_id === r.id); const siteWalls = walls.filter((w: any) => !w.site_id || w.site_id === s.id);
     return (<><Bar back={`/tenant?l=${l.id}`} />
       <Head crumb={`${s.name} › ${l.name}`} title={r.name} sub={`Room · ${plural(mine.length, 'Wall Template')}`}><Edit table="rooms" id={r.id} name={r.name} what="Room" /></Head>
-      {walls.length === 0 ? <p className="mut">No Wall Templates built yet. <Link href="/walls">Build one in the Wall Designer</Link>, then add it here.</p> :
+      {siteWalls.length === 0 ? <p className="mut">No Wall Templates for {s.name} yet. <Link href="/walls">Build one in the Wall Designer</Link> for this Site, then add it here.</p> :
         <AddDialog action={addRoomWall} label="Add Wall Template" title="Add a Wall Template to this Room" placeholder="Wall name in this Room"><input type="hidden" name="room" value={r.id} />
-          <select name="wall">{walls.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></AddDialog>}
+          <select name="wall">{siteWalls.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></AddDialog>}
       {mine.length === 0 && <p className="mut">No Wall Template yet. The Room is saved and can be used now; add a wall whenever it is ready.</p>}
       <div className="tiles">{mine.map((x: any) => (<div key={x.id} className="card tile"><div className="tilelink"><b>{x.name}</b><span className="mut">{x.wall}</span></div>
         <Menu><b>Edit Wall Template</b><form action={renameRoomWall} className="stack"><input type="hidden" name="id" value={x.id} /><input name="name" defaultValue={x.name} required /><button className="sec">Save</button></form>

@@ -298,6 +298,7 @@ export async function renameNode(f: FormData) {
 }
 export async function addRoomWall(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const room = Number(s(f,'room')), wall = Number(s(f,'wall')); await own('rooms', room, me); await own('walls', wall, me);
+  if (!(await one('select 1 from wall_templates w, rooms r join locations l on l.id=r.location_id where r.id=$1 and w.id=$2 and (w.site_id is null or w.site_id=l.site_id)', [room, wall]))) return { error: 'That Wall Template belongs to a different Site.' };
   await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, s(f,'name') || 'Wall']); revalidatePath('/tenant'); return { ok: 'Added.' };
 }
 export async function renameRoomWall(f: FormData) {
@@ -313,7 +314,8 @@ export async function deleteNode(f: FormData) {
   const roomsSql = t === 'rooms' ? 'select $1::int' : t === 'locations' ? 'select id from rooms where location_id=$1' : 'select r.id from rooms r join locations l on l.id=r.location_id where l.site_id=$1';
   await rows(`delete from job_rooms where room_id in (${roomsSql})`, [id]);
   await rows(`delete from comments where room_id in (${roomsSql})`, [id]).catch(() => {});
-  await rows(`delete from ${t} where id=$1`, [id]); revalidatePath('/tenant'); revalidatePath('/productions'); revalidatePath('/plans');
+  if (t === 'sites') { await rows('delete from room_walls where wall_template_id in (select id from wall_templates where site_id=$1)', [id]); await rows('delete from wall_templates where site_id=$1', [id]); }
+  await rows(`delete from ${t} where id=$1`, [id]); revalidatePath('/tenant'); revalidatePath('/walls'); revalidatePath('/productions'); revalidatePath('/plans');
 }
 
 export async function removeRoomWall(f: FormData) {
@@ -323,8 +325,8 @@ export async function removeRoomWall(f: FormData) {
   revalidatePath('/tenant'); revalidatePath('/plans');
 }
 
-// ---- Wall Designer (each Wall Template belongs to a Broadcaster; demo tenants get 1 per Broadcaster) ----
-export async function saveWall(id: number | null, name: string, assets: any[], broadcasterId?: number | null): Promise<{ id?: number; error?: string }> {
+// ---- Wall Designer (each Wall Template belongs to a Site and is then added to Rooms of that Site; demo tenants get 1 per Site) ----
+export async function saveWall(id: number | null, name: string, assets: any[], siteId?: number | null): Promise<{ id?: number; error?: string }> {
   const me = await mgr();
   if (!Array.isArray(assets) || assets.length > 300) return { error: 'Too many assets.' };
   const c = (v: any, lo: number, hi: number, d = lo) => Math.round(Math.min(Math.max(Number.isFinite(+v) ? +v : d, lo), hi));
@@ -332,11 +334,11 @@ export async function saveWall(id: number | null, name: string, assets: any[], b
     return { id: String(a.id).slice(0, 20), type: String(a.type).slice(0, 20), name: String(a.name ?? '').slice(0, 60), x: c(a.x, 0, 1600 - w, 0), y: c(a.y, 0, 900 - h, 0), w, h, ...(rot ? { props: { rot } } : {}) }; });
   name = String(name).slice(0, 80);
   if (id) { await own('myWalls', id, me); await rows('update wall_templates set name=$1,data=$2 where id=$3', [name, JSON.stringify({ assets: clean }), id]); revalidatePath('/walls'); return { id }; }
-  if (!broadcasterId) return { error: 'Choose a Broadcaster for this Wall Template.' };
-  await own('broadcasters', broadcasterId, me);
-  const t = (await one('select max_walls_per_broadcaster m, (select count(*)::int from wall_templates where broadcaster_id=$2) c from tenants where id=$1', [tid(me), broadcasterId]))!;
-  if (me.role !== 'webappdev' && t.c >= t.m) return { error: `Your plan allows ${t.m} Wall Template${t.m === 1 ? '' : 's'} per Broadcaster (this one has ${t.c}). Contact us to upgrade.` };
-  const r = (await one('insert into wall_templates(tenant_id,broadcaster_id,name,data) values($1,$2,$3,$4) returning id', [tid(me), broadcasterId, name, JSON.stringify({ assets: clean })]))!;
+  if (!siteId) return { error: 'Choose a Site for this Wall Template.' };
+  await own('sites', siteId, me);
+  const t = (await one('select max_walls_per_broadcaster m, (select count(*)::int from wall_templates where site_id=$2) c from tenants where id=$1', [tid(me), siteId]))!;
+  if (me.role !== 'webappdev' && t.c >= t.m) return { error: `Your plan allows ${t.m} Wall Template${t.m === 1 ? '' : 's'} per Site (this Site has ${t.c}). Contact us to upgrade.` };
+  const r = (await one('insert into wall_templates(tenant_id,site_id,name,data) values($1,$2,$3,$4) returning id', [tid(me), siteId, name, JSON.stringify({ assets: clean })]))!;
   revalidatePath('/walls'); return { id: r.id };
 }
 export async function deleteWall(f: FormData) { const me = await mgr(); await rows('delete from room_walls where wall_template_id in (select id from wall_templates where id=$1 and tenant_id=$2)', [Number(s(f,'id')), tid(me)]); revalidatePath('/tenant'); await rows('delete from wall_templates where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/walls'); }
@@ -523,8 +525,6 @@ export async function deleteProduction(f: FormData) {
 export async function deleteBroadcaster(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
   const id = Number(s(f,'id')); await own('broadcasters', id, me);
-  await rows('delete from room_walls where wall_template_id in (select id from wall_templates where broadcaster_id=$1 and tenant_id=$2)', [id, tid(me)]);
-  await rows('delete from wall_templates where broadcaster_id=$1 and tenant_id=$2', [id, tid(me)]);
   await rows('delete from broadcasters where id=$1', [id]); revalidatePath('/productions'); revalidatePath('/walls'); revalidatePath('/tenant');
 }
 // A Wall Template sits in a Room (Sites page); a Job is then given the specific walls it will plan.
@@ -572,7 +572,7 @@ export async function loadDemoData() {
   const loc = (await one('insert into locations(site_id,name) values($1,$2) returning id', [site.id, 'Building A']))!;
   const room = (await one('insert into rooms(location_id,name) values($1,$2) returning id', [loc.id, 'Studio 1 Gallery']))!;
   const assets = Array.from({ length: 6 }, (_, i) => ({ id: 'm' + (i + 1), type: 'monitor', name: 'MON ' + (i + 1), x: 20 + (i % 3) * 340, y: 20 + Math.floor(i / 3) * 200, w: 320, h: 180 }));
-  const wt = (await one('insert into wall_templates(tenant_id,broadcaster_id,name,data) values($1,$2,$3,$4) returning id', [t, b.id, 'Main Wall', JSON.stringify({ assets })]))!;
+  const wt = (await one('insert into wall_templates(tenant_id,site_id,name,data) values($1,$2,$3,$4) returning id', [t, site.id, 'Main Wall', JSON.stringify({ assets })]))!;
   const rw = (await one('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3) returning id', [room.id, wt.id, 'Main Wall']))!;
   const ss = (await one('insert into source_sets(tenant_id,name,sources) values($1,$2,$3) returning id', [t, 'Studio sources', JSON.stringify(['Camera 1', 'Camera 2', 'Camera 3', 'Graphics', 'Programme', 'Preview', 'Satellite 1', 'Remote guest'])]))!;
   const lays = await rows('select id,tiles from mv_layouts where tenant_id is null order by id limit 2');

@@ -35,6 +35,8 @@ alter table tenants add column if not exists plan text not null default 'demo';
 alter table tenants add column if not exists max_wall_templates int not null default 1;
 alter table tenants add column if not exists max_walls_per_broadcaster int not null default 1;
 alter table wall_templates add column if not exists broadcaster_id int references broadcasters(id) on delete set null;
+alter table wall_templates add column if not exists site_id int references sites(id) on delete set null;
+create index if not exists ix_wall_templates_site on wall_templates(site_id);
 alter table tenants add column if not exists max_broadcasters int not null default 2;
 alter table tenants add column if not exists max_productions int not null default 3;
 alter table tenants add column if not exists max_jobs_per_production int not null default 4;
@@ -116,6 +118,8 @@ async function init(): Promise<Client> {
   const hadTenants = (await client.query("select to_regclass('public.tenants') t")).rows[0].t;
   const hadJobWalls = (await client.query("select to_regclass('public.job_walls') t")).rows[0].t;
   await client.exec(SCHEMA);
+  // Wall Templates now belong to a Site: carry over from any Room they were already placed in.
+  await client.exec('update wall_templates w set site_id=(select l.site_id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id where rw.wall_template_id=w.id order by rw.id limit 1) where w.site_id is null');
   // One-time: Jobs used to be given whole Rooms; carry that over as the Room's current walls.
   if (!hadJobWalls) await client.query('insert into job_walls(job_id,room_wall_id) select jr.job_id, rw.id from job_rooms jr join room_walls rw on rw.room_id=jr.room_id on conflict do nothing');
   // One-time: the MV canvas changed from 1600x900 to 1920x1080, so scale saved layouts and tiles by 1.2.
@@ -177,7 +181,7 @@ async function seedDemo(db: Client) {
   const room = (await q("insert into rooms(location_id,name) values($1,'Gallery A') returning id",[loc]))[0].id;
   const mon = (id:string,x:number,y:number)=>({id,type:'monitor',name:'Monitor '+id,x,y,w:320,h:180});
   const wall = {assets:[mon('1',0,0),mon('2',320,0),mon('3',0,180),mon('4',320,180)]};
-  const wt = (await q("insert into wall_templates(tenant_id,name,data) values($1,'Gallery 2x2 Wall',$2) returning id",[t,JSON.stringify(wall)]))[0].id;
+  const wt = (await q("insert into wall_templates(tenant_id,site_id,name,data) values($1,$2,'Gallery 2x2 Wall',$3) returning id",[t,site,JSON.stringify(wall)]))[0].id;
   await q("insert into room_walls(room_id,wall_template_id,name) values($1,$2,'Left Wall')",[room,wt]);
   const ss = (await q("insert into source_sets(tenant_id,name,sources) values($1,'Studio Sources',$2) returning id",[t,JSON.stringify(['Camera 1','Camera 2','Camera 3','Camera 4','Graphics','Playout','Replay','Program','Preview','Remote Guest 1'])]))[0].id;
   const b = (await q("insert into broadcasters(tenant_id,name) values($1,'Demo Broadcaster') returning id",[t]))[0].id;

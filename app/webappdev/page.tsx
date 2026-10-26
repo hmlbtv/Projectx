@@ -92,7 +92,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
         </div>
         <form action={setTenantPlan} className="limits"><input type="hidden" name="id" value={t.id} />
           <label>Plan<input name="plan" defaultValue={t.plan} /></label>
-          <label>Wall Templates per Broadcaster<input name="max" type="number" min="0" defaultValue={t.m} /></label>
+          <label>Wall Templates per Site<input name="max" type="number" min="0" defaultValue={t.m} /></label>
           <label>Broadcasters<input name="b" type="number" min="0" defaultValue={t.b} /></label>
           <label>Productions per Broadcaster<input name="p" type="number" min="0" defaultValue={t.p} /></label>
           <label>Jobs per Production<input name="j" type="number" min="0" defaultValue={t.j} /></label>
