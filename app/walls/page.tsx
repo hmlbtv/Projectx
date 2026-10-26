@@ -17,9 +17,11 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
   const { id, q } = await searchParams; const t = me.tenant_id ?? 0;
   const list = await rows('select w.* from wall_templates w where w.tenant_id=$1 and w.name ilike $2 order by w.name', [t, `%${q ?? ''}%`]);
   const lim = (await one('select max_walls_per_broadcaster m, plan, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [t]))!;
-  const rooms = await rows(`select r.id, s.name sname, l.name lname, r.name from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name,l.name,r.name`, [t]);
+  const rooms = await rows(`select r.id, s.id sid, l.id lid, s.name sname, l.name lname, r.name from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name,l.name,r.name`, [t]);
   const used = await rows(`select rw.wall_template_id w, rw.room_id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1`, [t]);
   const mvs = ((await rows('select id, name, (tenant_id is null) standard, jsonb_array_length(tiles)::int n, tiles from mv_layouts where tenant_id is null or tenant_id=$1 order by (tenant_id is null), name', [t])) as any[]).map(m => ({ ...m, tiles: (m.tiles ?? []).map((x: any) => ({ x: x.x, y: x.y, w: x.w, h: x.h })) }));
+  const sites = Array.from(new Map(rooms.map((r: any) => [r.sid, { id: r.sid, name: r.sname }])).values()) as any[];
+  const locs = Array.from(new Map(rooms.map((r: any) => [r.lid, { id: r.lid, sid: r.sid, lname: r.lname }])).values()) as any[];
   const label = (r: any) => `${r.sname} › ${r.lname} › ${r.name}`;
   const roomsOf = (w: number) => used.filter((u: any) => u.w === w).map((u: any) => rooms.find((r: any) => r.id === u.room_id)).filter(Boolean);
   const cur = id === 'new' ? { id: null, name: 'New Wall Template', data: { assets: [] } } : list.find((w: any) => String(w.id) === id);
@@ -41,7 +43,11 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
           <Menu><b>Apply to Rooms</b>
             {rooms.length === 0 ? <span className="mut">No Rooms yet. Add Rooms on the Sites page.</span> :
             <form action={setWallRooms} className="stack"><input type="hidden" name="wall" value={w.id} />
-              <div style={{ maxHeight: 220, overflow: 'auto' }}>{rooms.map((r: any) => <label key={r.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" name="room" value={r.id} defaultChecked={on.has(r.id)} />{label(r)}</label>)}</div>
+              <div style={{ maxHeight: 260, overflow: 'auto', minWidth: 240 }}>{sites.map((s: any) => { const sr = rooms.filter((r: any) => r.sid === s.id); const sOn = sr.filter((r: any) => on.has(r.id)).length;
+                return (<details key={s.id} open={sOn > 0}><summary style={{ cursor: 'pointer', fontWeight: 600 }}>{s.name} <span className="mut" style={{ fontWeight: 400 }}>{sOn ? `${sOn} of ${sr.length}` : sr.length}</span></summary>
+                  <div style={{ marginLeft: 14 }}>{locs.filter((l: any) => l.sid === s.id).map((l: any) => { const lr = sr.filter((r: any) => r.lid === l.id); const lOn = lr.filter((r: any) => on.has(r.id)).length;
+                    return (<details key={l.id} open={lOn > 0}><summary style={{ cursor: 'pointer' }}>{l.lname} <span className="mut">{lOn ? `${lOn} of ${lr.length}` : lr.length}</span></summary>
+                      <div style={{ marginLeft: 14 }}>{lr.map((r: any) => <label key={r.id} style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'flex-start', textAlign: 'left', fontWeight: 400, padding: '2px 0' }}><input type="checkbox" name="room" value={r.id} defaultChecked={on.has(r.id)} style={{ margin: 0 }} />{r.name}</label>)}</div></details>); })}</div></details>); })}</div>
               <span className="mut">Unticking a Room removes this wall from it, and from Jobs using it there.</span><button className="sec">Save</button></form>}
             <form action={deleteWall} className="del-row"><input type="hidden" name="id" value={w.id} /><span className="mut">Delete this Wall Template? It is removed from any Room and Job using it.</span><button className="del">Yes, delete</button></form></Menu></div>
         <Link href={`/walls?id=${w.id}`} style={{ display: 'block', margin: '6px 0' }}><Thumb assets={w.data.assets} /></Link>
