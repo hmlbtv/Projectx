@@ -13,9 +13,12 @@ const LayThumb = ({ tiles, small }: { tiles: MvOpt['tiles']; small?: boolean }) 
 const isScreen = (t: string) => /^(mon|monitor|bvm|pvm)/.test(t);
 
 // Pick which Multiview templates a monitor can show (chosen from this list later, in the Monitor Plan).
-function MvPick({ a, mvs, setProps }: { a: DAsset; mvs: MvOpt[]; setProps: (p: Record<string, any>) => void }) {
+type Filt = { q: string; sort: string; max: number | null };
+function MvPick({ a, mvs, setProps, filt, setFilt }: { a: DAsset; mvs: MvOpt[]; setProps: (p: Record<string, any>) => void; filt: Filt; setFilt: (f: Filt) => void }) {
   const ref = useRef<HTMLDialogElement>(null); const have: number[] = a.props?.mvs ?? [];
-  const top = Math.max(1, ...mvs.map(m => m.n)); const [pick, setPick] = useState<number[]>(have); const [q, setQ] = useState(''); const [sort, setSort] = useState('name'); const [max, setMax] = useState<number>(a.props?.maxPip ?? top);
+  const top = Math.max(1, ...mvs.map(m => m.n)); const [pick, setPick] = useState<number[]>(have); // search, sort and Max PiP are remembered for as long as the wall is open in the editor
+  const q = filt.q, sort = filt.sort, max = filt.max ?? a.props?.maxPip ?? top;
+  const setQ = (v: string) => setFilt({ ...filt, q: v }), setSort = (v: string) => setFilt({ ...filt, sort: v }), setMax = (v: number) => setFilt({ ...filt, max: v });
   const assigned = have.map(id => mvs.find(m => m.id === id)).filter(Boolean) as MvOpt[];
   const cmp: Record<string, (a: MvOpt, b: MvOpt) => number> = { name: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }), namez: (a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }), fewest: (a, b) => a.n - b.n || a.name.localeCompare(b.name, undefined, { numeric: true }), most: (a, b) => b.n - a.n || a.name.localeCompare(b.name, undefined, { numeric: true }), standard: (a, b) => +b.standard - +a.standard || a.name.localeCompare(b.name, undefined, { numeric: true }), mine: (a, b) => +a.standard - +b.standard || a.name.localeCompare(b.name, undefined, { numeric: true }), ticked: (a, b) => +pick.includes(b.id) - +pick.includes(a.id) || a.name.localeCompare(b.name, undefined, { numeric: true }) };
   const shown = mvs.filter(m => m.n <= (max || 1) && m.name.toLowerCase().includes(q.toLowerCase())).sort(cmp[sort] ?? cmp.name);
@@ -29,7 +32,7 @@ function MvPick({ a, mvs, setProps }: { a: DAsset; mvs: MvOpt[]; setProps: (p: R
         <div className="mut" style={{ fontSize: '.75rem' }}>{assigned.length} assigned</div>
         {assigned.map(m => <div key={m.id} role="listitem" style={{ display: 'grid', gridTemplateColumns: '48px 1fr', gap: 8, alignItems: 'center', padding: '4px 6px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)' }}>
           <LayThumb tiles={m.tiles} small /><span style={{ minWidth: 0 }}><span style={{ display: 'block', fontWeight: 600, fontSize: '.85rem', overflowWrap: 'anywhere', lineHeight: 1.2 }}>{m.name}</span><span className="mut" style={{ fontSize: '.72rem' }}>{m.n} window{m.n === 1 ? '' : 's'}{m.standard ? ' · Standard' : ''}</span></span></div>)}</div>}
-    <button type="button" className="sec small" onClick={() => { setPick(have.filter(id => mvs.some(m => m.id === id))); setQ(''); setMax(a.props?.maxPip ?? top); ref.current?.showModal(); }}>Assign multiview template</button>
+    <button type="button" className="sec small" onClick={() => { setPick(have.filter(id => mvs.some(m => m.id === id))); ref.current?.showModal(); }}>Assign multiview template</button>
     <dialog ref={ref} className="dlg" style={{ width: 'min(480px,calc(100vw - 24px))' }}>
       <b style={{ display: 'block', lineHeight: 1.3 }}>Assign multiview templates to {a.name}</b>
       <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, margin: '10px 0 0', fontSize: '.9rem' }}><span>Max PiP<span className="mut" style={{ display: 'block', fontSize: '.75rem', fontWeight: 400 }}>Only templates with this many windows or fewer are shown</span></span>
@@ -52,9 +55,10 @@ function MvPick({ a, mvs, setProps }: { a: DAsset; mvs: MvOpt[]; setProps: (p: R
 export default function WallEditor({ id, initialName, initial, notice, mvs }: { id: number | null; initialName: string; initial: DAsset[]; notice?: React.ReactNode; mvs: MvOpt[] }) {
   // Saved walls open in view mode (cropped to the monitors, multiview templates can be assigned). Edit mode gives the full canvas and the Arrange/Add tools, but no multiview assignment.
   const [edit, setEdit] = useState(id === null || initial.length === 0);
+  const [filt, setFilt] = useState<Filt>({ q: '', sort: 'name', max: null });
   const [picker, setPicker] = useState<null | ((over: Partial<PaletteItem>) => void)>(null);
   return (<><Editor onAction={(_, add) => setPicker(() => add)}  viewOnly={!edit} zoomable headerExtra={<button type="button" className={'small' + (edit ? '' : ' sec')} aria-pressed={edit} title={edit ? 'Finish editing: shrink the canvas and go back to assigning multiview templates' : 'Edit the wall: add, move and arrange monitors and other items'} onClick={() => setEdit(!edit)}>{edit ? 'Done editing' : 'Edit'}</button>}  kind="Wall Template" canvasName="wall" backHref="/walls" world={{ w: WALL_W, h: WALL_H }} palette={WALL_PALETTE} rotatable notice={notice} renderAsset={a => <WallArt a={a} />}
-    extras={(a, setProps) => !edit && isScreen(a.type) ? <MvPick key={a.id} a={a} mvs={mvs} setProps={setProps} /> : null}
+    extras={(a, setProps) => !edit && isScreen(a.type) ? <MvPick key={a.id} a={a} mvs={mvs} setProps={setProps} filt={filt} setFilt={setFilt} /> : null}
     id={id} initialName={initialName} initial={initial}
     backdrop={<svg viewBox={`0 0 ${WALL_W} ${WALL_H}`} width="100%" height="100%" style={{ display: 'block', pointerEvents: 'none' }}><rect width={WALL_W} height={WALL_H} fill="#1b2027" /><rect x={0} y={WALL_H - 6} width={WALL_W} height={6} fill="#2c333d" /></svg>}
     onSave={a => saveWall(a.id, a.name, a.assets)} />
