@@ -327,7 +327,9 @@ export async function removeRoomWall(f: FormData) {
 export async function saveWall(id: number | null, name: string, assets: any[], broadcasterId?: number | null): Promise<{ id?: number; error?: string }> {
   const me = await mgr();
   if (!Array.isArray(assets) || assets.length > 300) return { error: 'Too many assets.' };
-  const clean = assets.map(a => ({ id: String(a.id).slice(0, 20), type: String(a.type).slice(0, 20), name: String(a.name).slice(0, 60), x: +a.x || 0, y: +a.y || 0, w: +a.w || 10, h: +a.h || 10 }));
+  const c = (v: any, lo: number, hi: number, d = lo) => Math.round(Math.min(Math.max(Number.isFinite(+v) ? +v : d, lo), hi));
+  const clean = assets.map(a => { const w = c(a.w, 10, 1600, 10), h = c(a.h, 10, 900, 10), rot = c(a.props?.rot, 0, 3, 0);
+    return { id: String(a.id).slice(0, 20), type: String(a.type).slice(0, 20), name: String(a.name ?? '').slice(0, 60), x: c(a.x, 0, 1600 - w, 0), y: c(a.y, 0, 900 - h, 0), w, h, ...(rot ? { props: { rot } } : {}) }; });
   name = String(name).slice(0, 80);
   if (id) { await own('myWalls', id, me); await rows('update wall_templates set name=$1,data=$2 where id=$3', [name, JSON.stringify({ assets: clean }), id]); revalidatePath('/walls'); return { id }; }
   if (!broadcasterId) return { error: 'Choose a Broadcaster for this Wall Template.' };

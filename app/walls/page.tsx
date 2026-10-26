@@ -2,7 +2,7 @@ import { rows, one } from '@/lib/db';
 import { requireMe, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { deleteWall } from '@/lib/actions';
-import Designer from './Designer';
+import WallEditor from './WallEditor';
 import Menu from '../Menu';
 import Link from 'next/link';
 export const dynamic = 'force-dynamic';
@@ -23,5 +23,5 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
         {w.tenant_id && <Menu><form action={deleteWall} className="del-row"><input type="hidden" name="id" value={w.id} /><span className="mut">Delete this Wall Template? It is removed from any Room and Job using it.</span><button className="del">Yes, delete</button></form></Menu>}</div>))}</div>
       <div>{id === 'new' && !pick ? (bcs.length === 0 ? <p className="mut">Create a Broadcaster in Productions first - each Wall Template belongs to a Broadcaster.</p> :
         <div className="card"><b>Which Broadcaster is this Wall Template for?</b>{bcs.map((x: any) => <div key={x.id}><a href={`/walls?id=new&b=${x.id}`}>{x.name}</a> <span className="mut">{x.c} of {lim.m} used</span></div>)}</div>)
-      : cur ? <Designer key={String(cur.id) + (pick?.id ?? '')} id={cur.id} initialName={cur.name} initial={cur.data.assets} broadcasterId={pick?.id ?? null} /> : <p className="mut">Select a Wall Template or create a new one.</p>}</div></div></>);
+      : cur ? <WallEditor key={String(cur.id) + (pick?.id ?? '')} id={cur.id} initialName={cur.name} initial={cur.data.assets} broadcasterId={pick?.id ?? null} /> : <p className="mut">Select a Wall Template or create a new one.</p>}</div></div></>);
 }
