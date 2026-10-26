@@ -179,18 +179,20 @@ export default function Editor(p: Props) {
   const [lastSpace, setLastSpace] = useState<'h' | 'v' | null>(null);
   useEffect(() => { setLastSpace(null); }, [sel.join(',')]);
   // Slide the selection as far as it will go in one direction: to the canvas edge, or up to the nearest other item (items that may overlap only stop at the edge).
+  const [touch, setTouch] = useState(false); // Touch mode: the push buttons move until the selection touches another item, ignoring the canvas edge
   function pushTo(dir: 'up' | 'down' | 'left' | 'right') {
     const S = items.filter(a => sel.includes(a.id)); if (!S.length) { setMsg('Select something first.'); return; }
     const others = items.filter(a => !sel.includes(a.id)); let d = Infinity;
     for (const a of S) {
-      let lim = dir === 'left' ? a.x : dir === 'up' ? a.y : dir === 'right' ? world.w - a.x - a.w : world.h - a.y - a.h;
-      if (!p.allowOverlap) for (const o of others) {
+      let lim = touch ? Infinity : dir === 'left' ? a.x : dir === 'up' ? a.y : dir === 'right' ? world.w - a.x - a.w : world.h - a.y - a.h;
+      if (touch || !p.allowOverlap) for (const o of others) {
         if (dir === 'left' || dir === 'right') { if (o.y < a.y + a.h && o.y + o.h > a.y) { const g = dir === 'left' ? a.x - (o.x + o.w) : o.x - (a.x + a.w); if (g >= 0 && g < lim) lim = g; } }
         else if (o.x < a.x + a.w && o.x + o.w > a.x) { const g = dir === 'up' ? a.y - (o.y + o.h) : o.y - (a.y + a.h); if (g >= 0 && g < lim) lim = g; }
       }
       d = Math.min(d, lim);
     }
-    if (!(d > 0)) { setMsg('Already as far as it will go.'); return; }
+    if (d === Infinity) { setMsg('Nothing in the way in that direction.'); return; }
+    if (!(d > 0)) { setMsg(touch ? 'Already touching.' : 'Already as far as it will go.'); return; }
     const dx = dir === 'left' ? -d : dir === 'right' ? d : 0, dy = dir === 'up' ? -d : dir === 'down' ? d : 0;
     const next = items.map(a => sel.includes(a.id) ? { ...a, x: a.x + dx, y: a.y + dy } : a);
     if (free(next, next.filter(a => sel.includes(a.id)))) apply(next); else setMsg('That would not fit - not applied.');
@@ -317,8 +319,9 @@ export default function Editor(p: Props) {
           <span className="dz-tgl" title={`Size`}></span>
           <div className="dz-tg"><button className="sec small" title="Match size: make all selected the same size as the first selected" aria-label="Match size" onClick={() => align('size')}><Icon k="same" /></button>
             <button className="sec small" title="Scale: after Space H or V, make the selected all one size and as big as the free space around them allows, in any direction" aria-label="Scale" disabled={!lastSpace} onClick={() => align('scale')}><Icon k="scale" /></button></div>
-          <span className="dz-tgl" title={`Push to edge`}></span>
-          <div className="dz-tg">{([['left', 'Push left as far as it will go'], ['right', 'Push right as far as it will go'], ['up', 'Push up as far as it will go'], ['down', 'Push down as far as it will go']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => pushTo(k)}><Icon k={'push' + k} /></button>)}</div>
+          <span className="dz-tgl" title={touch ? 'Move until touching' : 'Push to edge'}></span>
+          <div className="dz-tg">{([['left', 'Push left as far as it will go'], ['right', 'Push right as far as it will go'], ['up', 'Push up as far as it will go'], ['down', 'Push down as far as it will go']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => pushTo(k)}><Icon k={'push' + k} /></button>)}
+            <button type="button" className={'sec small' + (touch ? ' on' : '')} aria-pressed={touch} title="Move until touching: when on, the push buttons move the selection until it touches another item (instead of going to the canvas edge)" aria-label="Move until touching" onClick={() => setTouch(!touch)}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><rect x="2.5" y="7" width="8" height="10" rx="1" /><rect x="13.5" y="7" width="8" height="10" rx="1" /><path d="M10.5 12h3" /></svg></button></div>
           {p.rotatable && <><span className="dz-tgl" title="Rotate"></span><div className="dz-tg"><button className="sec small" title="Rotate anticlockwise (a quarter turn)" aria-label="Rotate anticlockwise" onClick={() => rotateSel(-1)}><Icon k="rotccw" /></button><button className="sec small" title="Rotate clockwise (a quarter turn)" aria-label="Rotate clockwise" onClick={() => rotateSel(1)}><Icon k="rotcw" /></button></div></>}
           <span className="dz-tgl" title={`On the ${p.canvasName ?? 'canvas'}`}></span>
           {p.neaten && <><span className="dz-tgl"></span><div className="dz-tg"><button className="sec small dz-wide" title={`Neaten this ${p.canvasName === "tile" ? "tile: level the edges and close small gaps" : "layout: every window exactly 16:9 on one grid, equal sizes, edges lined up, centred"}`} onClick={() => { const n = p.neaten!(items); if (!n) { setMsg('Could not neaten this design.'); return; } apply(n); setSel([]); }}>{p.canvasName === "tile" ? "Neaten tile" : "Neaten layout"}</button></div></>}

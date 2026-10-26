@@ -4,8 +4,8 @@ const kindOf = (t: string) => /^(mon|monitor)/.test(t) ? 'mon' : /^(bvm|pvm)/.te
 function Upright({ a, w, h, abs }: { a: DAsset; w: number; h: number; abs?: boolean }) {
   const k = kindOf(a.type), m = Math.min(w, h), label = String(a.name ?? '').slice(0, 30);
   let inner: React.ReactNode;
-  if (k === 'mon') { const b = Math.max(2, m * 0.03);
-    inner = (<><rect width={w} height={h} rx={m * 0.02} fill="#15181d" stroke="#3a414c" strokeWidth={1} /><rect x={b} y={b} width={w - 2 * b} height={h - 2 * b} fill="#0c2340" />
+  if (k === 'mon') { const b = /^mon\d/.test(a.type) ? 2 : Math.max(2, m * 0.03);
+    inner = (<><rect width={w} height={h} rx={m * 0.02} fill={/^mon\d/.test(a.type) ? "#3b424d" : "#15181d"} stroke={/^mon\d/.test(a.type) ? "#69727f" : "#3a414c"} strokeWidth={1} /><rect x={b} y={b} width={w - 2 * b} height={h - 2 * b} fill="#0c2340" />
       <path d={`M${b} ${b}L${w - b} ${b}L${b} ${h * 0.7}Z`} fill="#fff" fillOpacity=".04" /><circle cx={w - b * 2.2} cy={h - b * 0.5} r={Math.max(1, b * 0.25)} fill="#1fb865" />
       <text x={w / 2} y={h / 2} fill="#8fb4e3" fontFamily="system-ui,sans-serif" fontWeight="600" fontSize={Math.min(h * 0.16, (w * 0.84) / Math.max(4, label.length * 0.6))} textAnchor="middle" dominantBaseline="central">{label}</text></>);
   } else if (k === 'crt') { const b = Math.max(2, m * 0.035), sh = h * 0.78;
