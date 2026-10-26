@@ -15,17 +15,17 @@ function MvPick({ a, mvs, setProps }: { a: DAsset; mvs: MvOpt[]; setProps: (p: R
   const ref = useRef<HTMLDialogElement>(null); const have: number[] = a.props?.mvs ?? [];
   const top = Math.max(1, ...mvs.map(m => m.n)); const [pick, setPick] = useState<number[]>(have); const [q, setQ] = useState(''); const [max, setMax] = useState<number>(a.props?.maxPip ?? top);
   const names = have.map(id => mvs.find(m => m.id === id)?.name).filter(Boolean) as string[];
-  const shown = mvs.filter(m => m.n <= max && m.name.toLowerCase().includes(q.toLowerCase()));
+  const shown = mvs.filter(m => m.n <= (max || 1) && m.name.toLowerCase().includes(q.toLowerCase()));
   return (<>
     <div className="dz-grp">Multiview templates</div>
-    <label className="dz-row dz-chk" style={{ flexDirection: 'row', alignItems: 'center' }}><span>Limit Max PiP</span><input type="checkbox" checked={!!a.props?.maxPip} onChange={e => setProps(e.target.checked ? { maxPip: Math.min(top, 4) } : { maxPip: undefined })} /></label>
-    {!!a.props?.maxPip && <label className="dz-row" style={{ flexDirection: 'row', alignItems: 'center' }}><span>Max PiP (windows)</span><input type="number" min={1} max={64} value={a.props.maxPip} aria-label="Max PiP value" onChange={e => { const v = Math.min(64, Math.max(1, Math.round(+e.target.value) || 1)); const keep = have.filter(id => (mvs.find(m => m.id === id)?.n ?? 99) <= v); setProps({ maxPip: v, mvs: keep.length ? keep : undefined }); }} /></label>}
+    <label className="dz-row dz-chk" style={{ flexDirection: 'row', alignItems: 'center' }}><span>Limit Max PiP</span><input type="checkbox" checked={!!a.props?.maxPip} onChange={e => setProps(e.target.checked ? { maxPip: 1 } : { maxPip: undefined })} /></label>
+    {!!a.props?.maxPip && <label className="dz-row" style={{ flexDirection: 'row', alignItems: 'center' }}><span>Max PiP (windows)</span><input type="number" min={1} max={64} defaultValue={a.props.maxPip} key={a.id} aria-label="Max PiP value" onChange={e => { const v = Math.round(+e.target.value); if (!(v >= 1)) return; const c = Math.min(64, v); const keep = have.filter(id => (mvs.find(m => m.id === id)?.n ?? 99) <= c); setProps({ maxPip: c, mvs: keep.length ? keep : undefined }); }} onBlur={e => { e.target.value = String(a.props?.maxPip ?? 1); }} /></label>}
     <p className="mut dz-help" style={{ margin: '0 0 6px' }}>{a.props?.maxPip ? `Max PiP ${a.props.maxPip}. ` : ''}{names.length === 0 ? 'None assigned.' : `${names.length} assigned: ${names.slice(0, 4).join(', ')}${names.length > 4 ? '…' : ''}`}</p>
     <button type="button" className="sec small" onClick={() => { setPick(have.filter(id => mvs.some(m => m.id === id))); setQ(''); setMax(a.props?.maxPip ?? top); ref.current?.showModal(); }}>Assign multiview template</button>
     <dialog ref={ref} className="dlg" style={{ width: 'min(480px,calc(100vw - 24px))' }}>
       <b style={{ display: 'block', lineHeight: 1.3 }}>Assign multiview templates to {a.name}</b>
       <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, margin: '10px 0 0', fontSize: '.9rem' }}><span>Max PiP<span className="mut" style={{ display: 'block', fontSize: '.75rem', fontWeight: 400 }}>Only templates with this many windows or fewer are shown</span></span>
-        <input type="number" min={1} max={64} value={max} onChange={e => setMax(Math.min(64, Math.max(1, Math.round(+e.target.value) || 1)))} style={{ width: 80, margin: 0 }} aria-label="Max PiP" /></label>
+        <input type="number" min={1} max={64} value={max || ''} onChange={e => setMax(Math.min(64, Math.max(0, Math.round(+e.target.value) || 0)))} onBlur={() => { if (!max) setMax(1); }} style={{ width: 80, margin: 0 }} aria-label="Max PiP" /></label>
       <input placeholder="Search" value={q} onChange={e => setQ(e.target.value)} style={{ width: '100%', margin: '10px 0', boxSizing: 'border-box' }} />
       <div style={{ maxHeight: 'min(340px,50vh)', overflow: 'auto', display: 'grid', gap: 2 }}>
         {shown.length === 0 && <span className="mut">No multiview templates found.</span>}
@@ -35,7 +35,7 @@ function MvPick({ a, mvs, setProps }: { a: DAsset; mvs: MvOpt[]; setProps: (p: R
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, marginTop: 14 }}>
         <button type="button" className="sec" onClick={() => setPick([])}>Untick all</button>
         <span style={{ display: 'flex', gap: 8 }}><button type="button" className="sec" onClick={() => ref.current?.close()}>Cancel</button>
-          <button type="button" onClick={() => { const keep = pick.filter(id => (mvs.find(m => m.id === id)?.n ?? 99) <= max); setProps({ mvs: keep.length ? keep : undefined, maxPip: (max >= top && !a.props?.maxPip) ? undefined : max }); ref.current?.close(); }}>Apply</button></span></div>
+          <button type="button" onClick={() => { const keep = pick.filter(id => (mvs.find(m => m.id === id)?.n ?? 99) <= (max || 1)); setProps({ mvs: keep.length ? keep : undefined, maxPip: (max >= top && !a.props?.maxPip) ? undefined : (max || 1) }); ref.current?.close(); }}>Apply</button></span></div>
     </dialog></>);
 }
 
