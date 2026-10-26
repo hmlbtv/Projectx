@@ -387,8 +387,8 @@ export default function Editor(p: Props) {
             <div className="dz-two">{numIn('X', one.x, v => edit({ x: v }))}{numIn('Y', one.y, v => edit({ y: v }))}{numIn('W', one.w, v => editSize('w', v))}{numIn('H', one.h, v => editSize('h', v))}</div>
             {!readOnly && <label className="dz-row dz-chk"><span>Lock aspect</span><input type="checkbox" checked={lock} onChange={e => setLock(e.target.checked)} /></label>}
             {!viewOnly && def?.fields && def.fields.length > 0 && <div className="dz-grp">{def.label} settings</div>}
-            {!viewOnly && def?.fields?.map(f => (<label key={f.key} className="dz-row"><span>{f.label}</span>
-              {f.kind === 'check' ? <input type="checkbox" disabled={readOnly} checked={!!one.props?.[f.key]} onChange={e => { push(); setProp(f.key, e.target.checked); }} />
+            {!viewOnly && def?.fields?.filter(f => !f.when || one.props?.[f.when]).map(f => (<label key={f.key} className="dz-row"><span>{f.label}</span>
+              {f.kind === 'check' ? <input type="checkbox" disabled={readOnly} checked={!!(one.props?.[f.key] ?? f.dflt)} onChange={e => { push(); setProp(f.key, e.target.checked); }} />
                 : f.kind === 'color' ? <input type="color" disabled={readOnly} value={one.props?.[f.key] ?? '#ffffff'} onFocus={push} onChange={e => setProp(f.key, e.target.value)} style={{ padding: 2, height: 32, width: 56 }} />
                 : f.kind === 'area' ? <textarea rows={3} maxLength={300} disabled={readOnly} value={one.props?.[f.key] ?? ''} onFocus={push} onChange={e => setProp(f.key, e.target.value)} style={{ width: '100%', resize: 'vertical' }} />
                 : f.kind === 'select' ? <select disabled={readOnly} value={String(one.props?.[f.key] ?? '')} onChange={e => { push(); setProp(f.key, e.target.value); }}>{f.options!.map(o => <option key={o}>{o}</option>)}</select>

@@ -1,27 +1,28 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 
-type Img = { id: number; name: string; w: number; h: number; usedIn: { id: number; name: string }[] };
+type Img = { id: number; name: string; w: number; h: number; alpha?: boolean; usedIn: { id: number; name: string }[] };
 const MAX_SIDE = 1600;
 
 // Scale a picture down (PNG keeps transparency, photos become JPEG) before it is uploaded. SVG is sent as it is.
-async function prepare(file: File): Promise<{ blob: Blob; w: number; h: number }> {
+async function prepare(file: File): Promise<{ blob: Blob; w: number; h: number; alpha: boolean }> {
   const url = URL.createObjectURL(file);
   try {
     const im = await new Promise<HTMLImageElement>((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('This browser cannot read that picture. Try a PNG, JPEG or SVG.')); i.src = url; });
     const nw = im.naturalWidth || 300, nh = im.naturalHeight || 150;
-    if (file.type === 'image/svg+xml') return { blob: file, w: nw, h: nh };
+    if (file.type === 'image/svg+xml') return { blob: file, w: nw, h: nh, alpha: true };
     const s = Math.min(1, MAX_SIDE / Math.max(nw, nh)), w = Math.max(1, Math.round(nw * s)), h = Math.max(1, Math.round(nh * s));
     const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d')!;
     const jpeg = file.type === 'image/jpeg' || file.type === 'image/bmp'; if (jpeg) { g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); }
     g.drawImage(im, 0, 0, w, h);
+    let alpha = false; if (!jpeg) { const d = g.getImageData(0, 0, w, h).data; for (let i = 3; i < d.length; i += 4) if (d[i] < 255) { alpha = true; break; } }
     const blob = await new Promise<Blob | null>(r => c.toBlob(r, jpeg ? 'image/jpeg' : 'image/png', 0.88));
     if (!blob) throw new Error('Could not scale that picture.');
-    return { blob, w, h };
+    return { blob, w, h, alpha };
   } finally { URL.revokeObjectURL(url); }
 }
 
-export default function ImagePicker({ onPick, onClose }: { onPick: (i: { id: number; name: string; w: number; h: number }) => void; onClose: () => void }) {
+export default function ImagePicker({ onPick, onClose }: { onPick: (i: { id: number; name: string; w: number; h: number; alpha?: boolean }) => void; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null), file = useRef<HTMLInputElement>(null);
   const [list, setList] = useState<Img[] | null>(null), [err, setErr] = useState(''), [busy, setBusy] = useState(false), [editing, setEditing] = useState(false), [del, setDel] = useState<number | null>(null);
   const load = async () => { try { const r = await fetch('/api/wall-images'); const j = await r.json(); if (!r.ok) throw new Error(j.error); setList(j.images); } catch (e: any) { setErr(e.message || 'Could not load images.'); setList([]); } };
@@ -30,8 +31,8 @@ export default function ImagePicker({ onPick, onClose }: { onPick: (i: { id: num
     setErr(''); setBusy(true);
     try {
       if (!f.type.startsWith('image/')) throw new Error('That is not a picture file.');
-      const { blob, w, h } = await prepare(f); const ext = blob.type === 'image/svg+xml' ? 'svg' : blob.type === 'image/jpeg' ? 'jpg' : 'png';
-      const fd = new FormData(); fd.append('file', new File([blob], 'image.' + ext, { type: blob.type })); fd.append('name', f.name.replace(/\.[^.]+$/, '')); fd.append('w', String(w)); fd.append('h', String(h));
+      const { blob, w, h, alpha } = await prepare(f); const ext = blob.type === 'image/svg+xml' ? 'svg' : blob.type === 'image/jpeg' ? 'jpg' : 'png';
+      const fd = new FormData(); fd.append('file', new File([blob], 'image.' + ext, { type: blob.type })); fd.append('name', f.name.replace(/\.[^.]+$/, '')); fd.append('w', String(w)); fd.append('h', String(h)); fd.append('alpha', alpha ? '1' : '0');
       const r = await fetch('/api/wall-images', { method: 'POST', body: fd }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Upload failed.');
       await load();
     } catch (e: any) { setErr(e.message || 'Upload failed.'); } finally { setBusy(false); if (file.current) file.current.value = ''; }

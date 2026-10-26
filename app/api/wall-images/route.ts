@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 const MAX_BYTES = 3 * 1024 * 1024, MAX_IMAGES = 100;
 export async function GET() {
   const me = await getMe(); if (!me || !me.tenant_id || !canManage(me)) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
-  const imgs = await rows('select id,name,w,h from wall_images where tenant_id=$1 order by created_at desc, id desc', [me.tenant_id]);
+  const imgs = await rows('select id,name,w,h,alpha from wall_images where tenant_id=$1 order by created_at desc, id desc', [me.tenant_id]);
   const use = await usage(me.tenant_id);
   return NextResponse.json({ images: imgs.map((i: any) => ({ ...i, usedIn: use.filter((u: any) => u.image === i.id).map((u: any) => ({ id: u.wall, name: u.name })) })) });
 }
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   if (((await one('select count(*)::int c from wall_images where tenant_id=$1', [me.tenant_id]))!).c >= MAX_IMAGES) return NextResponse.json({ error: `You can keep up to ${MAX_IMAGES} images. Delete some first.` }, { status: 400 });
   const w = Math.min(Math.max(Math.round(+(f.get('w') as string)) || 1, 1), 20000), h = Math.min(Math.max(Math.round(+(f.get('h') as string)) || 1, 1), 20000);
   const name = String(f.get('name') ?? 'Image').trim().slice(0, 60) || 'Image';
-  const r = (await one('insert into wall_images(tenant_id,name,mime,w,h,data) values($1,$2,$3,$4,$5,$6) returning id', [me.tenant_id, name, mime, w, h, buf]))!;
+  const r = (await one('insert into wall_images(tenant_id,name,mime,w,h,data,alpha) values($1,$2,$3,$4,$5,$6,$7) returning id', [me.tenant_id, name, mime, w, h, buf, mime !== 'image/jpeg' && f.get('alpha') === '1']))!;
   await record(me.tenant_id, me.id, me.name || me.email, 'imageUpload', `“${name}”`);
-  return NextResponse.json({ id: r.id, name, w, h });
+  return NextResponse.json({ id: r.id, name, w, h, alpha: mime !== 'image/jpeg' && f.get('alpha') === '1' });
 }

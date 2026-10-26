@@ -6,7 +6,8 @@ function Upright({ a, w, h, abs }: { a: DAsset; w: number; h: number; abs?: bool
   let inner: React.ReactNode;
   if (k === 'img') { const id = Math.round(Number(a.props?.img)) || 0;
     return (<svg viewBox={`0 0 ${w} ${h}`} width={abs ? w : '100%'} height={abs ? h : '100%'} style={{ display: 'block' }}><rect width={w} height={h} fill="#1b2027" stroke="#3a414c" strokeDasharray="4 3" />
-      {id > 0 && <image href={`/api/wall-images/${id}`} width={w} height={h} preserveAspectRatio="none" />}</svg>); }
+      {a.props?.useAlpha === false && <defs><filter id="flatalpha" colorInterpolationFilters="sRGB"><feComponentTransfer><feFuncA type="linear" slope="0" intercept="1" /></feComponentTransfer></filter></defs>}
+      {id > 0 && <image href={`/api/wall-images/${id}`} width={w} height={h} preserveAspectRatio="none" filter={a.props?.useAlpha === false ? 'url(#flatalpha)' : undefined} />}</svg>); }
   if (k === 'txt') { const q = a.props ?? {}, fam = q.font === 'Serif' ? 'Georgia,serif' : q.font === 'Mono' ? 'ui-monospace,Menlo,monospace' : 'system-ui,sans-serif';
     return (<svg viewBox={`0 0 ${w} ${h}`} width={abs ? w : '100%'} height={abs ? h : '100%'} style={{ display: 'block', overflow: 'hidden' }}><foreignObject width={w} height={h}>
       <div style={{ width: w, height: h, boxSizing: 'border-box', padding: 2, overflow: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', lineHeight: 1.2, fontFamily: fam, fontSize: Math.min(Math.max(+q.size || 28, 4), 400), fontWeight: q.bold ? 700 : 400, fontStyle: q.italic ? 'italic' : 'normal', textDecoration: q.underline ? 'underline' : 'none', textAlign: (['left', 'center', 'right'].includes(q.align) ? q.align : 'left') as any, color: /^#[0-9a-f]{6}$/i.test(q.color) ? q.color : '#e6e9ef' }}>{String(q.text ?? '')}</div></foreignObject></svg>); }

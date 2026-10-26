@@ -340,7 +340,7 @@ async function saveWall_(id: number | null, name: string, assets: any[], _unused
   const ok = new Set((await rows('select id from mv_layouts where tenant_id is null or tenant_id=$1', [tid(me)])).map((r: any) => r.id));
   assets.forEach((a, i) => { const m = Array.isArray(a.props?.mvs) ? Array.from(new Set(a.props.mvs.map(Number))).filter((x: any) => ok.has(x)).slice(0, 200) : []; if (m.length) (clean[i] as any).props = { ...(clean[i] as any).props, mvs: m }; });
   const myImgs = new Set((await rows('select id from wall_images where tenant_id=$1', [tid(me)])).map((r: any) => r.id));
-  assets.forEach((a, i) => { const n = Math.round(+a.props?.img); if (String(a.type) === 'img' && myImgs.has(n)) (clean[i] as any).props = { ...(clean[i] as any).props, img: n }; });
+  assets.forEach((a, i) => { const n = Math.round(+a.props?.img); if (String(a.type) === 'img' && myImgs.has(n)) (clean[i] as any).props = { ...(clean[i] as any).props, img: n, ...(a.props?.hasAlpha ? { hasAlpha: true } : {}), ...(a.props?.hasAlpha && a.props?.useAlpha === false ? { useAlpha: false } : {}) }; });
   assets.forEach((a, i) => { const q = a.props; if (String(a.type) !== 'txt' || !q) return; const sz = Math.round(+q.size);
     (clean[i] as any).props = { ...(clean[i] as any).props, text: String(q.text ?? '').slice(0, 300), size: sz >= 6 && sz <= 400 ? sz : 28, bold: !!q.bold, italic: !!q.italic, underline: !!q.underline,
       align: ['left', 'center', 'right'].includes(q.align) ? q.align : 'left', font: ['Sans', 'Serif', 'Mono'].includes(q.font) ? q.font : 'Sans', color: /^#[0-9a-f]{6}$/i.test(String(q.color)) ? q.color : '#e6e9ef' }; });
@@ -443,11 +443,11 @@ async function cleanExtras(raw: any, tenant: number) {
     const type = String(a?.type); if (type !== 'txt' && type !== 'img') continue;
     const w = c(a.w, 10, 1920, 10), h = c(a.h, 10, 1080, 10), o: any = { id: String(a.id).slice(0, 20), type, name: String(a.name ?? '').slice(0, 60), x: c(a.x, 0, 1920 - w, 0), y: c(a.y, 0, 1080 - h, 0), w, h }, q = a.props ?? {}, rot = c(q.rot, 0, 3, 0);
     const pr: any = rot ? { rot } : {};
-    if (type === 'img') { const n = Math.round(+q.img); if (!mine.has(n)) continue; pr.img = n; }
+    if (type === 'img') { const n = Math.round(+q.img); if (!mine.has(n)) continue; pr.img = n; if (q.hasAlpha) { pr.hasAlpha = true; if (q.useAlpha === false) pr.useAlpha = false; } }
     else { const sz = Math.round(+q.size); Object.assign(pr, { text: String(q.text ?? '').slice(0, 300), size: sz >= 6 && sz <= 600 ? sz : 60, bold: !!q.bold, italic: !!q.italic, underline: !!q.underline, align: ['left', 'center', 'right'].includes(q.align) ? q.align : 'left', font: ['Sans', 'Serif', 'Mono'].includes(q.font) ? q.font : 'Sans', color: /^#[0-9a-f]{6}$/i.test(String(q.color)) ? q.color : '#ffffff' }); }
     if (Object.keys(pr).length) o.props = pr; items.push(o);
   }
-  return { ...(mine.has(bg) ? { bg } : {}), items };
+  return { ...(mine.has(bg) ? { bg, ...(raw?.bgHasAlpha ? { bgHasAlpha: true } : {}), ...(raw?.bgHasAlpha && raw?.bgUseAlpha === false ? { bgUseAlpha: false } : {}) } : {}), items };
 }
 async function saveLayoutTiles_(p: { id: number; name: string; tiles: any[]; asNew: boolean; flags?: Record<string, boolean>; extras?: any }): Promise<{ id?: number; error?: string }> {
   const me = await mgr(); const top = me.role === 'webappdev';
