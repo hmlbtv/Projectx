@@ -13,15 +13,17 @@ const isScreen = (t: string) => /^(mon|monitor|bvm|pvm)/.test(t);
 // Pick which Multiview templates a monitor can show (chosen from this list later, in the Monitor Plan).
 function MvPick({ a, mvs, setProps }: { a: DAsset; mvs: MvOpt[]; setProps: (p: Record<string, any>) => void }) {
   const ref = useRef<HTMLDialogElement>(null); const have: number[] = a.props?.mvs ?? [];
-  const [pick, setPick] = useState<number[]>(have); const [q, setQ] = useState('');
+  const top = Math.max(1, ...mvs.map(m => m.n)); const [pick, setPick] = useState<number[]>(have); const [q, setQ] = useState(''); const [max, setMax] = useState<number>(a.props?.maxPip ?? top);
   const names = have.map(id => mvs.find(m => m.id === id)?.name).filter(Boolean) as string[];
-  const shown = mvs.filter(m => m.name.toLowerCase().includes(q.toLowerCase()));
+  const shown = mvs.filter(m => m.n <= max && m.name.toLowerCase().includes(q.toLowerCase()));
   return (<>
     <div className="dz-grp">Multiview templates</div>
-    <p className="mut dz-help" style={{ margin: '0 0 6px' }}>{names.length === 0 ? 'None assigned.' : `${names.length} assigned: ${names.slice(0, 4).join(', ')}${names.length > 4 ? '…' : ''}`}</p>
-    <button type="button" className="sec small" onClick={() => { setPick(have.filter(id => mvs.some(m => m.id === id))); setQ(''); ref.current?.showModal(); }}>Assign multiview template</button>
+    <p className="mut dz-help" style={{ margin: '0 0 6px' }}>{a.props?.maxPip ? `Max PiP ${a.props.maxPip}. ` : ''}{names.length === 0 ? 'None assigned.' : `${names.length} assigned: ${names.slice(0, 4).join(', ')}${names.length > 4 ? '…' : ''}`}</p>
+    <button type="button" className="sec small" onClick={() => { setPick(have.filter(id => mvs.some(m => m.id === id))); setQ(''); setMax(a.props?.maxPip ?? top); ref.current?.showModal(); }}>Assign multiview template</button>
     <dialog ref={ref} className="dlg" style={{ width: 'min(480px,calc(100vw - 24px))' }}>
       <b style={{ display: 'block', lineHeight: 1.3 }}>Assign multiview templates to {a.name}</b>
+      <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, margin: '10px 0 0', fontSize: '.9rem' }}><span>Max PiP<span className="mut" style={{ display: 'block', fontSize: '.75rem', fontWeight: 400 }}>Only templates with this many windows or fewer are shown</span></span>
+        <input type="number" min={1} max={64} value={max} onChange={e => setMax(Math.min(64, Math.max(1, Math.round(+e.target.value) || 1)))} style={{ width: 80, margin: 0 }} aria-label="Max PiP" /></label>
       <input placeholder="Search" value={q} onChange={e => setQ(e.target.value)} style={{ width: '100%', margin: '10px 0', boxSizing: 'border-box' }} />
       <div style={{ maxHeight: 'min(340px,50vh)', overflow: 'auto', display: 'grid', gap: 2 }}>
         {shown.length === 0 && <span className="mut">No multiview templates found.</span>}
@@ -31,7 +33,7 @@ function MvPick({ a, mvs, setProps }: { a: DAsset; mvs: MvOpt[]; setProps: (p: R
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, marginTop: 14 }}>
         <button type="button" className="sec" onClick={() => setPick([])}>Untick all</button>
         <span style={{ display: 'flex', gap: 8 }}><button type="button" className="sec" onClick={() => ref.current?.close()}>Cancel</button>
-          <button type="button" onClick={() => { setProps({ mvs: pick.length ? pick : undefined }); ref.current?.close(); }}>Apply</button></span></div>
+          <button type="button" onClick={() => { const keep = pick.filter(id => (mvs.find(m => m.id === id)?.n ?? 99) <= max); setProps({ mvs: keep.length ? keep : undefined, maxPip: max >= top ? undefined : max }); ref.current?.close(); }}>Apply</button></span></div>
     </dialog></>);
 }
 
