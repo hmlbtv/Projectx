@@ -1,9 +1,12 @@
 import type { DAsset } from '../designer/assets';
 // Draws a wall item (monitor, Sony BVM/PVM, speaker, clock) to fill its own box. Turned in quarter steps (props.rot), like the Tile Designer.
-const kindOf = (t: string) => /^(mon|monitor)/.test(t) ? 'mon' : /^(bvm|pvm)/.test(t) ? 'crt' : /^(g\d|speaker)/.test(t) ? 'spk' : /^(tc|clock)/.test(t) ? 'clk' : 'mon';
+const kindOf = (t: string) => /^txt/.test(t) ? 'txt' : /^(mon|monitor)/.test(t) ? 'mon' : /^(bvm|pvm)/.test(t) ? 'crt' : /^(g\d|speaker)/.test(t) ? 'spk' : /^(tc|clock)/.test(t) ? 'clk' : 'mon';
 function Upright({ a, w, h, abs }: { a: DAsset; w: number; h: number; abs?: boolean }) {
   const k = kindOf(a.type), m = Math.min(w, h), label = String(a.name ?? '').slice(0, 30);
   let inner: React.ReactNode;
+  if (k === 'txt') { const q = a.props ?? {}, fam = q.font === 'Serif' ? 'Georgia,serif' : q.font === 'Mono' ? 'ui-monospace,Menlo,monospace' : 'system-ui,sans-serif';
+    return (<svg viewBox={`0 0 ${w} ${h}`} width={abs ? w : '100%'} height={abs ? h : '100%'} style={{ display: 'block', overflow: 'hidden' }}><foreignObject width={w} height={h}>
+      <div style={{ width: w, height: h, boxSizing: 'border-box', padding: 2, overflow: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', lineHeight: 1.2, fontFamily: fam, fontSize: Math.min(Math.max(+q.size || 28, 4), 400), fontWeight: q.bold ? 700 : 400, fontStyle: q.italic ? 'italic' : 'normal', textDecoration: q.underline ? 'underline' : 'none', textAlign: (['left', 'center', 'right'].includes(q.align) ? q.align : 'left') as any, color: /^#[0-9a-f]{6}$/i.test(q.color) ? q.color : '#e6e9ef' }}>{String(q.text ?? '')}</div></foreignObject></svg>); }
   if (k === 'mon') { const b = /^mon\d/.test(a.type) ? 2 : Math.max(2, m * 0.03);
     inner = (<><rect width={w} height={h} rx={m * 0.02} fill={/^mon\d/.test(a.type) ? "#3b424d" : "#15181d"} stroke={/^mon\d/.test(a.type) ? "#69727f" : "#3a414c"} strokeWidth={1} /><rect x={b} y={b} width={w - 2 * b} height={h - 2 * b} fill="#0c2340" />
       <path d={`M${b} ${b}L${w - b} ${b}L${b} ${h * 0.7}Z`} fill="#fff" fillOpacity=".04" /><circle cx={w - b * 2.2} cy={h - b * 0.5} r={Math.max(1, b * 0.25)} fill="#1fb865" />

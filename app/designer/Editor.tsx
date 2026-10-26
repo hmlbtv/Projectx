@@ -8,7 +8,7 @@ export type SaveArgs = { id: number | null; name: string; assets: DAsset[]; asNe
 type Props = {
   kind: string; backHref: string; world: { w: number; h: number }; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
   id: number | null; initialName: string; initial: DAsset[]; onSave: (a: SaveArgs) => Promise<{ id?: number; error?: string }>;
-  canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; neaten?: (items: DAsset[]) => DAsset[] | null; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; viewOnly?: boolean; headerExtra?: React.ReactNode; extras?: (a: DAsset, setProps: (patch: Record<string, any>) => void) => React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
+  canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; neaten?: (items: DAsset[]) => DAsset[] | null; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; viewOnly?: boolean; zoomable?: boolean; headerExtra?: React.ReactNode; extras?: (a: DAsset, setProps: (patch: Record<string, any>) => void) => React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
 };
 const SNAP = 10, MIN = 20, HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
 const hit = (a: DAsset, b: DAsset) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -54,7 +54,7 @@ export default function Editor(p: Props) {
   useEffect(() => { try { const v = JSON.parse(localStorage.getItem('dz-open') || 'null'); if (v) setOpenSec(o => ({ ...o, ...v })); } catch {} }, []);
   const toggleSec = (id: string, v: boolean) => setOpenSec(o => { if (o[id] === v) return o; const n = { ...o, [id]: v }; try { localStorage.setItem('dz-open', JSON.stringify(n)); } catch {} return n; });
   const g = snapOn ? grid : 1, sn = (v: number) => Math.round(v / g) * g;
-  const [msg, setMsg] = useState(''), [wid, setWid] = useState<number | null>(p.id), [lock, setLock] = useState(true), [dirty, setDirty] = useState(false);
+  const [zoom, setZoom] = useState(1); const [msg, setMsg] = useState(''), [wid, setWid] = useState<number | null>(p.id), [lock, setLock] = useState(true), [dirty, setDirty] = useState(false);
   const [flags, setFlags] = useState<Record<string, boolean>>(Object.fromEntries((p.flags ?? []).map(f => [f.key, f.initial])));
   const hist = useRef<{ past: DAsset[][]; future: DAsset[][] }>({ past: [], future: [] }), [, bump] = useState(0);
   const stage = useRef<HTMLDivElement>(null), [cw, setCw] = useState(800), drag = useRef<any>(null);
@@ -62,6 +62,7 @@ export default function Editor(p: Props) {
   // View mode crops the canvas to the items (with a small margin); otherwise the whole world is shown.
   const crop = (() => { if (!viewOnly || !items.length) return { x: 0, y: 0, w: world.w, h: world.h }; const M = 24, x0 = Math.min(...items.map(a => a.x)), y0 = Math.min(...items.map(a => a.y)), x1 = Math.max(...items.map(a => a.x + a.w)), y1 = Math.max(...items.map(a => a.y + a.h));
     const w = Math.max(x1 - x0 + 2 * M, 360), h = y1 - y0 + 2 * M; return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h }; })();
+  const z = viewOnly ? 1 : zoom; // zoom only applies while editing
   const px = cw / crop.w;
 
   const inside = (a: DAsset) => a.x >= 0 && a.y >= 0 && a.x + a.w <= world.w && a.y + a.h <= world.h && a.w >= MIN && a.h >= MIN;
@@ -331,7 +332,12 @@ export default function Editor(p: Props) {
           <span className="dz-tgl" title={`On the ${p.canvasName ?? 'canvas'}`}></span>
           {p.neaten && <><span className="dz-tgl"></span><div className="dz-tg"><button className="sec small dz-wide" title={`Neaten this ${p.canvasName === "tile" ? "tile: level the edges and close small gaps" : "layout: every window exactly 16:9 on one grid, equal sizes, edges lined up, centred"}`} onClick={() => { const n = p.neaten!(items); if (!n) { setMsg('Could not neaten this design.'); return; } apply(n); setSel([]); }}>{p.canvasName === "tile" ? "Neaten tile" : "Neaten layout"}</button></div></>}
           <div className="dz-tg"><button className="sec small" title={`Centre the selection on the ${p.canvasName ?? 'canvas'}`} aria-label={`Centre on ${p.canvasName ?? 'canvas'}`} onClick={() => align('tile')}><Icon k="tile" /></button>{p.fitSpace && <button className="sec small" title="Fit to space: grow the selected one into the free space around it, keeping 16:9" aria-label="Fit to space" onClick={fitToSpace}><Icon k="fit" /></button>}</div>
+          {p.zoomable && <><span className="dz-tgl" title="Zoom"></span><div className="dz-tg">
+            <button type="button" className="sec small" title="Zoom out" aria-label="Zoom out" disabled={zoom <= 1} onClick={() => setZoom(Math.max(1, +(zoom - 0.5).toFixed(2)))}>−</button>
+            <button type="button" className="sec small" title="Back to fit the whole canvas" aria-label="Zoom fit" style={{ whiteSpace: "nowrap" }} onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</button>
+            <button type="button" className="sec small" title="Zoom in" aria-label="Zoom in" disabled={zoom >= 4} onClick={() => setZoom(Math.min(4, +(zoom + 0.5).toFixed(2)))}>+</button></div></>}
         </div>}
+      <div className="dz-zoomwrap" style={z > 1 ? { overflow: 'auto', maxHeight: '78vh', borderRadius: 14 } : undefined}><div style={{ width: `${z * 100}%` }}>
       <div ref={stage} className={'canvas dz-stage' + (brush ? ' stamping' : '')} tabIndex={0} onKeyDown={onKey} onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={endDrag}
         onPointerDown={e => {
           if (!(e.target === e.currentTarget || (e.target as HTMLElement).dataset.bg)) return;
@@ -346,7 +352,7 @@ export default function Editor(p: Props) {
           style={{ left: (a.x - crop.x) * px, top: (a.y - crop.y) * px, width: a.w * px, height: a.h * px }}>{p.renderAsset(a)}
           {sel.length > 1 && sel.includes(a.id) && <span className="dz-ord">{sel.indexOf(a.id) + 1}</span>}
           {!readOnly && sel.length === 1 && sel[0] === a.id && HANDLES.map(h => <span key={h} className={'hdl ' + h} onPointerDown={e => startResize(e, a, h)} />)}</div>))}
-      </div>
+      </div></div></div>
       </div>
       <div className="dz-side dz-panel">
         <Sec id="props" title="Properties" badge={one ? <span className="tag">{def?.label ?? one.type}</span> : sel.length > 1 ? <span className="tag">{sel.length} selected</span> : undefined} open={openSec.props} toggle={toggleSec}>
@@ -359,7 +365,10 @@ export default function Editor(p: Props) {
             {!readOnly && <label className="dz-row dz-chk"><span>Lock aspect</span><input type="checkbox" checked={lock} onChange={e => setLock(e.target.checked)} /></label>}
             {def?.fields && def.fields.length > 0 && <div className="dz-grp">{def.label} settings</div>}
             {def?.fields?.map(f => (<label key={f.key} className="dz-row"><span>{f.label}</span>
-              {f.kind === 'select' ? <select disabled={readOnly} value={String(one.props?.[f.key] ?? '')} onChange={e => { push(); setProp(f.key, e.target.value); }}>{f.options!.map(o => <option key={o}>{o}</option>)}</select>
+              {f.kind === 'check' ? <input type="checkbox" disabled={readOnly} checked={!!one.props?.[f.key]} onChange={e => { push(); setProp(f.key, e.target.checked); }} />
+                : f.kind === 'color' ? <input type="color" disabled={readOnly} value={one.props?.[f.key] ?? '#ffffff'} onFocus={push} onChange={e => setProp(f.key, e.target.value)} style={{ padding: 2, height: 32, width: 56 }} />
+                : f.kind === 'area' ? <textarea rows={3} maxLength={300} disabled={readOnly} value={one.props?.[f.key] ?? ''} onFocus={push} onChange={e => setProp(f.key, e.target.value)} style={{ width: '100%', resize: 'vertical' }} />
+                : f.kind === 'select' ? <select disabled={readOnly} value={String(one.props?.[f.key] ?? '')} onChange={e => { push(); setProp(f.key, e.target.value); }}>{f.options!.map(o => <option key={o}>{o}</option>)}</select>
                 : <input type={f.kind === 'number' ? 'number' : 'text'} min={f.min} max={f.max} disabled={readOnly} value={one.props?.[f.key] ?? ''} onFocus={push} onChange={e => setProp(f.key, f.kind === 'number' ? Math.min(Math.max(+e.target.value || 0, f.min ?? 0), f.max ?? 9999) : e.target.value.slice(0, 40))} />}</label>))}
             {p.extras?.(one, patch => { push(); edit({ props: { ...one.props, ...patch } }); })}
             {!readOnly && <div className="dz-pal"><button className="sec small" onClick={duplicate}>Duplicate</button><button className="sec small" onClick={() => copy()}>Copy</button><button className="del small" onClick={remove}>Delete</button></div>}</>)

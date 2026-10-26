@@ -337,6 +337,9 @@ export async function saveWall(id: number | null, name: string, assets: any[], _
   // Multiview templates assigned to monitors: keep only ones this workspace can see (Standard or its own).
   const ok = new Set((await rows('select id from mv_layouts where tenant_id is null or tenant_id=$1', [tid(me)])).map((r: any) => r.id));
   assets.forEach((a, i) => { const m = Array.isArray(a.props?.mvs) ? Array.from(new Set(a.props.mvs.map(Number))).filter((x: any) => ok.has(x)).slice(0, 200) : []; if (m.length) (clean[i] as any).props = { ...(clean[i] as any).props, mvs: m }; });
+  assets.forEach((a, i) => { const q = a.props; if (String(a.type) !== 'txt' || !q) return; const sz = Math.round(+q.size);
+    (clean[i] as any).props = { ...(clean[i] as any).props, text: String(q.text ?? '').slice(0, 300), size: sz >= 6 && sz <= 400 ? sz : 28, bold: !!q.bold, italic: !!q.italic, underline: !!q.underline,
+      align: ['left', 'center', 'right'].includes(q.align) ? q.align : 'left', font: ['Sans', 'Serif', 'Mono'].includes(q.font) ? q.font : 'Sans', color: /^#[0-9a-f]{6}$/i.test(String(q.color)) ? q.color : '#e6e9ef' }; });
   assets.forEach((a, i) => { const mp = Math.round(+a.props?.maxPip); if (mp >= 1 && mp <= 64) (clean[i] as any).props = { ...(clean[i] as any).props, maxPip: mp }; });
   if (id) { await own('myWalls', id, me); await rows('update wall_templates set name=$1,data=$2 where id=$3', [name, JSON.stringify({ assets: clean }), id]); revalidatePath('/walls'); return { id }; }
   const t = (await one('select max_walls_per_broadcaster m, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [tid(me)]))!;
