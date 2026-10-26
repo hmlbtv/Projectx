@@ -12,7 +12,8 @@ export const WALL_PALETTE: PaletteItem[] = [
   M('bvm14', 'Sony BVM 14" (4:3)', 380, 385, 'Sony BVM / PVM'), M('pvm14', 'Sony PVM 14" (4:3)', 394, 390, 'Sony BVM / PVM'), M('pvm17', 'Sony PVM/BVM 17" (16:9)', 460, 330, 'Sony BVM / PVM'),
   M('bvm25', 'Sony BVM 24.5" (16:9)', 610, 430, 'Sony BVM / PVM'), M('bvm31', 'Sony BVM 31" 4K (16:9)', 770, 520, 'Sony BVM / PVM'),
   M('g8020', 'Genelec 8020', 189, 298, 'Speakers'), M('g8030', 'Genelec 8030', 237, 350, 'Speakers'), M('g8040', 'Genelec 8040', 237, 350, 'Speakers'), M('g8050', 'Genelec 8050', 286, 480, 'Speakers'),
-  { group: 'Text', type: 'txt', label: 'Text box', w: 240, h: 60, props: { text: 'Text', size: 28, bold: false, italic: false, underline: false, align: 'left', color: '#e6e9ef', font: 'Sans' }, fields: [
+  { group: 'Text & images', type: 'img', label: 'Image', w: 240, h: 180, action: 'image', props: {} },
+  { group: 'Text & images', type: 'txt', label: 'Text box', w: 240, h: 60, props: { text: 'Text', size: 28, bold: false, italic: false, underline: false, align: 'left', color: '#e6e9ef', font: 'Sans' }, fields: [
     { key: 'text', label: 'Text', kind: 'area' }, { key: 'size', label: 'Font size', kind: 'number', min: 6, max: 400 }, { key: 'font', label: 'Font', kind: 'select', options: ['Sans', 'Serif', 'Mono'] },
     { key: 'bold', label: 'Bold', kind: 'check' }, { key: 'italic', label: 'Italic', kind: 'check' }, { key: 'underline', label: 'Underline', kind: 'check' },
     { key: 'align', label: 'Align', kind: 'select', options: ['left', 'center', 'right'] }, { key: 'color', label: 'Colour', kind: 'color' }] },

@@ -277,6 +277,7 @@ export async function deleteTenant(f: FormData) {
   await rows('delete from broadcasters where tenant_id=$1', [id]);
   await rows('delete from sites where tenant_id=$1', [id]);
   await rows('delete from wall_templates where tenant_id=$1', [id]);
+  await rows('delete from wall_images where tenant_id=$1', [id]);
   await rows('delete from mv_layouts where tenant_id=$1', [id]);
   await rows('delete from source_sets where tenant_id=$1', [id]);
   await rows('delete from login_events where tenant_id=$1', [id]);
@@ -337,6 +338,8 @@ export async function saveWall(id: number | null, name: string, assets: any[], _
   // Multiview templates assigned to monitors: keep only ones this workspace can see (Standard or its own).
   const ok = new Set((await rows('select id from mv_layouts where tenant_id is null or tenant_id=$1', [tid(me)])).map((r: any) => r.id));
   assets.forEach((a, i) => { const m = Array.isArray(a.props?.mvs) ? Array.from(new Set(a.props.mvs.map(Number))).filter((x: any) => ok.has(x)).slice(0, 200) : []; if (m.length) (clean[i] as any).props = { ...(clean[i] as any).props, mvs: m }; });
+  const myImgs = new Set((await rows('select id from wall_images where tenant_id=$1', [tid(me)])).map((r: any) => r.id));
+  assets.forEach((a, i) => { const n = Math.round(+a.props?.img); if (String(a.type) === 'img' && myImgs.has(n)) (clean[i] as any).props = { ...(clean[i] as any).props, img: n }; });
   assets.forEach((a, i) => { const q = a.props; if (String(a.type) !== 'txt' || !q) return; const sz = Math.round(+q.size);
     (clean[i] as any).props = { ...(clean[i] as any).props, text: String(q.text ?? '').slice(0, 300), size: sz >= 6 && sz <= 400 ? sz : 28, bold: !!q.bold, italic: !!q.italic, underline: !!q.underline,
       align: ['left', 'center', 'right'].includes(q.align) ? q.align : 'left', font: ['Sans', 'Serif', 'Mono'].includes(q.font) ? q.font : 'Sans', color: /^#[0-9a-f]{6}$/i.test(String(q.color)) ? q.color : '#e6e9ef' }; });

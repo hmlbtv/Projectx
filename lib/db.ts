@@ -36,6 +36,8 @@ alter table tenants add column if not exists max_wall_templates int not null def
 alter table tenants add column if not exists max_walls_per_broadcaster int not null default 1;
 alter table wall_templates add column if not exists broadcaster_id int references broadcasters(id) on delete set null;
 alter table wall_templates add column if not exists site_id int references sites(id) on delete set null;
+create table if not exists wall_images(id serial primary key, tenant_id int not null, name text not null, mime text not null, w int not null, h int not null, data bytea not null, created_at timestamptz not null default now());
+create index if not exists ix_wall_images_tenant on wall_images(tenant_id);
 create index if not exists ix_wall_templates_site on wall_templates(site_id);
 alter table tenants add column if not exists max_broadcasters int not null default 2;
 alter table tenants add column if not exists max_productions int not null default 3;
