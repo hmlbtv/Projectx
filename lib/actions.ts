@@ -1,5 +1,7 @@
 'use server';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
+import { unseal, checkCode } from './totp';
 import { revalidatePath } from 'next/cache';
 import { one, rows } from './db';
 import { requireMe, canManage, isAdmin, createSession, destroySession, type Me } from './session';
@@ -50,7 +52,32 @@ export async function signIn(_: FormState, f: FormData): Promise<FormState> {
   }
   if (!u.email_verified) return { error: 'Please verify your email first - use the link we sent, or "Forgot password" to get a new one.' };
   await rows('update users set failed_attempts=0, locked_until=null where id=$1', [u.id]);
+  if ((await one('select totp_enabled from users where id=$1', [u.id]))?.totp_enabled) { await startTwoFactor(u.id); return { step: '2fa' }; } // password is right; now ask for the authenticator code
   await createSession(u.id);
+  const next = s(f, 'next'); redirect(/^\/(?!\/)[\w\-\/]*$/.test(next) ? next : '/');
+}
+// ---- Two-step sign-in (authenticator app) ----
+const TF_COOKIE = process.env.NODE_ENV === 'production' ? '__Host-tp_2fa' : 'tp_2fa';
+async function startTwoFactor(userId: number) {
+  const token = newToken();
+  await rows("insert into login_2fa(id,user_id,expires_at) values($1,$2,now() + interval '5 minutes')", [sha256(token), userId]);
+  (await cookies()).set(TF_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 300 });
+}
+// Finishes a sign-in: a 6-digit code from the authenticator app, or one of the one-time recovery codes.
+export async function verifySignIn2fa(_: FormState, f: FormData): Promise<FormState> {
+  const jar = await cookies(), tok = jar.get(TF_COOKIE)?.value;
+  if (!tok || !(await allow('2fa', await clientIp(), 60, 10))) return tok ? TOO_MANY : { error: 'That sign-in timed out. Enter your password again.', step: 'restart' };
+  const p = await one('select l.user_id, l.tries, u.totp_secret, u.totp_last, u.totp_recovery from login_2fa l join users u on u.id=l.user_id where l.id=$1 and l.expires_at > now() and u.totp_enabled', [sha256(tok)]);
+  if (!p) return { error: 'That sign-in timed out. Enter your password again.', step: 'restart' };
+  if (p.tries >= 5) { await rows('delete from login_2fa where id=$1', [sha256(tok)]); return { error: 'Too many wrong codes. Enter your password again.', step: 'restart' }; }
+  const code = s(f, 'code'); let ok = false;
+  const secret = p.totp_secret ? unseal(p.totp_secret) : null, step = secret ? checkCode(secret, code, Number(p.totp_last)) : null;
+  if (step) { ok = true; await rows('update users set totp_last=$1 where id=$2', [step, p.user_id]); }
+  else { const h = sha256(code.toLowerCase().replace(/\s/g, '')), left = (p.totp_recovery as string[]).filter(x => x !== h);
+    if (left.length !== (p.totp_recovery as string[]).length) { ok = true; await rows('update users set totp_recovery=$1 where id=$2', [JSON.stringify(left), p.user_id]); } }
+  if (!ok) { await rows('update login_2fa set tries=tries+1 where id=$1', [sha256(tok)]); return { error: 'That code is not right. Try the current code from your app, or a recovery code.', step: '2fa' }; }
+  await rows('delete from login_2fa where id=$1', [sha256(tok)]); jar.delete(TF_COOKIE);
+  await createSession(p.user_id);
   const next = s(f, 'next'); redirect(/^\/(?!\/)[\w\-\/]*$/.test(next) ? next : '/');
 }
 export async function signOut() { await destroySession(); redirect('/signin'); }
@@ -108,6 +135,7 @@ export async function acceptInvite(_: FormState, f: FormData): Promise<FormState
   if (!u) return { error: 'This link is invalid or has expired. Ask for a new one.' };
   await rows("update users set password_hash=$1, invite_hash=null, invite_expires=null, email_verified=true, failed_attempts=0, locked_until=null, name=coalesce(nullif($3,''),name) where id=$2", [await hashPassword(pw), u.id, s(f, 'name')]);
   await rows('delete from sessions where user_id=$1', [u.id]);
+  if ((await one('select totp_enabled from users where id=$1', [u.id]))?.totp_enabled) redirect('/signin'); // a reset link must not skip the second step
   await createSession(u.id);
   redirect('/');
 }
