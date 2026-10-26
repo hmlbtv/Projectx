@@ -334,6 +334,9 @@ export async function saveWall(id: number | null, name: string, assets: any[], _
   const clean = assets.map(a => { const w = c(a.w, 10, 1600, 10), h = c(a.h, 10, 900, 10), rot = c(a.props?.rot, 0, 3, 0);
     return { id: String(a.id).slice(0, 20), type: String(a.type).slice(0, 20), name: String(a.name ?? '').slice(0, 60), x: c(a.x, 0, 1600 - w, 0), y: c(a.y, 0, 900 - h, 0), w, h, ...(rot ? { props: { rot } } : {}) }; });
   name = String(name).slice(0, 80);
+  // Multiview templates assigned to monitors: keep only ones this workspace can see (Standard or its own).
+  const ok = new Set((await rows('select id from mv_layouts where tenant_id is null or tenant_id=$1', [tid(me)])).map((r: any) => r.id));
+  assets.forEach((a, i) => { const m = Array.isArray(a.props?.mvs) ? Array.from(new Set(a.props.mvs.map(Number))).filter((x: any) => ok.has(x)).slice(0, 200) : []; if (m.length) (clean[i] as any).props = { ...(clean[i] as any).props, mvs: m }; });
   if (id) { await own('myWalls', id, me); await rows('update wall_templates set name=$1,data=$2 where id=$3', [name, JSON.stringify({ assets: clean }), id]); revalidatePath('/walls'); return { id }; }
   const t = (await one('select max_walls_per_broadcaster m, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [tid(me)]))!;
   if (me.role !== 'webappdev' && t.c >= t.m) return { error: `Your plan allows ${t.m} Wall Template${t.m === 1 ? '' : 's'} per workspace (you have ${t.c}). Contact us to upgrade.` };

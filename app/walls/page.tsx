@@ -19,6 +19,7 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
   const lim = (await one('select max_walls_per_broadcaster m, plan, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [t]))!;
   const rooms = await rows(`select r.id, s.name sname, l.name lname, r.name from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name,l.name,r.name`, [t]);
   const used = await rows(`select rw.wall_template_id w, rw.room_id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1`, [t]);
+  const mvs = (await rows('select id, name, (tenant_id is null) standard, jsonb_array_length(tiles)::int n from mv_layouts where tenant_id is null or tenant_id=$1 order by (tenant_id is null), name', [t])) as any[];
   const label = (r: any) => `${r.sname} › ${r.lname} › ${r.name}`;
   const roomsOf = (w: number) => used.filter((u: any) => u.w === w).map((u: any) => rooms.find((r: any) => r.id === u.room_id)).filter(Boolean);
   const cur = id === 'new' ? { id: null, name: 'New Wall Template', data: { assets: [] } } : list.find((w: any) => String(w.id) === id);
@@ -28,7 +29,7 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
       <b>Used in: </b>{mine.length === 0 ? <span className="mut">no Rooms yet. Save the template, then add it to a Room here or from the library.</span> : mine.map((r: any) => <form key={r.id} action={wallFromRoom} style={{ display: 'inline' }}><input type="hidden" name="wall" value={cur.id} /><input type="hidden" name="room" value={r.id} /><span className="tag">{label(r)} <button className="del" style={{ padding: '0 6px', marginLeft: 4 }} title="Remove from this Room (Jobs using it there lose it)" aria-label={`Remove from ${label(r)}`}>×</button></span></form>)}
       {cur.id && free.length > 0 && <form action={wallToRoom} style={{ display: 'inline-flex', gap: 6, marginLeft: 8 }}><input type="hidden" name="wall" value={cur.id} /><select name="room" aria-label="Room">{free.map((r: any) => <option key={r.id} value={r.id}>{label(r)}</option>)}</select><button className="sec">Add to Room</button></form>}
       {mine.length > 1 && <p style={{ margin: '6px 0 0', color: '#b45309' }}><b>Warning:</b> this Wall Template is used in {mine.length} Rooms. Changes here change the wall in all of them.</p>}</div>);
-    return <WallEditor key={String(cur.id)} id={cur.id} initialName={cur.name} initial={cur.data.assets} notice={notice} />;
+    return <WallEditor key={String(cur.id)} id={cur.id} initialName={cur.name} initial={cur.data.assets} notice={notice} mvs={mvs} />;
   }
   return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Wall Template library</h1><Link href="/walls?id=new" className="btn small">+ New Wall Template</Link></div>
     <p className="mut">{lim.c} Wall Template{lim.c === 1 ? '' : 's'}{lim.m >= 100000 ? '' : ` of ${lim.m} allowed`} <span className="tag">{lim.plan}</span></p>
