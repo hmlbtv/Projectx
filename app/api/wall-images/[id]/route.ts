@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const me = await getMe(); const { id } = await params;
   if (!me || !me.tenant_id) return new NextResponse('Not found', { status: 404 });
-  const r = await one('select mime,data from wall_images where id=$1 and tenant_id=$2', [Number(id) || 0, me.tenant_id]);
+  const r = await one(`select i.mime, i.data from wall_images i where i.id=$1 and (i.tenant_id=$2 or exists (select 1 from mv_layouts l where l.tenant_id is null and (l.extras->>'bg' = i.id::text or exists (select 1 from jsonb_array_elements(coalesce(l.extras->'items','[]'::jsonb)) a where a->'props'->>'img' = i.id::text))))`, [Number(id) || 0, me.tenant_id]);
   if (!r) return new NextResponse('Not found', { status: 404 });
   return new NextResponse(new Uint8Array(r.data), { headers: { 'Content-Type': r.mime, 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox" } });
 }

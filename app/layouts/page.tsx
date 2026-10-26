@@ -20,7 +20,7 @@ export default async function Layouts({ searchParams }: { searchParams: Promise<
     const std = !top && !cur.tenant_id;
     const keep = new URLSearchParams(); if ((q0 ?? '').trim()) keep.set('q', (q0 ?? '').trim().slice(0, 80)); if (fl) keep.set('f', fl); if (so) keep.set('sort', so); if (vw) keep.set('view', vw); // the list's search / filter / sort / view, kept for the way back
     return (<><h1 style={{ margin: '0 0 12px' }}>MV Designer</h1>
-      <LayoutEditor backQuery={keep.toString() ? '?' + keep.toString() : ''} canNeaten={top} standard={top ? !cur.tenant_id : null} key={cur.id} id={cur.id} name={cur.name} tiles={cur.tiles} tileList={tl.map((x: any) => ({ id: x.id, name: x.name, assets: x.assets, mine: !!x.tenant_id }))}
+      <LayoutEditor extras={cur.extras} backQuery={keep.toString() ? '?' + keep.toString() : ''} canNeaten={top} standard={top ? !cur.tenant_id : null} key={cur.id} id={cur.id} name={cur.name} tiles={cur.tiles} tileList={tl.map((x: any) => ({ id: x.id, name: x.name, assets: x.assets, mine: !!x.tenant_id }))}
         notice={std ? (<div className="card dz-note"><span>This is a Standard layout from the TelePlanner team. Change it as you like: Save makes your own copy and the Standard one stays as it is for everyone.</span></div>) : undefined} /></>); }
   const q = (q0 ?? '').trim().slice(0, 80), f = ['standard', 'mine', 'tiles', 'notiles'].includes(fl ?? '') ? fl! : 'all', sort = ['name', 'namez', 'new', 'old', 'most', 'fewest', 'type', 'typez', 'tmost', 'tfewest'].includes(so ?? '') ? so! : 'default', view = vw === 'list' ? 'list' : 'cards';
   const nt = (l: any) => (l.tiles || []).filter((x: any) => x.tileId).length;
@@ -48,9 +48,9 @@ export default async function Layouts({ searchParams }: { searchParams: Promise<
     <p className="mut">{shown.length} of {ls.length} layout{ls.length === 1 ? '' : 's'}</p>
     {shown.length === 0 && <p className="mut">No layouts match.</p>}
     {view === 'cards' ? <div className="tiles">
-      {shown.map((l: any) => (<div key={l.id} className="card tile"><Link href={`/layouts?id=${l.id}&${qs(view)}`} className="tilelink"><LayoutPreview tiles={l.tiles} tileMap={tileMap} /><b>{l.name}</b>{!l.tenant_id && <span><span className="tag">standard</span></span>}</Link>
+      {shown.map((l: any) => (<div key={l.id} className="card tile"><Link href={`/layouts?id=${l.id}&${qs(view)}`} className="tilelink"><LayoutPreview tiles={l.tiles} tileMap={tileMap} extras={l.extras} /><b>{l.name}</b>{!l.tenant_id && <span><span className="tag">standard</span></span>}</Link>
         {menu(l)}</div>))}</div>
     : <div className="card" style={{ padding: 0, overflowX: 'auto' }}><table className="lay-list"><thead><tr><th></th>{th('Name', 'name', 'namez')}{th('Type', 'type', 'typez')}{th('Windows', 'fewest', 'most')}{th('With a tile', 'tfewest', 'tmost')}<th></th></tr></thead><tbody>
-      {shown.map((l: any) => (<tr key={l.id}><td><Link href={`/layouts?id=${l.id}&${qs(view)}`}><LayoutPreview tiles={l.tiles} tileMap={tileMap} width={96} /></Link></td>
+      {shown.map((l: any) => (<tr key={l.id}><td><Link href={`/layouts?id=${l.id}&${qs(view)}`}><LayoutPreview tiles={l.tiles} tileMap={tileMap} width={96} extras={l.extras} /></Link></td>
         <td><Link href={`/layouts?id=${l.id}&${qs(view)}`}><b>{l.name}</b></Link></td><td>{l.tenant_id ? <span className="tag">custom</span> : <span className="tag">standard</span>}</td><td>{(l.tiles || []).length}</td><td>{(l.tiles || []).filter((x: any) => x.tileId).length}</td><td className="lay-act">{menu(l)}</td></tr>))}</tbody></table></div>}</>);
 }

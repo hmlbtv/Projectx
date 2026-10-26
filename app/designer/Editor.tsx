@@ -8,7 +8,7 @@ export type SaveArgs = { id: number | null; name: string; assets: DAsset[]; asNe
 type Props = {
   kind: string; backHref: string; world: { w: number; h: number }; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
   id: number | null; initialName: string; initial: DAsset[]; onSave: (a: SaveArgs) => Promise<{ id?: number; error?: string }>;
-  canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; neaten?: (items: DAsset[]) => DAsset[] | null; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; viewOnly?: boolean; backQuery?: string; zoomable?: boolean; onAction?: (pi: PaletteItem, add: (over: Partial<PaletteItem>) => void) => void; headerExtra?: React.ReactNode; extras?: (a: DAsset, setProps: (patch: Record<string, any>) => void) => React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
+  canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; neaten?: (items: DAsset[]) => DAsset[] | null; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; viewOnly?: boolean; backQuery?: string; looseTypes?: string[]; /* item types that may sit over anything (text, pictures) */ zoomable?: boolean; onAction?: (pi: PaletteItem, add: (over: Partial<PaletteItem>) => void) => void; headerExtra?: React.ReactNode; extras?: (a: DAsset, setProps: (patch: Record<string, any>) => void) => React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
 };
 const SNAP = 10, MIN = 20, HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
 const hit = (a: DAsset, b: DAsset) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -68,7 +68,8 @@ export default function Editor(p: Props) {
   const px = cw / crop.w;
 
   const inside = (a: DAsset) => a.x >= 0 && a.y >= 0 && a.x + a.w <= world.w && a.y + a.h <= world.h && a.w >= MIN && a.h >= MIN;
-  const free = (list: DAsset[], moved: DAsset[]) => moved.every(inside) && (p.allowOverlap || !moved.some(m => list.some(o => !moved.some(x => x.id === o.id) && hit(m, o))));
+  const solid = (a: DAsset) => !(p.looseTypes ?? []).includes(a.type);
+  const free = (list: DAsset[], moved: DAsset[]) => moved.every(inside) && (p.allowOverlap || !moved.some(m => solid(m) && list.some(o => solid(o) && !moved.some(x => x.id === o.id) && hit(m, o))));
   const push = () => { hist.current.past.push(items); if (hist.current.past.length > 100) hist.current.past.shift(); hist.current.future = []; bump(n => n + 1); };
   const apply = (next: DAsset[], record = true) => { if (record) push(); setItems(next); setDirty(true); setMsg(''); };
   const undo = () => { const h = hist.current; const prev = h.past.pop(); if (!prev) return; h.future.push(items); setItems(prev); setSel(s => s.filter(i => prev.some(a => a.id === i))); setDirty(true); bump(n => n + 1); };
@@ -78,7 +79,7 @@ export default function Editor(p: Props) {
     if (readOnly) return;
     const w = Math.min(pi.w, world.w), h = Math.min(pi.h, world.h); let pos = { x: 0, y: 0 }, found = false;
     for (let y = 0; y <= world.h - h && !found; y += SNAP * 2) for (let x = 0; x <= world.w - w && !found; x += SNAP * 2) {
-      const t: DAsset = { id: '', type: '', name: '', x, y, w, h }; if (!items.some(a => hit(t, a))) { pos = { x, y }; found = true; } }
+      const t: DAsset = { id: '', type: '', name: '', x, y, w, h }; if (!pi.type || !solid({ type: pi.type } as DAsset) ? true : !items.some(a => solid(a) && hit(t, a))) { pos = { x, y }; found = true; } }
     if (!found && !p.allowOverlap) { setMsg('No free space on the canvas.'); return; } // tiles may overlap, so fall back to the corner
     const a: DAsset = { id: rid(), type: pi.type, name: pi.label, ...pos, w, h, props: { ...pi.props } }; apply([...items, a]); setSel([a.id]);
   }
@@ -114,6 +115,7 @@ export default function Editor(p: Props) {
       if (free(next, next.filter(i => i.id === a.id))) { apply(next); setSel([a.id]); setMsg(''); } else setMsg('That would not fit - not applied.'); return;
     }
     if (brush && p.stamps) { // put the chosen stamp on this item
+      if (!solid(a)) { setMsg('Tiles go on monitors, not on text or pictures.'); return; }
       const k = p.stampKey ?? 'stamp'; apply(items.map(i => { if (i.id !== a.id) return i; const pr = { ...i.props }; if (brush.id === 0) delete pr[k]; else pr[k] = brush.id; return { ...i, props: pr }; })); setSel([a.id]); if (!brush.keep) setBrush(null); return;
     }
     stage.current?.setPointerCapture(e.pointerId);
@@ -197,7 +199,7 @@ export default function Editor(p: Props) {
   const [touch, setTouch] = useState(false); // Touch mode: the push buttons move until the selection touches another item, ignoring the canvas edge
   function pushTo(dir: 'up' | 'down' | 'left' | 'right') {
     const S = items.filter(a => sel.includes(a.id)); if (!S.length) { setMsg('Select something first.'); return; }
-    const others = items.filter(a => !sel.includes(a.id)); let d = Infinity;
+    const others = items.filter(a => !sel.includes(a.id) && (solid(a) || S.every(s => !solid(s)))); let d = Infinity;
     for (const a of S) {
       let lim = touch ? Infinity : dir === 'left' ? a.x : dir === 'up' ? a.y : dir === 'right' ? world.w - a.x - a.w : world.h - a.y - a.h;
       if (touch || !p.allowOverlap) for (const o of others) {
@@ -409,7 +411,7 @@ export default function Editor(p: Props) {
             : <div className="dz-pal">{palette.map(pi => <button key={pi.type} className="sec small" onClick={() => add(pi)}>+ {pi.label}</button>)}</div>}
           {p.stamps && <div className="dz-stamps"><div className="dz-grp">Tiles{brush ? <em className="dz-stk">{brush.id === 0 ? (brush.keep ? ' · removing - click monitors, click outside to stop' : ' · click a monitor to remove its tile (tap again to keep removing)') : brush.keep ? ' · stays selected - click a monitor, click outside to stop' : ' · click a monitor (tap again to keep it)'}</em> : ''}</div>
             <div className="dz-pal"><button type="button" className={'sec small' + (brush?.id === 0 ? ' on' : '')} aria-pressed={brush?.id === 0} title="Take a tile off a window (the window stays). Tap again to keep it selected." onClick={() => pick(0)}>Remove tile</button><button type="button" className="sec small" title="Take the tile off every window" onClick={() => { const k = p.stampKey ?? 'stamp'; apply(items.map(i => { const pr = { ...i.props }; delete pr[k]; return { ...i, props: pr }; })); setBrush(null); }}>Remove all tiles</button></div>
-            {brush && brush.id !== 0 && <button type="button" className="sec small dz-all" onClick={() => { const k = p.stampKey ?? 'stamp'; apply(items.map(i => ({ ...i, props: { ...i.props, [k]: brush.id } }))); setBrush(null); }}>Assign to all monitors</button>}
+            {brush && brush.id !== 0 && <button type="button" className="sec small dz-all" onClick={() => { const k = p.stampKey ?? 'stamp'; apply(items.map(i => solid(i) ? ({ ...i, props: { ...i.props, [k]: brush.id } }) : i)); setBrush(null); }}>Assign to all monitors</button>}
             {p.stamps.length === 0 ? <p className="mut dz-help">No tiles yet. Make some in the Tile Designer.</p> : ['standard', 'mine'].map(g => { const L = p.stamps!.filter(s => s.group === g); return L.length ? (<div key={g}><div className="dz-help mut">{g === 'standard' ? 'Standard tiles' : 'Your tiles'}</div>
               <div className="dz-stg">{L.map(s => (<button key={s.id} type="button" className={'dz-stamp' + (brush?.id === s.id ? ' on' + (brush.keep ? ' keep' : '') : '')} title={s.name} aria-pressed={brush?.id === s.id} onClick={() => pick(s.id)}>{s.node}<span>{s.name}</span></button>))}</div></div>) : null; })}</div>}
           <div className="dz-pal"><button className="sec small" onClick={() => copy()} disabled={!sel.length} title="Copy (Ctrl+C)">Copy</button><button className="sec small" onClick={paste} title="Paste (Ctrl+V)">Paste</button></div></Sec>}

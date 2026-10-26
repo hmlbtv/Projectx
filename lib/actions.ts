@@ -434,7 +434,22 @@ async function saveLayout_(_: FormState, f: FormData): Promise<FormState> {
   await rows('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3)', [standard ? null : tid(me), s(f,'name') || `Custom ${n}`, JSON.stringify(tiles)]);
   revalidatePath('/layouts'); return { ok: 'Added.' };
 }
-async function saveLayoutTiles_(p: { id: number; name: string; tiles: any[]; asNew: boolean; flags?: Record<string, boolean> }): Promise<{ id?: number; error?: string }> {
+// Text boxes and pictures placed on an MV Layout, plus its background picture (one of the workspace's saved images).
+async function cleanExtras(raw: any, tenant: number) {
+  const mine = new Set((await rows('select id from wall_images where tenant_id=$1', [tenant])).map((r: any) => r.id));
+  const c = (v: any, lo: number, hi: number, d = lo) => Math.round(Math.min(Math.max(Number.isFinite(+v) ? +v : d, lo), hi));
+  const bg = Math.round(+raw?.bg); const items: any[] = [];
+  for (const a of (Array.isArray(raw?.items) ? raw.items : []).slice(0, 100)) {
+    const type = String(a?.type); if (type !== 'txt' && type !== 'img') continue;
+    const w = c(a.w, 10, 1920, 10), h = c(a.h, 10, 1080, 10), o: any = { id: String(a.id).slice(0, 20), type, name: String(a.name ?? '').slice(0, 60), x: c(a.x, 0, 1920 - w, 0), y: c(a.y, 0, 1080 - h, 0), w, h }, q = a.props ?? {}, rot = c(q.rot, 0, 3, 0);
+    const pr: any = rot ? { rot } : {};
+    if (type === 'img') { const n = Math.round(+q.img); if (!mine.has(n)) continue; pr.img = n; }
+    else { const sz = Math.round(+q.size); Object.assign(pr, { text: String(q.text ?? '').slice(0, 300), size: sz >= 6 && sz <= 600 ? sz : 60, bold: !!q.bold, italic: !!q.italic, underline: !!q.underline, align: ['left', 'center', 'right'].includes(q.align) ? q.align : 'left', font: ['Sans', 'Serif', 'Mono'].includes(q.font) ? q.font : 'Sans', color: /^#[0-9a-f]{6}$/i.test(String(q.color)) ? q.color : '#ffffff' }); }
+    if (Object.keys(pr).length) o.props = pr; items.push(o);
+  }
+  return { ...(mine.has(bg) ? { bg } : {}), items };
+}
+async function saveLayoutTiles_(p: { id: number; name: string; tiles: any[]; asNew: boolean; flags?: Record<string, boolean>; extras?: any }): Promise<{ id?: number; error?: string }> {
   const me = await mgr(); const top = me.role === 'webappdev';
   if (!Array.isArray(p.tiles) || p.tiles.length < 1 || p.tiles.length > 64) return { error: 'A layout needs 1 to 64 monitors.' };
   const src = await one('select tenant_id from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(p.id), tid(me)]); if (!src) return { error: 'Layout not found.' };
@@ -449,12 +464,13 @@ async function saveLayoutTiles_(p: { id: number; name: string; tiles: any[]; asN
     const w = r(a.w, 20, 1920), h = r(a.h, 20, 1080), o: any = { n, x: r(a.x, 0, 1920 - w), y: r(a.y, 0, 1080 - h), w, h };
     if (a.tileId && vis.has(Number(a.tileId))) o.tileId = Number(a.tileId); tiles.push(o);
   }
+  const extras = JSON.stringify(await cleanExtras(p.extras, tid(me)));
   tiles.sort((a, b) => a.n - b.n); let name = String(p.name ?? '').trim().slice(0, 80) || 'Untitled layout';
   if (fork) { const o = await one('select name from mv_layouts where id=$1', [Number(p.id)]); if (o && o.name === name) name = (name + ' (mine)').slice(0, 80); }
   // Only the site admin can make a layout Standard (shared with every tenant) or take that away again.
   const owner = top && p.flags && 'standard' in p.flags ? (p.flags.standard ? null : tid(me)) : src.tenant_id;
-  if (!p.asNew) { await rows('update mv_layouts set name=$1, tiles=$2, tenant_id=$4 where id=$3', [name, JSON.stringify(tiles), Number(p.id), top ? owner : src.tenant_id]); revalidatePath('/layouts'); revalidatePath('/plans'); return { id: Number(p.id) }; }
-  const r = (await one('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3) returning id', [top ? owner : tid(me), name, JSON.stringify(tiles)]))!; revalidatePath('/layouts'); return { id: r.id };
+  if (!p.asNew) { await rows('update mv_layouts set name=$1, tiles=$2, tenant_id=$4, extras=$5 where id=$3', [name, JSON.stringify(tiles), Number(p.id), top ? owner : src.tenant_id, extras]); revalidatePath('/layouts'); revalidatePath('/plans'); return { id: Number(p.id) }; }
+  const r = (await one('insert into mv_layouts(tenant_id,name,tiles,extras) values($1,$2,$3,$4) returning id', [top ? owner : tid(me), name, JSON.stringify(tiles), extras]))!; revalidatePath('/layouts'); return { id: r.id };
 }
 // One-off: adds the layouts converted from a Kaleido database (data/kaleido-layouts.json) as Standard layouts. Safe to repeat: names that already exist are skipped.
 export async function importKaleidoLayouts() {
@@ -480,8 +496,9 @@ export async function tidyStandardLayouts() {
   revalidatePath('/layouts'); redirect('/webappdev?tidied=' + n);
 }
 async function copyLayout_(f: FormData) {
-  const me = await mgr(); const src = await one('select name,tiles from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
-  const r = (await one('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3) returning id', [tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.tiles)]))!;
+  const me = await mgr(); const src = await one('select name,tiles,extras,tenant_id from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
+  const ex = JSON.stringify(src.tenant_id ? src.extras : await cleanExtras(src.extras, tid(me))); // a Standard layout's pictures belong to the site owner, so a copy keeps only ones this workspace has
+  const r = (await one('insert into mv_layouts(tenant_id,name,tiles,extras) values($1,$2,$3,$4) returning id', [tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.tiles), ex]))!;
   revalidatePath('/layouts'); redirect('/layouts?id=' + r.id);
 }
 // Site admin: promote a layout to Standard (shared with every tenant) or move it back to the site admin's own tenant.
