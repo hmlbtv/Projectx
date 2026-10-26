@@ -350,6 +350,18 @@ export async function setWallRooms(f: FormData) {
   for (const r of want) if (!(await one('select 1 from room_walls where wall_template_id=$1 and room_id=$2', [wall, r]))) await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [r, wall, w.name]);
   revalidatePath('/walls'); revalidatePath('/tenant'); revalidatePath('/productions'); revalidatePath('/plans');
 }
+export async function wallToRoom(f: FormData) {
+  const me = await mgr(); const wall = Number(s(f,'wall')), room = Number(s(f,'room')); await own('walls', wall, me); await own('rooms', room, me);
+  if (await one('select 1 from room_walls where room_id=$1 and wall_template_id=$2', [room, wall])) return;
+  const w = (await one('select name from wall_templates where id=$1', [wall]))!;
+  await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, w.name]);
+  revalidatePath('/walls'); revalidatePath('/tenant'); revalidatePath('/plans');
+}
+export async function wallFromRoom(f: FormData) {
+  const me = await mgr(); const wall = Number(s(f,'wall')), room = Number(s(f,'room')); await own('walls', wall, me); await own('rooms', room, me);
+  await rows('delete from room_walls where room_id=$1 and wall_template_id=$2', [room, wall]);
+  revalidatePath('/walls'); revalidatePath('/tenant'); revalidatePath('/productions'); revalidatePath('/plans');
+}
 export async function deleteWall(f: FormData) { const me = await mgr(); await rows('delete from room_walls where wall_template_id in (select id from wall_templates where id=$1 and tenant_id=$2)', [Number(s(f,'id')), tid(me)]); revalidatePath('/tenant'); await rows('delete from wall_templates where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/walls'); }
 
 // ---- MV Tiles (Tile Designer): the site admin makes Standard tiles for everyone; Admin/Manager make custom tiles for their own tenant ----
