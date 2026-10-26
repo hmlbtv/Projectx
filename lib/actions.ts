@@ -440,11 +440,11 @@ async function cleanExtras(raw: any, tenant: number) {
   const c = (v: any, lo: number, hi: number, d = lo) => Math.round(Math.min(Math.max(Number.isFinite(+v) ? +v : d, lo), hi));
   const bg = Math.round(+raw?.bg); const items: any[] = [];
   for (const a of (Array.isArray(raw?.items) ? raw.items : []).slice(0, 100)) {
-    const type = String(a?.type); if (type !== 'txt' && type !== 'img') continue;
+    const type = String(a?.type); if (!['txt', 'img', 'tc', 'tcl'].includes(type)) continue;
     const w = c(a.w, 10, 1920, 10), h = c(a.h, 10, 1080, 10), o: any = { id: String(a.id).slice(0, 20), type, name: String(a.name ?? '').slice(0, 60), x: c(a.x, 0, 1920 - w, 0), y: c(a.y, 0, 1080 - h, 0), w, h }, q = a.props ?? {}, rot = c(q.rot, 0, 3, 0);
     const pr: any = rot ? { rot } : {};
     if (type === 'img') { const n = Math.round(+q.img); if (!mine.has(n)) continue; pr.img = n; if (q.hasAlpha) { pr.hasAlpha = true; if (q.useAlpha === false) pr.useAlpha = false; } }
-    else { const sz = Math.round(+q.size); Object.assign(pr, { text: String(q.text ?? '').slice(0, 300), size: sz >= 6 && sz <= 600 ? sz : 60, bold: !!q.bold, italic: !!q.italic, underline: !!q.underline, align: ['left', 'center', 'right'].includes(q.align) ? q.align : 'left', font: ['Sans', 'Serif', 'Mono'].includes(q.font) ? q.font : 'Sans', color: /^#[0-9a-f]{6}$/i.test(String(q.color)) ? q.color : '#ffffff' }); }
+    else if (type === 'txt') { const sz = Math.round(+q.size); Object.assign(pr, { text: String(q.text ?? '').slice(0, 300), size: sz >= 6 && sz <= 600 ? sz : 60, bold: !!q.bold, italic: !!q.italic, underline: !!q.underline, align: ['left', 'center', 'right'].includes(q.align) ? q.align : 'left', font: ['Sans', 'Serif', 'Mono'].includes(q.font) ? q.font : 'Sans', color: /^#[0-9a-f]{6}$/i.test(String(q.color)) ? q.color : '#ffffff' }); }
     if (Object.keys(pr).length) o.props = pr; items.push(o);
   }
   return { ...(mine.has(bg) ? { bg, ...(raw?.bgHasAlpha ? { bgHasAlpha: true } : {}), ...(raw?.bgHasAlpha && raw?.bgUseAlpha === false ? { bgUseAlpha: false } : {}) } : {}), items };
