@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Editor from '../designer/Editor';
 import { WallArt } from './WallArt';
 import { WALL_PALETTE, WALL_W, WALL_H } from './wallAssets';
@@ -55,7 +55,10 @@ function MvPick({ a, mvs, setProps, filt, setFilt }: { a: DAsset; mvs: MvOpt[]; 
 export default function WallEditor({ id, initialName, initial, notice, mvs }: { id: number | null; initialName: string; initial: DAsset[]; notice?: React.ReactNode; mvs: MvOpt[] }) {
   // Saved walls open in view mode (cropped to the monitors, multiview templates can be assigned). Edit mode gives the full canvas and the Arrange/Add tools, but no multiview assignment.
   const [edit, setEdit] = useState(id === null || initial.length === 0);
-  const [filt, setFilt] = useState<Filt>({ q: '', sort: 'name', max: null });
+  // Search, sort and Max PiP for the multiview dialog are kept for this browser tab (so they survive saving, switching walls and reloads).
+  const [filt, setFiltState] = useState<Filt>({ q: '', sort: 'name', max: null });
+  useEffect(() => { try { const s = sessionStorage.getItem('wallMvFilter'); if (s) { const j = JSON.parse(s); setFiltState({ q: String(j.q ?? ''), sort: String(j.sort ?? 'name'), max: typeof j.max === 'number' ? j.max : null }); } } catch { /* storage unavailable */ } }, []);
+  const setFilt = (f: Filt) => { setFiltState(f); try { sessionStorage.setItem('wallMvFilter', JSON.stringify(f)); } catch { /* ignore */ } };
   const [picker, setPicker] = useState<null | ((over: Partial<PaletteItem>) => void)>(null);
   return (<><Editor onAction={(_, add) => setPicker(() => add)}  viewOnly={!edit} zoomable headerExtra={<button type="button" className={'small' + (edit ? '' : ' sec')} aria-pressed={edit} title={edit ? 'Finish editing: shrink the canvas and go back to assigning multiview templates' : 'Edit the wall: add, move and arrange monitors and other items'} onClick={() => setEdit(!edit)}>{edit ? 'Done editing' : 'Edit'}</button>}  kind="Wall Template" canvasName="wall" backHref="/walls" world={{ w: WALL_W, h: WALL_H }} palette={WALL_PALETTE} rotatable notice={notice} renderAsset={a => <WallArt a={a} />}
     extras={(a, setProps) => !edit && isScreen(a.type) ? <MvPick key={a.id} a={a} mvs={mvs} setProps={setProps} filt={filt} setFilt={setFilt} /> : null}
