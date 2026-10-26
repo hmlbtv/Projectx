@@ -64,6 +64,6 @@ export default function WallEditor({ id, initialName, initial, notice, mvs }: { 
     extras={(a, setProps) => !edit && isScreen(a.type) ? <MvPick key={a.id} a={a} mvs={mvs} setProps={setProps} filt={filt} setFilt={setFilt} /> : null}
     id={id} initialName={initialName} initial={initial}
     backdrop={<svg viewBox={`0 0 ${WALL_W} ${WALL_H}`} width="100%" height="100%" style={{ display: 'block', pointerEvents: 'none' }}><rect width={WALL_W} height={WALL_H} fill="#1b2027" /><rect x={0} y={WALL_H - 6} width={WALL_W} height={6} fill="#2c333d" /></svg>}
-    onSave={a => saveWall(a.id, a.name, a.assets)} />
+    onSave={a => saveWall(a.asNew ? null : a.id, a.name, a.assets)} />
     {picker && <ImagePicker onClose={() => setPicker(null)} onPick={i => { const s = Math.min(400 / i.w, 300 / i.h); picker({ label: i.name, w: Math.max(20, Math.round(i.w * s)), h: Math.max(20, Math.round(i.h * s)), props: { img: i.id } }); }} />}</>);
 }
