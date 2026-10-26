@@ -18,6 +18,8 @@ function MvPick({ a, mvs, setProps }: { a: DAsset; mvs: MvOpt[]; setProps: (p: R
   const shown = mvs.filter(m => m.n <= max && m.name.toLowerCase().includes(q.toLowerCase()));
   return (<>
     <div className="dz-grp">Multiview templates</div>
+    <label className="dz-row dz-chk" style={{ flexDirection: 'row', alignItems: 'center' }}><span>Limit Max PiP</span><input type="checkbox" checked={!!a.props?.maxPip} onChange={e => setProps(e.target.checked ? { maxPip: Math.min(top, 4) } : { maxPip: undefined })} /></label>
+    {!!a.props?.maxPip && <label className="dz-row" style={{ flexDirection: 'row', alignItems: 'center' }}><span>Max PiP (windows)</span><input type="number" min={1} max={64} value={a.props.maxPip} aria-label="Max PiP value" onChange={e => { const v = Math.min(64, Math.max(1, Math.round(+e.target.value) || 1)); const keep = have.filter(id => (mvs.find(m => m.id === id)?.n ?? 99) <= v); setProps({ maxPip: v, mvs: keep.length ? keep : undefined }); }} /></label>}
     <p className="mut dz-help" style={{ margin: '0 0 6px' }}>{a.props?.maxPip ? `Max PiP ${a.props.maxPip}. ` : ''}{names.length === 0 ? 'None assigned.' : `${names.length} assigned: ${names.slice(0, 4).join(', ')}${names.length > 4 ? '…' : ''}`}</p>
     <button type="button" className="sec small" onClick={() => { setPick(have.filter(id => mvs.some(m => m.id === id))); setQ(''); setMax(a.props?.maxPip ?? top); ref.current?.showModal(); }}>Assign multiview template</button>
     <dialog ref={ref} className="dlg" style={{ width: 'min(480px,calc(100vw - 24px))' }}>
@@ -33,7 +35,7 @@ function MvPick({ a, mvs, setProps }: { a: DAsset; mvs: MvOpt[]; setProps: (p: R
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, marginTop: 14 }}>
         <button type="button" className="sec" onClick={() => setPick([])}>Untick all</button>
         <span style={{ display: 'flex', gap: 8 }}><button type="button" className="sec" onClick={() => ref.current?.close()}>Cancel</button>
-          <button type="button" onClick={() => { const keep = pick.filter(id => (mvs.find(m => m.id === id)?.n ?? 99) <= max); setProps({ mvs: keep.length ? keep : undefined, maxPip: max >= top ? undefined : max }); ref.current?.close(); }}>Apply</button></span></div>
+          <button type="button" onClick={() => { const keep = pick.filter(id => (mvs.find(m => m.id === id)?.n ?? 99) <= max); setProps({ mvs: keep.length ? keep : undefined, maxPip: (max >= top && !a.props?.maxPip) ? undefined : max }); ref.current?.close(); }}>Apply</button></span></div>
     </dialog></>);
 }
 
