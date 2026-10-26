@@ -3,14 +3,11 @@ import { requireMe, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { deleteWall, setWallRooms, wallToRoom, wallFromRoom } from '@/lib/actions';
 import WallEditor from './WallEditor';
-import { WallArt } from './WallArt';
-import { WALL_W, WALL_H } from './wallAssets';
+import WallThumb from './WallThumb';
 import Menu from '../Menu';
 import Link from 'next/link';
 export const dynamic = 'force-dynamic';
 
-const Thumb = ({ assets }: { assets: any[] }) => (<svg viewBox={`0 0 ${WALL_W} ${WALL_H}`} width="100%" style={{ display: 'block', borderRadius: 6, background: '#1b2027', aspectRatio: '16/9' }} aria-hidden>
-  {assets.map((a: any) => <svg key={a.id} x={a.x} y={a.y} width={a.w} height={a.h} viewBox={`0 0 ${a.w} ${a.h}`}><WallArt a={a} /></svg>)}</svg>);
 
 export default async function Walls({ searchParams }: { searchParams: Promise<{ id?: string; q?: string }> }) {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
@@ -50,6 +47,6 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
                       <div style={{ marginLeft: 14 }}>{lr.map((r: any) => <label key={r.id} style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'flex-start', textAlign: 'left', fontWeight: 400, padding: '2px 0' }}><input type="checkbox" name="room" value={r.id} defaultChecked={on.has(r.id)} style={{ margin: 0 }} />{r.name}</label>)}</div></details>); })}</div></details>); })}</div>
               <span className="mut">Unticking a Room removes this wall from it, and from Jobs using it there.</span><button className="sec">Save</button></form>}
             <form action={deleteWall} className="del-row"><input type="hidden" name="id" value={w.id} /><span className="mut">Delete this Wall Template? It is removed from any Room and Job using it.</span><button className="del">Yes, delete</button></form></Menu></div>
-        <Link href={`/walls?id=${w.id}`} style={{ display: 'block', margin: '6px 0' }}><Thumb assets={w.data.assets} /></Link>
+        <Link href={`/walls?id=${w.id}`} style={{ display: 'block', margin: '6px 0' }}><WallThumb assets={w.data.assets} /></Link>
         <div className="mut" style={{ fontSize: 13 }}>{mine.length === 0 ? 'Not used in any Room' : <>Used in: {mine.map((r: any) => <span key={r.id} className="tag">{label(r)}</span>)}</>}</div></div>); })}</div></>);
 }
