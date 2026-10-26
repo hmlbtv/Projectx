@@ -19,7 +19,7 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
   const lim = (await one('select max_walls_per_broadcaster m, plan, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [t]))!;
   const rooms = await rows(`select r.id, s.name sname, l.name lname, r.name from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name,l.name,r.name`, [t]);
   const used = await rows(`select rw.wall_template_id w, rw.room_id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1`, [t]);
-  const mvs = (await rows('select id, name, (tenant_id is null) standard, jsonb_array_length(tiles)::int n from mv_layouts where tenant_id is null or tenant_id=$1 order by (tenant_id is null), name', [t])) as any[];
+  const mvs = ((await rows('select id, name, (tenant_id is null) standard, jsonb_array_length(tiles)::int n, tiles from mv_layouts where tenant_id is null or tenant_id=$1 order by (tenant_id is null), name', [t])) as any[]).map(m => ({ ...m, tiles: (m.tiles ?? []).map((x: any) => ({ x: x.x, y: x.y, w: x.w, h: x.h })) }));
   const label = (r: any) => `${r.sname} › ${r.lname} › ${r.name}`;
   const roomsOf = (w: number) => used.filter((u: any) => u.w === w).map((u: any) => rooms.find((r: any) => r.id === u.room_id)).filter(Boolean);
   const cur = id === 'new' ? { id: null, name: 'New Wall Template', data: { assets: [] } } : list.find((w: any) => String(w.id) === id);

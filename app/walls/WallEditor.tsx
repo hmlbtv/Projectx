@@ -6,7 +6,8 @@ import { WALL_PALETTE, WALL_W, WALL_H } from './wallAssets';
 import type { DAsset } from '../designer/assets';
 import { saveWall } from '@/lib/actions';
 
-export type MvOpt = { id: number; name: string; standard: boolean; n: number };
+export type MvOpt = { id: number; name: string; standard: boolean; n: number; tiles: { x: number; y: number; w: number; h: number }[] };
+const LayThumb = ({ tiles }: { tiles: MvOpt['tiles'] }) => (<svg viewBox="0 0 1920 1080" width={64} height={36} style={{ flex: 'none', background: '#0b1118', borderRadius: 3, border: '1px solid #3a414c' }} aria-hidden>{tiles.map((t, i) => <rect key={i} x={t.x + 6} y={t.y + 6} width={Math.max(1, t.w - 12)} height={Math.max(1, t.h - 12)} fill="#2b6cb0" />)}</svg>);
 const isScreen = (t: string) => /^(mon|monitor|bvm|pvm)/.test(t);
 
 // Pick which Multiview templates a monitor can show (chosen from this list later, in the Monitor Plan).
@@ -24,9 +25,9 @@ function MvPick({ a, mvs, setProps }: { a: DAsset; mvs: MvOpt[]; setProps: (p: R
       <input placeholder="Search" value={q} onChange={e => setQ(e.target.value)} style={{ width: '100%', margin: '8px 0' }} />
       <div style={{ maxHeight: 300, overflow: 'auto', display: 'grid', gap: 4 }}>
         {shown.length === 0 && <span className="mut">No multiview templates found.</span>}
-        {shown.map(m => <label key={m.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="checkbox" checked={pick.includes(m.id)} onChange={e => setPick(e.target.checked ? [...pick, m.id] : pick.filter(x => x !== m.id))} />{m.name}<span className="mut">{m.n} windows{m.standard ? ' · Standard' : ''}</span></label>)}</div>
+        {shown.map(m => <label key={m.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="checkbox" checked={pick.includes(m.id)} onChange={e => setPick(e.target.checked ? [...pick, m.id] : pick.filter(x => x !== m.id))} /><LayThumb tiles={m.tiles} />{m.name}<span className="mut">{m.n} windows{m.standard ? ' · Standard' : ''}</span></label>)}</div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 12 }}>
-        <button type="button" className="sec" onClick={() => setPick([])}>Clear</button>
+        <button type="button" className="sec" onClick={() => setPick([])}>Untick all</button>
         <span style={{ display: 'flex', gap: 8 }}><button type="button" className="sec" onClick={() => ref.current?.close()}>Cancel</button>
           <button type="button" onClick={() => { setProps({ mvs: pick.length ? pick : undefined }); ref.current?.close(); }}>Apply</button></span></div>
     </dialog></>);
