@@ -28,6 +28,8 @@ const Icon = ({ k }: { k: string }) => {
     middle: <>{L('M2 10h16')}{R(4, 4, 4, 12)}{R(12, 6, 4, 8)}</>,
     sph: <>{L('M2.5 3v14M17.5 3v14')}{R(6, 6, 3, 8)}{R(11, 6, 3, 8)}</>,
     spv: <>{L('M3 2.5h14M3 17.5h14')}{R(6, 6, 8, 3)}{R(6, 11, 8, 3)}</>,
+    samew: <>{L('M3 1.5v17M17 1.5v17')}{R(3, 4, 14, 4)}{R(3, 11, 14, 5)}</>,
+    sameh: <>{L('M1.5 3h17M1.5 17h17')}{R(4, 3, 4, 14)}{R(11, 3, 5, 14)}</>,
     same: <>{R(2, 4, 7, 7)}{R(11, 4, 7, 7)}{L('M3 15h14')}</>,
     scale: <>{R(5, 7, 6, 6)}{L('M13 4h3v3M16 4l-4 4M13 16h3v-3M16 16l-4-4')}</>,
     pushleft: <>{L('M3 2v16')}{L('M16 10H7M10 6l-4 4 4 4')}</>,
@@ -105,6 +107,12 @@ export default function Editor(p: Props) {
   function startMove(e: React.PointerEvent, a: DAsset) {
     if (viewOnly) { e.stopPropagation(); setSel([a.id]); return; }
     if (readOnly) return; e.stopPropagation();
+    if (ref) { // second click of Same width / Same height: this item takes the reference item's size
+      const r0 = items.find(i => i.id === ref.id); setRef(null);
+      if (!r0 || a.id === ref.id) { setMsg('Cancelled.'); return; }
+      const next = items.map(i => i.id !== a.id ? i : ref.kind === 'w' ? { ...i, w: r0.w, x: Math.min(i.x, world.w - r0.w) } : { ...i, h: r0.h, y: Math.min(i.y, world.h - r0.h) });
+      if (free(next, next.filter(i => i.id === a.id))) { apply(next); setSel([a.id]); setMsg(''); } else setMsg('That would not fit - not applied.'); return;
+    }
     if (brush && p.stamps) { // put the chosen stamp on this item
       const k = p.stampKey ?? 'stamp'; apply(items.map(i => { if (i.id !== a.id) return i; const pr = { ...i.props }; if (brush.id === 0) delete pr[k]; else pr[k] = brush.id; return { ...i, props: pr }; })); setSel([a.id]); if (!brush.keep) setBrush(null); return;
     }
@@ -184,6 +192,8 @@ export default function Editor(p: Props) {
   const [lastSpace, setLastSpace] = useState<'h' | 'v' | null>(null);
   useEffect(() => { setLastSpace(null); }, [sel.join(',')]);
   // Slide the selection as far as it will go in one direction: to the canvas edge, or up to the nearest other item (items that may overlap only stop at the edge).
+  const [hand, setHand] = useState(false); const pan = useRef<{ x: number; y: number; l: number; t: number } | null>(null), wrap = useRef<HTMLDivElement>(null); // hand tool: drag the zoomed canvas around
+  const [ref, setRef] = useState<{ kind: 'w' | 'h'; id: string } | null>(null); // Same width / height: reference chosen, waiting for the item to change
   const [touch, setTouch] = useState(false); // Touch mode: the push buttons move until the selection touches another item, ignoring the canvas edge
   function pushTo(dir: 'up' | 'down' | 'left' | 'right') {
     const S = items.filter(a => sel.includes(a.id)); if (!S.length) { setMsg('Select something first.'); return; }
@@ -211,6 +221,11 @@ export default function Editor(p: Props) {
       return { ...a, x, y, w, h, props: { ...rest, rot: (base + dir + 4) % 4 } }; });
     if (free(next, next.filter(a => sel.includes(a.id)))) apply(next); else setMsg('There is no room to turn it there - not applied.');
   }
+  function sameDim(kind: 'w' | 'h') {
+    if (sel.length >= 2) { setRef(null); align(kind); return; }
+    if (sel.length === 1) { setRef({ kind, id: sel[0] }); setMsg(`Now click the item to change - it will take this one's ${kind === 'w' ? 'width' : 'height'}. (Click empty canvas to cancel.)`); return; }
+    setMsg('Select the item to copy from first.');
+  }
   function align(kind: string) {
     const S = items.filter(a => sel.includes(a.id));
     if (kind === 'tile') { // centre the selection, as a group, on the canvas itself
@@ -223,6 +238,7 @@ export default function Editor(p: Props) {
     const minX = Math.min(...S.map(a => a.x)), maxR = Math.max(...S.map(a => a.x + a.w)), minY = Math.min(...S.map(a => a.y)), maxB = Math.max(...S.map(a => a.y + a.h));
     // T is in the order the assets were selected: the first one selected is the reference for aligning, and sets the order for spacing.
     const next = items.map(a => ({ ...a })), T = sel.map(id => next.find(a => a.id === id)).filter(Boolean) as DAsset[], r = { ...T[0] };
+    if (kind === 'w' || kind === 'h') T.forEach(a => { if (kind === 'w') { a.w = r.w; a.x = Math.min(a.x, world.w - a.w); } else { a.h = r.h; a.y = Math.min(a.y, world.h - a.h); } });
     if (kind === 'size') T.forEach(a => { a.w = r.w; a.h = r.h; a.x = Math.min(a.x, world.w - a.w); a.y = Math.min(a.y, world.h - a.h); });
     if (kind === 'scale') {
       // After Space H/V: make the selection all one size (the first one's shape) and grow or shrink it to the best fit for the free space around it, in any direction (up to the nearest other items or the canvas edge). Rows follow H, columns follow V.
@@ -323,6 +339,8 @@ export default function Editor(p: Props) {
           <span className="dz-tgl" title={`Space in selection order`}></span>
           <div className="dz-tg">{([['h', 'Space horizontally (left to right)'], ['v', 'Space vertically (top to bottom)']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={'sp' + k} /></button>)}</div>
           <span className="dz-tgl" title={`Size`}></span>
+          <div className="dz-tg"><button className={'sec small' + (ref?.kind === 'w' ? ' on' : '')} title="Same width: select the item to copy from, then the item to change (Shift-click, or press this with one selected and then click the other), then press this. The second takes the first one's width" aria-label="Same width" onClick={() => sameDim('w')}><Icon k="samew" /></button>
+            <button className={'sec small' + (ref?.kind === 'h' ? ' on' : '')} title="Same height: select the item to copy from, then the item to change (Shift-click, or press this with one selected and then click the other), then press this. The second takes the first one's height" aria-label="Same height" onClick={() => sameDim('h')}><Icon k="sameh" /></button></div>
           <div className="dz-tg"><button className="sec small" title="Match size: make all selected the same size as the first selected" aria-label="Match size" onClick={() => align('size')}><Icon k="same" /></button>
             <button className="sec small" title="Scale: after Space H or V, make the selected all one size and as big as the free space around them allows, in any direction" aria-label="Scale" disabled={!lastSpace} onClick={() => align('scale')}><Icon k="scale" /></button></div>
           <span className="dz-tgl" title={touch ? 'Move until touching' : 'Push to edge'}></span>
@@ -335,12 +353,16 @@ export default function Editor(p: Props) {
           {p.zoomable && <><span className="dz-tgl" title="Zoom"></span><div className="dz-tg">
             <button type="button" className="sec small" title="Zoom out" aria-label="Zoom out" disabled={zoom <= 1} onClick={() => setZoom(Math.max(1, +(zoom - 0.5).toFixed(2)))}>−</button>
             <button type="button" className="sec small" title="Back to fit the whole canvas" aria-label="Zoom fit" style={{ whiteSpace: "nowrap" }} onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</button>
+            <button type="button" className={'sec small' + (hand ? ' on' : '')} title="Hand: when zoomed in, click and drag to move the canvas around" aria-label="Hand tool" aria-pressed={hand} disabled={zoom <= 1 && !hand} onClick={() => setHand(!hand)}>✋</button>
             <button type="button" className="sec small" title="Zoom in" aria-label="Zoom in" disabled={zoom >= 4} onClick={() => setZoom(Math.min(4, +(zoom + 0.5).toFixed(2)))}>+</button></div></>}
         </div>}
-      <div className="dz-zoomwrap" style={z > 1 ? { overflow: 'auto', maxHeight: '78vh', borderRadius: 14 } : undefined}><div style={{ width: `${z * 100}%` }}>
-      <div ref={stage} className={'canvas dz-stage' + (brush ? ' stamping' : '')} tabIndex={0} onKeyDown={onKey} onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={endDrag}
+      <div className="dz-zoomwrap" ref={wrap} style={z > 1 ? { overflow: 'auto', maxHeight: '78vh', borderRadius: 14 } : undefined}><div style={{ width: `${z * 100}%` }}>
+      <div ref={stage} className={'canvas dz-stage' + (brush ? ' stamping' : '')} data-hand={hand && z > 1 ? '1' : undefined} tabIndex={0} onKeyDown={onKey} onPointerDownCapture={e => { if (hand && z > 1 && wrap.current) { e.stopPropagation(); e.preventDefault(); pan.current = { x: e.clientX, y: e.clientY, l: wrap.current.scrollLeft, t: wrap.current.scrollTop }; stage.current?.setPointerCapture(e.pointerId); } }}
+        onPointerMove={e => { if (pan.current && wrap.current) { wrap.current.scrollLeft = pan.current.l - (e.clientX - pan.current.x); wrap.current.scrollTop = pan.current.t - (e.clientY - pan.current.y); return; } onMove(e); }}
+        onPointerUp={() => { if (pan.current) { pan.current = null; return; } endDrag(); }} onPointerCancel={() => { if (pan.current) { pan.current = null; return; } endDrag(); }}
         onPointerDown={e => {
           if (!(e.target === e.currentTarget || (e.target as HTMLElement).dataset.bg)) return;
+          if (ref) setRef(null);
           if (readOnly) { setSel([]); return; }
           const r = stage.current!.getBoundingClientRect(), x = (e.clientX - r.left) / px, y = (e.clientY - r.top) / px;
           stage.current!.setPointerCapture(e.pointerId); drag.current = { mode: 'marquee', base: e.shiftKey ? sel : [] }; if (!e.shiftKey) setSel([]); setMarq({ x0: x, y0: y, x1: x, y1: y });
@@ -363,8 +385,8 @@ export default function Editor(p: Props) {
             <div className="dz-grp">Position &amp; size</div>
             <div className="dz-two">{numIn('X', one.x, v => edit({ x: v }))}{numIn('Y', one.y, v => edit({ y: v }))}{numIn('W', one.w, v => editSize('w', v))}{numIn('H', one.h, v => editSize('h', v))}</div>
             {!readOnly && <label className="dz-row dz-chk"><span>Lock aspect</span><input type="checkbox" checked={lock} onChange={e => setLock(e.target.checked)} /></label>}
-            {def?.fields && def.fields.length > 0 && <div className="dz-grp">{def.label} settings</div>}
-            {def?.fields?.map(f => (<label key={f.key} className="dz-row"><span>{f.label}</span>
+            {!viewOnly && def?.fields && def.fields.length > 0 && <div className="dz-grp">{def.label} settings</div>}
+            {!viewOnly && def?.fields?.map(f => (<label key={f.key} className="dz-row"><span>{f.label}</span>
               {f.kind === 'check' ? <input type="checkbox" disabled={readOnly} checked={!!one.props?.[f.key]} onChange={e => { push(); setProp(f.key, e.target.checked); }} />
                 : f.kind === 'color' ? <input type="color" disabled={readOnly} value={one.props?.[f.key] ?? '#ffffff'} onFocus={push} onChange={e => setProp(f.key, e.target.value)} style={{ padding: 2, height: 32, width: 56 }} />
                 : f.kind === 'area' ? <textarea rows={3} maxLength={300} disabled={readOnly} value={one.props?.[f.key] ?? ''} onFocus={push} onChange={e => setProp(f.key, e.target.value)} style={{ width: '100%', resize: 'vertical' }} />

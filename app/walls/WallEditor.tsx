@@ -9,26 +9,33 @@ import ImagePicker from './ImagePicker';
 import type { PaletteItem } from '../designer/assets';
 
 export type MvOpt = { id: number; name: string; standard: boolean; n: number; tiles: { x: number; y: number; w: number; h: number }[] };
-const LayThumb = ({ tiles }: { tiles: MvOpt['tiles'] }) => (<svg viewBox="0 0 1920 1080" width={64} height={36} style={{ display: 'block', background: '#0b1118', borderRadius: 3, border: '1px solid #3a414c' }} aria-hidden>{tiles.map((t, i) => <rect key={i} x={t.x + 6} y={t.y + 6} width={Math.max(1, t.w - 12)} height={Math.max(1, t.h - 12)} fill="#2b6cb0" />)}</svg>);
+const LayThumb = ({ tiles, small }: { tiles: MvOpt['tiles']; small?: boolean }) => (<svg viewBox="0 0 1920 1080" width={small ? 48 : 64} height={small ? 27 : 36} style={{ display: 'block', background: '#0b1118', borderRadius: 3, border: '1px solid #3a414c' }} aria-hidden>{tiles.map((t, i) => <rect key={i} x={t.x + 6} y={t.y + 6} width={Math.max(1, t.w - 12)} height={Math.max(1, t.h - 12)} fill="#2b6cb0" />)}</svg>);
 const isScreen = (t: string) => /^(mon|monitor|bvm|pvm)/.test(t);
 
 // Pick which Multiview templates a monitor can show (chosen from this list later, in the Monitor Plan).
 function MvPick({ a, mvs, setProps }: { a: DAsset; mvs: MvOpt[]; setProps: (p: Record<string, any>) => void }) {
   const ref = useRef<HTMLDialogElement>(null); const have: number[] = a.props?.mvs ?? [];
-  const top = Math.max(1, ...mvs.map(m => m.n)); const [pick, setPick] = useState<number[]>(have); const [q, setQ] = useState(''); const [max, setMax] = useState<number>(a.props?.maxPip ?? top);
-  const names = have.map(id => mvs.find(m => m.id === id)?.name).filter(Boolean) as string[];
-  const shown = mvs.filter(m => m.n <= (max || 1) && m.name.toLowerCase().includes(q.toLowerCase()));
+  const top = Math.max(1, ...mvs.map(m => m.n)); const [pick, setPick] = useState<number[]>(have); const [q, setQ] = useState(''); const [sort, setSort] = useState('name'); const [max, setMax] = useState<number>(a.props?.maxPip ?? top);
+  const assigned = have.map(id => mvs.find(m => m.id === id)).filter(Boolean) as MvOpt[];
+  const cmp: Record<string, (a: MvOpt, b: MvOpt) => number> = { name: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }), namez: (a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }), fewest: (a, b) => a.n - b.n || a.name.localeCompare(b.name, undefined, { numeric: true }), most: (a, b) => b.n - a.n || a.name.localeCompare(b.name, undefined, { numeric: true }), standard: (a, b) => +b.standard - +a.standard || a.name.localeCompare(b.name, undefined, { numeric: true }), mine: (a, b) => +a.standard - +b.standard || a.name.localeCompare(b.name, undefined, { numeric: true }), ticked: (a, b) => +pick.includes(b.id) - +pick.includes(a.id) || a.name.localeCompare(b.name, undefined, { numeric: true }) };
+  const shown = mvs.filter(m => m.n <= (max || 1) && m.name.toLowerCase().includes(q.toLowerCase())).sort(cmp[sort] ?? cmp.name);
   return (<>
     <div className="dz-grp">Multiview templates</div>
     <label className="dz-row dz-chk" style={{ flexDirection: 'row', alignItems: 'center' }}><span>Limit Max PiP</span><input type="checkbox" checked={!!a.props?.maxPip} onChange={e => setProps(e.target.checked ? { maxPip: 1 } : { maxPip: undefined })} /></label>
     {!!a.props?.maxPip && <label className="dz-row" style={{ flexDirection: 'row', alignItems: 'center' }}><span>Max PiP (windows)</span><input type="number" min={1} max={64} defaultValue={a.props.maxPip} key={a.id} aria-label="Max PiP value" onChange={e => { const v = Math.round(+e.target.value); if (!(v >= 1)) return; const c = Math.min(64, v); const keep = have.filter(id => (mvs.find(m => m.id === id)?.n ?? 99) <= c); setProps({ maxPip: c, mvs: keep.length ? keep : undefined }); }} onBlur={e => { e.target.value = String(a.props?.maxPip ?? 1); }} /></label>}
-    <p className="mut dz-help" style={{ margin: '0 0 6px' }}>{a.props?.maxPip ? `Max PiP ${a.props.maxPip}. ` : ''}{names.length === 0 ? 'None assigned.' : `${names.length} assigned: ${names.slice(0, 4).join(', ')}${names.length > 4 ? '…' : ''}`}</p>
+    {a.props?.maxPip ? <p className="mut dz-help" style={{ margin: '0 0 6px' }}>Max PiP: {a.props.maxPip} windows</p> : null}
+    {assigned.length === 0 ? <p className="mut dz-help" style={{ margin: '0 0 6px' }}>None assigned.</p> :
+      <div role="list" aria-label="Assigned multiview templates" style={{ display: 'grid', gap: 4, margin: '0 0 8px', maxHeight: 220, overflow: 'auto' }}>
+        <div className="mut" style={{ fontSize: '.75rem' }}>{assigned.length} assigned</div>
+        {assigned.map(m => <div key={m.id} role="listitem" style={{ display: 'grid', gridTemplateColumns: '48px 1fr', gap: 8, alignItems: 'center', padding: '4px 6px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--bg)' }}>
+          <LayThumb tiles={m.tiles} small /><span style={{ minWidth: 0 }}><span style={{ display: 'block', fontWeight: 600, fontSize: '.85rem', overflowWrap: 'anywhere', lineHeight: 1.2 }}>{m.name}</span><span className="mut" style={{ fontSize: '.72rem' }}>{m.n} window{m.n === 1 ? '' : 's'}{m.standard ? ' · Standard' : ''}</span></span></div>)}</div>}
     <button type="button" className="sec small" onClick={() => { setPick(have.filter(id => mvs.some(m => m.id === id))); setQ(''); setMax(a.props?.maxPip ?? top); ref.current?.showModal(); }}>Assign multiview template</button>
     <dialog ref={ref} className="dlg" style={{ width: 'min(480px,calc(100vw - 24px))' }}>
       <b style={{ display: 'block', lineHeight: 1.3 }}>Assign multiview templates to {a.name}</b>
       <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, margin: '10px 0 0', fontSize: '.9rem' }}><span>Max PiP<span className="mut" style={{ display: 'block', fontSize: '.75rem', fontWeight: 400 }}>Only templates with this many windows or fewer are shown</span></span>
         <input type="number" min={1} max={64} value={max || ''} onChange={e => setMax(Math.min(64, Math.max(0, Math.round(+e.target.value) || 0)))} onBlur={() => { if (!max) setMax(1); }} style={{ width: 80, margin: 0 }} aria-label="Max PiP" /></label>
-      <input placeholder="Search" value={q} onChange={e => setQ(e.target.value)} style={{ width: '100%', margin: '10px 0', boxSizing: 'border-box' }} />
+      <div style={{ display: 'flex', gap: 8, margin: '10px 0' }}><input placeholder="Search" value={q} onChange={e => setQ(e.target.value)} style={{ flex: 1, minWidth: 0, boxSizing: 'border-box' }} />
+        <select value={sort} onChange={e => setSort(e.target.value)} aria-label="Sort" style={{ flex: 'none' }}><option value="name">Name A–Z</option><option value="namez">Name Z–A</option><option value="fewest">Fewest windows</option><option value="most">Most windows</option><option value="standard">Standard first</option><option value="mine">My own first</option><option value="ticked">Ticked first</option></select></div>
       <div style={{ maxHeight: 'min(340px,50vh)', overflow: 'auto', display: 'grid', gap: 2 }}>
         {shown.length === 0 && <span className="mut">No multiview templates found.</span>}
         {shown.map(m => <label key={m.id} style={{ display: 'grid', gridTemplateColumns: 'auto 64px 1fr', gap: 10, alignItems: 'center', flexDirection: 'unset', padding: '5px 4px', borderBottom: '1px solid var(--line)', fontSize: '.9rem' }}>
