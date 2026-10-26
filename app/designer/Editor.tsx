@@ -8,7 +8,7 @@ export type SaveArgs = { id: number | null; name: string; assets: DAsset[]; asNe
 type Props = {
   kind: string; backHref: string; world: { w: number; h: number }; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
   id: number | null; initialName: string; initial: DAsset[]; onSave: (a: SaveArgs) => Promise<{ id?: number; error?: string }>;
-  canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; neaten?: (items: DAsset[]) => DAsset[] | null; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; extras?: (a: DAsset, setProps: (patch: Record<string, any>) => void) => React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
+  canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; neaten?: (items: DAsset[]) => DAsset[] | null; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; viewOnly?: boolean; headerExtra?: React.ReactNode; extras?: (a: DAsset, setProps: (patch: Record<string, any>) => void) => React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
 };
 const SNAP = 10, MIN = 20, HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
 const hit = (a: DAsset, b: DAsset) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -44,7 +44,7 @@ const Icon = ({ k }: { k: string }) => {
 const rid = () => Math.random().toString(36).slice(2, 8);
 
 export default function Editor(p: Props) {
-  const { world, palette, readOnly } = p;
+  const { world, palette } = p; const viewOnly = !!p.viewOnly, readOnly = !!p.readOnly || viewOnly; // viewOnly: can select (and use extras) but not arrange; the canvas is cropped to the items
   const [name, setName] = useState(p.initialName), [items, setItems] = useState<DAsset[]>(p.initial), [sel, setSel] = useState<string[]>([]);
   const [marq, setMarq] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null);
   const [snapOn, setSnapOn] = useState(true), [grid, setGrid] = useState(10), [showGrid, setShowGrid] = useState(true);
@@ -59,7 +59,10 @@ export default function Editor(p: Props) {
   const hist = useRef<{ past: DAsset[][]; future: DAsset[][] }>({ past: [], future: [] }), [, bump] = useState(0);
   const stage = useRef<HTMLDivElement>(null), [cw, setCw] = useState(800), drag = useRef<any>(null);
   useEffect(() => { const el = stage.current; if (!el) return; const ro = new ResizeObserver(() => setCw(el.clientWidth || 800)); ro.observe(el); setCw(el.clientWidth || 800); return () => ro.disconnect(); }, []);
-  const px = cw / world.w;
+  // View mode crops the canvas to the items (with a small margin); otherwise the whole world is shown.
+  const crop = (() => { if (!viewOnly || !items.length) return { x: 0, y: 0, w: world.w, h: world.h }; const M = 24, x0 = Math.min(...items.map(a => a.x)), y0 = Math.min(...items.map(a => a.y)), x1 = Math.max(...items.map(a => a.x + a.w)), y1 = Math.max(...items.map(a => a.y + a.h));
+    const w = Math.max(x1 - x0 + 2 * M, 360), h = y1 - y0 + 2 * M; return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h }; })();
+  const px = cw / crop.w;
 
   const inside = (a: DAsset) => a.x >= 0 && a.y >= 0 && a.x + a.w <= world.w && a.y + a.h <= world.h && a.w >= MIN && a.h >= MIN;
   const free = (list: DAsset[], moved: DAsset[]) => moved.every(inside) && (p.allowOverlap || !moved.some(m => list.some(o => !moved.some(x => x.id === o.id) && hit(m, o))));
@@ -99,6 +102,7 @@ export default function Editor(p: Props) {
 
   // ---- pointer: move, and resize from a corner handle ----
   function startMove(e: React.PointerEvent, a: DAsset) {
+    if (viewOnly) { e.stopPropagation(); setSel([a.id]); return; }
     if (readOnly) return; e.stopPropagation();
     if (brush && p.stamps) { // put the chosen stamp on this item
       const k = p.stampKey ?? 'stamp'; apply(items.map(i => { if (i.id !== a.id) return i; const pr = { ...i.props }; if (brush.id === 0) delete pr[k]; else pr[k] = brush.id; return { ...i, props: pr }; })); setSel([a.id]); if (!brush.keep) setBrush(null); return;
@@ -304,7 +308,8 @@ export default function Editor(p: Props) {
       <input className="dz-name" value={name} disabled={readOnly} onChange={e => { setName(e.target.value); setDirty(true); }} aria-label={`${p.kind} name`} placeholder={`${p.kind} name`} />
       <button className="sec small" onClick={undo} disabled={readOnly || !hist.current.past.length} title="Undo (Ctrl+Z)">↶ Undo</button>
       <button className="sec small" onClick={redo} disabled={readOnly || !hist.current.future.length} title="Redo (Ctrl+Y)">↷ Redo</button>
-      {!readOnly && <><button className="small" onClick={() => save(false)}>Save</button><button className="sec small" onClick={() => save(true)} title="Save a new copy under this name">Save as new</button></>}
+      {p.headerExtra}
+      {(!readOnly || viewOnly) && <><button className="small" onClick={() => save(false)}>Save</button><button className="sec small" onClick={() => save(true)} title="Save a new copy under this name">Save as new</button></>}
       {(p.flags ?? []).map(f => (<label key={f.key} className="dz-flag"><input type="checkbox" checked={!!flags[f.key]} disabled={readOnly} onChange={e => { setFlags({ ...flags, [f.key]: e.target.checked }); setDirty(true); }} /> {f.label}</label>))}
     </div>
     <div className="dz-status mut" role="status">{msg || (dirty ? 'Unsaved changes' : '')}</div>
@@ -333,12 +338,12 @@ export default function Editor(p: Props) {
           if (readOnly) { setSel([]); return; }
           const r = stage.current!.getBoundingClientRect(), x = (e.clientX - r.left) / px, y = (e.clientY - r.top) / px;
           stage.current!.setPointerCapture(e.pointerId); drag.current = { mode: 'marquee', base: e.shiftKey ? sel : [] }; if (!e.shiftKey) setSel([]); setMarq({ x0: x, y0: y, x1: x, y1: y });
-        }} style={{ height: cw * world.h / world.w }}>
-        <div data-bg="1" style={{ position: 'absolute', inset: 0 }}>{p.backdrop}</div>
-        {showGrid && grid * px >= 4 && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'linear-gradient(to right,#ffffff1c 1px,transparent 1px),linear-gradient(to bottom,#ffffff1c 1px,transparent 1px)', backgroundSize: `${grid * px}px ${grid * px}px` }} />}
+        }} style={{ height: crop.h * px, overflow: 'hidden' }}>
+        <div data-bg="1" style={viewOnly ? { position: 'absolute', left: -crop.x * px, top: -crop.y * px, width: world.w * px, height: world.h * px } : { position: 'absolute', inset: 0 }}>{p.backdrop}</div>
+        {!viewOnly && showGrid && grid * px >= 4 && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'linear-gradient(to right,#ffffff1c 1px,transparent 1px),linear-gradient(to bottom,#ffffff1c 1px,transparent 1px)', backgroundSize: `${grid * px}px ${grid * px}px` }} />}
         {marq && <div className={'dz-marq' + (marq.x1 >= marq.x0 ? '' : ' win')} style={{ left: Math.min(marq.x0, marq.x1) * px, top: Math.min(marq.y0, marq.y1) * px, width: Math.abs(marq.x1 - marq.x0) * px, height: Math.abs(marq.y1 - marq.y0) * px }} />}
         {items.map(a => (<div key={a.id} className={'dzi' + (drag.current?.pushed && !p.allowOverlap && !free(items, [a]) ? ' bad' : '') + (a.type === 'tally' && a.props?.style === 'border' ? ' ring' : '') + (sel.includes(a.id) ? ' sel' : '')} onPointerDown={e => startMove(e, a)} title={a.name}
-          style={{ left: a.x * px, top: a.y * px, width: a.w * px, height: a.h * px }}>{p.renderAsset(a)}
+          style={{ left: (a.x - crop.x) * px, top: (a.y - crop.y) * px, width: a.w * px, height: a.h * px }}>{p.renderAsset(a)}
           {sel.length > 1 && sel.includes(a.id) && <span className="dz-ord">{sel.indexOf(a.id) + 1}</span>}
           {!readOnly && sel.length === 1 && sel[0] === a.id && HANDLES.map(h => <span key={h} className={'hdl ' + h} onPointerDown={e => startResize(e, a, h)} />)}</div>))}
       </div>
@@ -356,7 +361,7 @@ export default function Editor(p: Props) {
             {def?.fields?.map(f => (<label key={f.key} className="dz-row"><span>{f.label}</span>
               {f.kind === 'select' ? <select disabled={readOnly} value={String(one.props?.[f.key] ?? '')} onChange={e => { push(); setProp(f.key, e.target.value); }}>{f.options!.map(o => <option key={o}>{o}</option>)}</select>
                 : <input type={f.kind === 'number' ? 'number' : 'text'} min={f.min} max={f.max} disabled={readOnly} value={one.props?.[f.key] ?? ''} onFocus={push} onChange={e => setProp(f.key, f.kind === 'number' ? Math.min(Math.max(+e.target.value || 0, f.min ?? 0), f.max ?? 9999) : e.target.value.slice(0, 40))} />}</label>))}
-            {!readOnly && p.extras?.(one, patch => { push(); edit({ props: { ...one.props, ...patch } }); })}
+            {p.extras?.(one, patch => { push(); edit({ props: { ...one.props, ...patch } }); })}
             {!readOnly && <div className="dz-pal"><button className="sec small" onClick={duplicate}>Duplicate</button><button className="sec small" onClick={() => copy()}>Copy</button><button className="del small" onClick={remove}>Delete</button></div>}</>)
           : sel.length > 1 ? (<>
             <div className="dz-grp">Selection order</div>
