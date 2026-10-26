@@ -298,7 +298,9 @@ export async function renameNode(f: FormData) {
 }
 export async function addRoomWall(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const room = Number(s(f,'room')), wall = Number(s(f,'wall')); await own('rooms', room, me); await own('walls', wall, me);
-  await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, s(f,'name') || 'Wall']); revalidatePath('/tenant'); return { ok: 'Added.' };
+  if (await one('select 1 from room_walls where room_id=$1 and wall_template_id=$2', [room, wall])) return { error: 'That Wall Template is already in this Room.' };
+  const wn = (await one('select name from wall_templates where id=$1', [wall]))!.name;
+  await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, wn]); revalidatePath('/walls'); revalidatePath('/tenant'); return { ok: 'Added.' };
 }
 export async function renameRoomWall(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id'));
