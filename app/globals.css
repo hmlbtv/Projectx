@@ -227,4 +227,4 @@ main>div[style*="space-between"]+p{margin-top:10px}
 .theme-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;color:#f4f5f8;border-color:#3a4250}.theme-btn:hover{border-color:#f4f5f8}
 @media(max-width:1500px){.theme-btn span{display:none}.theme-btn{padding:7px 10px}}
 .dz-tg button.sec.on{background:var(--ink);color:var(--onink);border-color:var(--ink)}
-.dz-stage[data-hand="1"],.dz-stage[data-hand="1"] *{cursor:grab!important}.dz-stage[data-hand="1"]:active,.dz-stage[data-hand="1"]:active *{cursor:grabbing!important}
+.dz-stage[data-pan="1"] [data-bg]{cursor:grab}.dz-stage[data-pan="1"]:active [data-bg]{cursor:grabbing}

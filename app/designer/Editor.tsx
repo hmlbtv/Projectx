@@ -192,7 +192,7 @@ export default function Editor(p: Props) {
   const [lastSpace, setLastSpace] = useState<'h' | 'v' | null>(null);
   useEffect(() => { setLastSpace(null); }, [sel.join(',')]);
   // Slide the selection as far as it will go in one direction: to the canvas edge, or up to the nearest other item (items that may overlap only stop at the edge).
-  const [hand, setHand] = useState(false); const pan = useRef<{ x: number; y: number; l: number; t: number } | null>(null), wrap = useRef<HTMLDivElement>(null); // hand tool: drag the zoomed canvas around
+  const pan = useRef<{ x: number; y: number; l: number; t: number } | null>(null), wrap = useRef<HTMLDivElement>(null); // when zoomed in, dragging on empty canvas scrolls the view (over an item it moves the item as usual)
   const [ref, setRef] = useState<{ kind: 'w' | 'h'; id: string } | null>(null); // Same width / height: reference chosen, waiting for the item to change
   const [touch, setTouch] = useState(false); // Touch mode: the push buttons move until the selection touches another item, ignoring the canvas edge
   function pushTo(dir: 'up' | 'down' | 'left' | 'right') {
@@ -353,17 +353,16 @@ export default function Editor(p: Props) {
           {p.zoomable && <><span className="dz-tgl" title="Zoom"></span><div className="dz-tg">
             <button type="button" className="sec small" title="Zoom out" aria-label="Zoom out" disabled={zoom <= 1} onClick={() => setZoom(Math.max(1, +(zoom - 0.5).toFixed(2)))}>−</button>
             <button type="button" className="sec small" title="Back to fit the whole canvas" aria-label="Zoom fit" style={{ whiteSpace: "nowrap" }} onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</button>
-            <button type="button" className={'sec small' + (hand ? ' on' : '')} title="Hand: when zoomed in, click and drag to move the canvas around" aria-label="Hand tool" aria-pressed={hand} disabled={zoom <= 1 && !hand} onClick={() => setHand(!hand)}>✋</button>
             <button type="button" className="sec small" title="Zoom in" aria-label="Zoom in" disabled={zoom >= 4} onClick={() => setZoom(Math.min(4, +(zoom + 0.5).toFixed(2)))}>+</button></div></>}
         </div>}
       <div className="dz-zoomwrap" ref={wrap} style={z > 1 ? { overflow: 'auto', maxHeight: '78vh', borderRadius: 14 } : undefined}><div style={{ width: `${z * 100}%` }}>
-      <div ref={stage} className={'canvas dz-stage' + (brush ? ' stamping' : '')} data-hand={hand && z > 1 ? '1' : undefined} tabIndex={0} onKeyDown={onKey} onPointerDownCapture={e => { if (hand && z > 1 && wrap.current) { e.stopPropagation(); e.preventDefault(); pan.current = { x: e.clientX, y: e.clientY, l: wrap.current.scrollLeft, t: wrap.current.scrollTop }; stage.current?.setPointerCapture(e.pointerId); } }}
-        onPointerMove={e => { if (pan.current && wrap.current) { wrap.current.scrollLeft = pan.current.l - (e.clientX - pan.current.x); wrap.current.scrollTop = pan.current.t - (e.clientY - pan.current.y); return; } onMove(e); }}
+      <div ref={stage} className={'canvas dz-stage' + (brush ? ' stamping' : '')} data-pan={z > 1 ? '1' : undefined} tabIndex={0} onKeyDown={onKey}         onPointerMove={e => { if (pan.current && wrap.current) { wrap.current.scrollLeft = pan.current.l - (e.clientX - pan.current.x); wrap.current.scrollTop = pan.current.t - (e.clientY - pan.current.y); return; } onMove(e); }}
         onPointerUp={() => { if (pan.current) { pan.current = null; return; } endDrag(); }} onPointerCancel={() => { if (pan.current) { pan.current = null; return; } endDrag(); }}
         onPointerDown={e => {
           if (!(e.target === e.currentTarget || (e.target as HTMLElement).dataset.bg)) return;
           if (ref) setRef(null);
           if (readOnly) { setSel([]); return; }
+          if (z > 1 && wrap.current) { setSel([]); pan.current = { x: e.clientX, y: e.clientY, l: wrap.current.scrollLeft, t: wrap.current.scrollTop }; stage.current!.setPointerCapture(e.pointerId); return; }
           const r = stage.current!.getBoundingClientRect(), x = (e.clientX - r.left) / px, y = (e.clientY - r.top) / px;
           stage.current!.setPointerCapture(e.pointerId); drag.current = { mode: 'marquee', base: e.shiftKey ? sel : [] }; if (!e.shiftKey) setSel([]); setMarq({ x0: x, y0: y, x1: x, y1: y });
         }} style={{ height: crop.h * px, overflow: 'hidden' }}>
