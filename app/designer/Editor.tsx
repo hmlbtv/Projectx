@@ -8,7 +8,7 @@ export type SaveArgs = { id: number | null; name: string; assets: DAsset[]; asNe
 type Props = {
   kind: string; backHref: string; world: { w: number; h: number }; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
   id: number | null; initialName: string; initial: DAsset[]; onSave: (a: SaveArgs) => Promise<{ id?: number; error?: string }>;
-  canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; neaten?: (items: DAsset[]) => DAsset[] | null; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; viewOnly?: boolean; zoomable?: boolean; onAction?: (pi: PaletteItem, add: (over: Partial<PaletteItem>) => void) => void; headerExtra?: React.ReactNode; extras?: (a: DAsset, setProps: (patch: Record<string, any>) => void) => React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
+  canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; neaten?: (items: DAsset[]) => DAsset[] | null; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; viewOnly?: boolean; backQuery?: string; zoomable?: boolean; onAction?: (pi: PaletteItem, add: (over: Partial<PaletteItem>) => void) => void; headerExtra?: React.ReactNode; extras?: (a: DAsset, setProps: (patch: Record<string, any>) => void) => React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
 };
 const SNAP = 10, MIN = 20, HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
 const hit = (a: DAsset, b: DAsset) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -321,7 +321,7 @@ export default function Editor(p: Props) {
 
   return (<div className="dz">
     <div className="dz-bar">
-      <a href={p.backHref} className="btn small" onClick={e => { if (dirty && !confirm('Leave without saving your changes?')) e.preventDefault(); }}>← All {p.kind}s</a>
+      <a href={p.backHref + (p.backQuery ?? '')} className="btn small" onClick={e => { if (dirty && !confirm('Leave without saving your changes?')) e.preventDefault(); }}>← All {p.kind}s</a>
       <input className="dz-name" value={name} disabled={readOnly} onChange={e => { setName(e.target.value); setDirty(true); }} aria-label={`${p.kind} name`} placeholder={`${p.kind} name`} />
       <button className="sec small" onClick={undo} disabled={readOnly || !hist.current.past.length} title="Undo (Ctrl+Z)">↶ Undo</button>
       <button className="sec small" onClick={redo} disabled={readOnly || !hist.current.future.length} title="Redo (Ctrl+Y)">↷ Redo</button>
