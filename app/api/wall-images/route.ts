@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getMe, canManage } from '@/lib/session';
 import { rows, one } from '@/lib/db';
 import { sameOrigin, usage } from '@/lib/wallImages';
+import { record } from '@/lib/audit';
 export const dynamic = 'force-dynamic';
 
 const MAX_BYTES = 3 * 1024 * 1024, MAX_IMAGES = 100;
@@ -25,5 +26,6 @@ export async function POST(req: Request) {
   const w = Math.min(Math.max(Math.round(+(f.get('w') as string)) || 1, 1), 20000), h = Math.min(Math.max(Math.round(+(f.get('h') as string)) || 1, 1), 20000);
   const name = String(f.get('name') ?? 'Image').trim().slice(0, 60) || 'Image';
   const r = (await one('insert into wall_images(tenant_id,name,mime,w,h,data) values($1,$2,$3,$4,$5,$6) returning id', [me.tenant_id, name, mime, w, h, buf]))!;
+  await record(me.tenant_id, me.id, me.name || me.email, 'imageUpload', `“${name}”`);
   return NextResponse.json({ id: r.id, name, w, h });
 }

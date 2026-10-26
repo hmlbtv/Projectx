@@ -1,4 +1,5 @@
 'use server';
+import { audited } from '@/lib/audit';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { one, rows } from './db';
@@ -12,7 +13,7 @@ import type { FormState } from './actions';
 const s = (f: FormData, k: string) => String(f.get(k) ?? '').trim().slice(0, 300);
 
 // ---- Tenant side: share a wall with a contact (an invitation tied to the contact's email) ----
-export async function createWallLink(_: FormState, f: FormData): Promise<FormState> {
+async function createWallLink_(_: FormState, f: FormData): Promise<FormState> {
   const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
   const tenant = me.tenant_id ?? 0, job = Number(s(f, 'job')), wall = Number(s(f, 'wall'));
   const access = s(f, 'access') === 'view' ? 'view' : 'edit';
@@ -30,7 +31,7 @@ export async function createWallLink(_: FormState, f: FormData): Promise<FormSta
   const sent = await sendMail(email, 'A monitor wall has been shared with you', `${me.name} shared a monitor wall with you on TelePlanner (${access === 'edit' ? 'you can edit it' : 'view only'}).\nOpen this link to sign in or create your account:\n${link}\n\nThe account is tied to this email address. All walls shared with you appear in one place after you sign in. Access ends when the Job ends.`);
   return { ok: sent ? `Invitation emailed to ${email}.` : `Email sending is not set up. Send this link to ${email}:`, link: sent ? undefined : link };
 }
-export async function revokeWallLink(f: FormData) {
+async function revokeWallLink_(f: FormData) {
   const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
   await rows(`update wall_links set revoked=true where id=$1 and job_id in (select j.id from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$2)`, [Number(s(f, 'id')), me.tenant_id ?? 0]);
   revalidatePath('/productions');
@@ -82,7 +83,7 @@ export async function addCommentLink(f: FormData) {
 }
 
 // Send an invitation to a different contact (or resend to the same one). The old link stops working.
-export async function reassignWallLink(_: FormState, f: FormData): Promise<FormState> {
+async function reassignWallLink_(_: FormState, f: FormData): Promise<FormState> {
   const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
   const tenant = me.tenant_id ?? 0;
   if (!(await allow('wall-link', String(me.id), 60, 60))) return { error: 'Too many requests. Please wait a while and try again.' };
@@ -98,3 +99,8 @@ export async function reassignWallLink(_: FormState, f: FormData): Promise<FormS
   const sent = await sendMail(contact.email, 'A monitor wall has been shared with you', `${me.name} shared a monitor wall with you on TelePlanner (${wl.access === 'edit' ? 'you can edit it' : 'view only'}).\nOpen this link to sign in or create your account:\n${link}\n\nAccess ends when the Job ends.`);
   return { ok: sent ? `New link emailed to ${contact.email}. The previous link no longer works.` : `Email sending is not set up. Send this new link to ${contact.email} (the previous link no longer works):`, link: sent ? undefined : link };
 }
+
+// Audit trail: each of these is recorded (who, what, when) once it succeeds.
+export async function createWallLink(...a: Parameters<typeof createWallLink_>) { return audited('createWallLink', createWallLink_, a) as ReturnType<typeof createWallLink_>; }
+export async function revokeWallLink(...a: Parameters<typeof revokeWallLink_>) { return audited('revokeWallLink', revokeWallLink_, a) as ReturnType<typeof revokeWallLink_>; }
+export async function reassignWallLink(...a: Parameters<typeof reassignWallLink_>) { return audited('reassignWallLink', reassignWallLink_, a) as ReturnType<typeof reassignWallLink_>; }

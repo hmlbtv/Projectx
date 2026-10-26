@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { rows, one } from '@/lib/db';
 import { requireMe, canManage, isAdmin } from '@/lib/session';
@@ -18,6 +19,7 @@ export default async function Team() {
   return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Team · {tenant.name}</h1>
       <AddDialog inline noName action={inviteTeam} label="Invite" title="Invite someone to your workspace"><p className="mut" style={{ margin: 0 }}>Everyone you invite can use your Wall Templates in their Monitor Plans. Each User can be on 5 active Jobs by default; change it per person from their menu.</p>
         <input name="email" type="email" placeholder="colleague@email" required autoFocus /><select name="role"><option value="user">User</option>{adm && <option value="manager">Manager</option>}{top && <option value="master_admin">Master Admin</option>}</select></AddDialog></div>
+    {['master_admin', 'webappdev'].includes(me.role) && <p><Link href="/audit" className="btn small">Audit trail</Link></p>}
     <p className="mut">Plan <span className="tag">{tenant.plan}</span> · {tenant.m >= 100000 ? 'Unlimited' : tenant.m} Wall Template{tenant.m === 1 ? '' : 's'} per workspace</p>
     <div className="tiles">{members.map((m: any) => { const canEdit = adm && m.role === 'user'; const canRole = mayManage(m); const canSusp = canRole; const canRemove = canRole;
       return (<div key={m.id} className="card tile"><div className="tilelink"><b>{m.name}</b><span className="mut">{m.email}</span>

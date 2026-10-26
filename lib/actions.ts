@@ -1,4 +1,5 @@
 'use server';
+import { audited } from '@/lib/audit';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { unseal, checkCode } from './totp';
@@ -139,7 +140,7 @@ export async function acceptInvite(_: FormState, f: FormData): Promise<FormState
   await createSession(u.id);
   redirect('/');
 }
-export async function changePassword(_: FormState, f: FormData): Promise<FormState> {
+async function changePassword_(_: FormState, f: FormData): Promise<FormState> {
   const me = await requireMe();
   const cur = await one('select password_hash from users where id=$1', [me.id]);
   if (!(await verifyPassword(String(f.get('current') ?? ''), cur?.password_hash))) return { error: 'Current password is incorrect.' };
@@ -180,24 +181,24 @@ async function invite(me: Me, email: string, role: string, jobId?: number): Prom
   if (await sendMail(email, 'You have been invited to TelePlanner', `${me.name} invited you to TelePlanner.\nSet your password to join:\n${link}\n\nThis link expires in 7 days.`)) return { ok: `Invite emailed to ${email}.` };
   return { ok: `Email sending is not set up. Send this link to ${email} (valid 7 days):`, link };
 }
-export async function inviteUser(_: FormState, f: FormData): Promise<FormState> {
+async function inviteUser_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const job = Number(s(f, 'job')); await own('jobs', job, me);
   return invite(me, s(f, 'email').toLowerCase(), 'user', job);
 }
-export async function inviteTeam(_: FormState, f: FormData): Promise<FormState> {
+async function inviteTeam_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr();
   const want = s(f, 'role'), top = me.role === 'master_admin' || me.role === 'webappdev';
   const role = top && want === 'master_admin' ? 'master_admin' : isAdmin(me) && want === 'manager' ? 'manager' : 'user';
   return invite(me, s(f, 'email').toLowerCase(), role);
 }
 // New link (valid 7 days) for someone who was invited but has not set a password yet; the old link stops working.
-export async function resendInvite(_: FormState, f: FormData): Promise<FormState> {
+async function resendInvite_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr();
   const u = await one('select email,role from users where id=$1 and tenant_id=$2 and password_hash is null', [Number(s(f, 'id')), tid(me)]);
   if (!u) return { error: 'That person has already joined, or is not in your team.' };
   return invite(me, u.email, u.role);
 }
-export async function removeMember(f: FormData) {
+async function removeMember_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
   const id = Number(s(f, 'id')); if (id === me.id) return;
   const tgt = await one('select role from users where id=$1 and tenant_id=$2', [id, tid(me)]); if (!tgt) return;
@@ -208,7 +209,7 @@ export async function removeMember(f: FormData) {
 
 // The founding Master Admin (first one on the account) can't be changed by other Master Admins, so an account always keeps an owner.
 const founder = async (tenant: number) => (await one("select min(id) id from users where tenant_id=$1 and role='master_admin'", [tenant]))?.id ?? 0;
-export async function setUserRole(f: FormData) {
+async function setUserRole_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
   const id = Number(s(f, 'id')), role = s(f, 'role'), top = me.role === 'master_admin' || me.role === 'webappdev';
   const allowed = top ? ['user', 'manager', 'admin', 'master_admin'] : ['user', 'manager'];
@@ -221,7 +222,7 @@ export async function setUserRole(f: FormData) {
   revalidatePath('/team');
 }
 // Pause or restore one person. They are signed out and see the suspended page until restored.
-export async function setUserSuspended(f: FormData) {
+async function setUserSuspended_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
   const id = Number(s(f, 'id')), on = s(f, 'suspend') === '1', top = me.role === 'master_admin' || me.role === 'webappdev';
   if (id === me.id) return;
@@ -233,12 +234,12 @@ export async function setUserSuspended(f: FormData) {
   if (on) await rows('delete from sessions where user_id=$1', [id]);
   revalidatePath('/team'); revalidatePath('/webappdev');
 }
-export async function setUserMaxJobs(f: FormData) {
+async function setUserMaxJobs_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
   const max = Math.min(Math.max(parseInt(s(f, 'max')), 0) || 0, 1000);
   await rows("update users set max_jobs=$1 where id=$2 and tenant_id=$3 and role='user'", [max, Number(s(f, 'id')), tid(me)]); revalidatePath('/team');
 }
-export async function removeJobUser(f: FormData) {
+async function removeJobUser_(f: FormData) {
   const me = await mgr(); const job = Number(s(f, 'job')); await own('jobs', job, me);
   await rows('delete from job_users where job_id=$1 and user_id=$2', [job, Number(s(f, 'user'))]); revalidatePath('/productions'); revalidatePath('/team');
 }
@@ -252,7 +253,7 @@ export async function setTenantPlan(f: FormData) {
   revalidatePath('/webappdev');
 }
 
-export async function saveSessionSettings(f: FormData) {
+async function saveSessionSettings_(f: FormData) {
   const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
   const idle = Math.min(Math.max(Math.round(Number(s(f, 'idle'))), 0), 720), days = Math.min(Math.max(Math.round(Number(s(f, 'days'))), 1), 90);
   if (!Number.isFinite(idle) || !Number.isFinite(days)) return;
@@ -289,27 +290,27 @@ export async function deleteTenant(f: FormData) {
 }
 
 // ---- Tenant Tree (Admin + Manager) ----
-export async function addSite(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); if (s(f,'name')) await rows('insert into sites(tenant_id,name) values($1,$2)', [tid(me), s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }
-export async function addLocation(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); const p = Number(s(f,'parent')); await own('sites', p, me); if (s(f,'name')) await rows('insert into locations(site_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }
-export async function addRoom(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); const p = Number(s(f,'parent')); await own('locations', p, me); if (s(f,'name')) await rows('insert into rooms(location_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }
-export async function renameNode(f: FormData) {
+async function addSite_(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); if (s(f,'name')) await rows('insert into sites(tenant_id,name) values($1,$2)', [tid(me), s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }
+async function addLocation_(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); const p = Number(s(f,'parent')); await own('sites', p, me); if (s(f,'name')) await rows('insert into locations(site_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }
+async function addRoom_(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); const p = Number(s(f,'parent')); await own('locations', p, me); if (s(f,'name')) await rows('insert into rooms(location_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }
+async function renameNode_(f: FormData) {
   const me = await mgr(); const t = s(f,'table'); if (!['sites','locations','rooms'].includes(t)) return;
   const id = Number(s(f,'id')); await own(t as any, id, me);
   await rows(`update ${t} set name=$1 where id=$2`, [s(f,'name'), id]); revalidatePath('/tenant');
 }
-export async function addRoomWall(_: FormState, f: FormData): Promise<FormState> {
+async function addRoomWall_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const room = Number(s(f,'room')), wall = Number(s(f,'wall')); await own('rooms', room, me); await own('walls', wall, me);
   if (await one('select 1 from room_walls where room_id=$1 and wall_template_id=$2', [room, wall])) return { error: 'That Wall Template is already in this Room.' };
   const wn = (await one('select name from wall_templates where id=$1', [wall]))!.name;
   await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, wn]); revalidatePath('/walls'); revalidatePath('/tenant'); return { ok: 'Added.' };
 }
-export async function renameRoomWall(f: FormData) {
+async function renameRoomWall_(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id'));
   if (s(f,'name')) await rows(`update room_walls set name=$1 where id=$2 and room_id in (select r.id from rooms r join locations l on l.id=r.location_id join sites st on st.id=l.site_id where st.tenant_id=$3)`, [s(f,'name'), id, tid(me)]);
   revalidatePath('/tenant'); revalidatePath('/plans');
 }
 // Deleting removes everything underneath (Locations, Rooms, walls placed in them). Admin only.
-export async function deleteNode(f: FormData) {
+async function deleteNode_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
   const t = s(f,'table'); if (!['sites','locations','rooms'].includes(t)) return;
   const id = Number(s(f,'id')); await own(t as any, id, me);
@@ -320,7 +321,7 @@ export async function deleteNode(f: FormData) {
   await rows(`delete from ${t} where id=$1`, [id]); revalidatePath('/tenant'); revalidatePath('/walls'); revalidatePath('/productions'); revalidatePath('/plans');
 }
 
-export async function removeRoomWall(f: FormData) {
+async function removeRoomWall_(f: FormData) {
   const me = await mgr(); const id = Number(s(f, 'id'));
   // only if the Room it sits in belongs to this tenant
   await rows(`delete from room_walls where id=$1 and room_id in (select r.id from rooms r join locations l on l.id=r.location_id join sites st on st.id=l.site_id where st.tenant_id=$2)`, [id, tid(me)]);
@@ -328,7 +329,7 @@ export async function removeRoomWall(f: FormData) {
 }
 
 // ---- Wall Designer (Wall Templates live in a library and are applied to any Rooms; demo tenants get 1) ----
-export async function saveWall(id: number | null, name: string, assets: any[], _unused?: number | null): Promise<{ id?: number; error?: string }> {
+async function saveWall_(id: number | null, name: string, assets: any[], _unused?: number | null): Promise<{ id?: number; error?: string }> {
   const me = await mgr();
   if (!Array.isArray(assets) || assets.length > 300) return { error: 'Too many assets.' };
   const c = (v: any, lo: number, hi: number, d = lo) => Math.round(Math.min(Math.max(Number.isFinite(+v) ? +v : d, lo), hi));
@@ -351,7 +352,7 @@ export async function saveWall(id: number | null, name: string, assets: any[], _
   revalidatePath('/walls'); return { id: r.id };
 }
 // Apply a Wall Template to the chosen Rooms (any Room in the workspace). Unticked Rooms lose it (and Jobs using it there).
-export async function setWallRooms(f: FormData) {
+async function setWallRooms_(f: FormData) {
   const me = await mgr(); const wall = Number(s(f,'wall')); await own('walls', wall, me);
   const want = Array.from(new Set(f.getAll('room').map(Number).filter(Boolean)));
   for (const r of want) await own('rooms', r, me);
@@ -360,24 +361,24 @@ export async function setWallRooms(f: FormData) {
   for (const r of want) if (!(await one('select 1 from room_walls where wall_template_id=$1 and room_id=$2', [wall, r]))) await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [r, wall, w.name]);
   revalidatePath('/walls'); revalidatePath('/tenant'); revalidatePath('/productions'); revalidatePath('/plans');
 }
-export async function wallToRoom(f: FormData) {
+async function wallToRoom_(f: FormData) {
   const me = await mgr(); const wall = Number(s(f,'wall')), room = Number(s(f,'room')); await own('walls', wall, me); await own('rooms', room, me);
   if (await one('select 1 from room_walls where room_id=$1 and wall_template_id=$2', [room, wall])) return;
   const w = (await one('select name from wall_templates where id=$1', [wall]))!;
   await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, w.name]);
   revalidatePath('/walls'); revalidatePath('/tenant'); revalidatePath('/plans');
 }
-export async function wallFromRoom(f: FormData) {
+async function wallFromRoom_(f: FormData) {
   const me = await mgr(); const wall = Number(s(f,'wall')), room = Number(s(f,'room')); await own('walls', wall, me); await own('rooms', room, me);
   await rows('delete from room_walls where room_id=$1 and wall_template_id=$2', [room, wall]);
   revalidatePath('/walls'); revalidatePath('/tenant'); revalidatePath('/productions'); revalidatePath('/plans');
 }
-export async function deleteWall(f: FormData) { const me = await mgr(); await rows('delete from room_walls where wall_template_id in (select id from wall_templates where id=$1 and tenant_id=$2)', [Number(s(f,'id')), tid(me)]); revalidatePath('/tenant'); await rows('delete from wall_templates where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/walls'); }
+async function deleteWall_(f: FormData) { const me = await mgr(); await rows('delete from room_walls where wall_template_id in (select id from wall_templates where id=$1 and tenant_id=$2)', [Number(s(f,'id')), tid(me)]); revalidatePath('/tenant'); await rows('delete from wall_templates where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/walls'); }
 
 // ---- MV Tiles (Tile Designer): the site admin makes Standard tiles for everyone; Admin/Manager make custom tiles for their own tenant ----
 const TILE_TYPES = ['umd', 'audio', 'tally', 'clock'];
 const TILE_PROPS: Record<string, string[]> = { umd: ['text'], audio: ['channels', 'orientation'], tally: ['state', 'style'], clock: ['format'] };
-export async function saveTile(p: { id: number | null; name: string; assets: any[]; asNew: boolean; flags?: Record<string, boolean> }): Promise<{ id?: number; error?: string }> {
+async function saveTile_(p: { id: number | null; name: string; assets: any[]; asNew: boolean; flags?: Record<string, boolean> }): Promise<{ id?: number; error?: string }> {
   const me = await mgr();
   if (!Array.isArray(p.assets) || p.assets.length > 500) return { error: 'A tile can hold up to 500 assets.' };
   const assets: any[] = [];
@@ -400,28 +401,28 @@ export async function saveTile(p: { id: number | null; name: string; assets: any
   const r = (await one('insert into mv_tiles(tenant_id,name,assets) values($1,$2,$3) returning id', [standard ? null : tid(me), name, JSON.stringify(assets)]))!;
   revalidatePath('/tiles'); return { id: r.id };
 }
-export async function copyTile(f: FormData) {
+async function copyTile_(f: FormData) {
   const me = await mgr(); const src = await one('select name,assets,tenant_id from mv_tiles where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
   if (me.role !== 'webappdev' && ((await one('select count(*)::int c from mv_tiles where tenant_id=$1', [tid(me)]))!.c >= 200)) return;
   const r = await one('insert into mv_tiles(tenant_id,name,assets) values($1,$2,$3) returning id', [me.role === 'webappdev' && !src.tenant_id ? null : tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.assets)]);
   revalidatePath('/tiles'); redirect(`/tiles?id=${r!.id}`);
 }
-export async function renameTile(f: FormData) {
+async function renameTile_(f: FormData) {
   const me = await mgr(); const name = s(f, 'name').slice(0, 80); if (!name) return;
   await rows(me.role === 'webappdev' ? 'update mv_tiles set name=$1 where id=$2 and (tenant_id=$3 or tenant_id is null)' : 'update mv_tiles set name=$1 where id=$2 and tenant_id=$3', [name, Number(s(f, 'id')), tid(me)]); revalidatePath('/tiles');
 }
 // Site admin only: make a tile Standard (visible to every tenant) or back into a tile private to the site admin's own tenant.
-export async function setTileStandard(f: FormData) {
+async function setTileStandard_(f: FormData) {
   const me = await mgr(); if (me.role !== 'webappdev') throw new Error('Site admin only');
   await rows('update mv_tiles set tenant_id=$1 where id=$2 and (tenant_id=$3 or tenant_id is null)', [s(f, 'standard') === '1' ? null : tid(me), Number(s(f, 'id')), tid(me)]); revalidatePath('/tiles');
 }
-export async function deleteTile(f: FormData) {
+async function deleteTile_(f: FormData) {
   const me = await mgr();
   await rows(me.role === 'webappdev' ? 'delete from mv_tiles where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'delete from mv_tiles where id=$1 and tenant_id=$2', [Number(s(f, 'id')), tid(me)]); revalidatePath('/tiles');
 }
 
 // ---- MV Layouts: only Admin/Manager create custom ones ----
-export async function saveLayout(_: FormState, f: FormData): Promise<FormState> {
+async function saveLayout_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const n = Math.min(Math.max(Number(s(f,'count')) || 1, 1), 36);
   // Every monitor is 16:9: pick the grid (columns x rows) with the biggest 16:9 cells that holds n, and centre it in the frame.
   let cols = 1, rws = n, cw = 0;
@@ -433,7 +434,7 @@ export async function saveLayout(_: FormState, f: FormData): Promise<FormState> 
   await rows('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3)', [standard ? null : tid(me), s(f,'name') || `Custom ${n}`, JSON.stringify(tiles)]);
   revalidatePath('/layouts'); return { ok: 'Added.' };
 }
-export async function saveLayoutTiles(p: { id: number; name: string; tiles: any[]; asNew: boolean; flags?: Record<string, boolean> }): Promise<{ id?: number; error?: string }> {
+async function saveLayoutTiles_(p: { id: number; name: string; tiles: any[]; asNew: boolean; flags?: Record<string, boolean> }): Promise<{ id?: number; error?: string }> {
   const me = await mgr(); const top = me.role === 'webappdev';
   if (!Array.isArray(p.tiles) || p.tiles.length < 1 || p.tiles.length > 64) return { error: 'A layout needs 1 to 64 monitors.' };
   const src = await one('select tenant_id from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(p.id), tid(me)]); if (!src) return { error: 'Layout not found.' };
@@ -478,51 +479,51 @@ export async function tidyStandardLayouts() {
   }
   revalidatePath('/layouts'); redirect('/webappdev?tidied=' + n);
 }
-export async function copyLayout(f: FormData) {
+async function copyLayout_(f: FormData) {
   const me = await mgr(); const src = await one('select name,tiles from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
   const r = (await one('insert into mv_layouts(tenant_id,name,tiles) values($1,$2,$3) returning id', [tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.tiles)]))!;
   revalidatePath('/layouts'); redirect('/layouts?id=' + r.id);
 }
 // Site admin: promote a layout to Standard (shared with every tenant) or move it back to the site admin's own tenant.
-export async function setLayoutStandard(f: FormData) {
+async function setLayoutStandard_(f: FormData) {
   const me = await mgr(); if (me.role !== 'webappdev') return;
   const id = Number(s(f, 'id')), std = s(f, 'standard') === '1';
   await rows('update mv_layouts set tenant_id=$1 where id=$2', [std ? null : tid(me), id]);
   revalidatePath('/layouts');
 }
-export async function deleteLayout(f: FormData) { const me = await mgr(); await rows(me.role === 'webappdev' ? 'delete from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'delete from mv_layouts where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/layouts'); }
+async function deleteLayout_(f: FormData) { const me = await mgr(); await rows(me.role === 'webappdev' ? 'delete from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'delete from mv_layouts where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/layouts'); }
 
 // ---- Productions: Broadcaster > Production > Job ----
 // Plan limits (demo default: 2 Broadcasters, 3 Productions each, 4 active Jobs each; the site admin can change them per tenant)
 // The site admin (webappdev) is never limited.
 const NO_LIMIT = { b: 1e9, p: 1e9, j: 1e9 };
 async function limits(me: Me) { if (me.role === 'webappdev') return NO_LIMIT; return (await one('select max_broadcasters b, max_productions p, max_jobs_per_production j from tenants where id=$1', [tid(me)]))!; }
-export async function addBroadcaster(_: FormState, f: FormData): Promise<FormState> {
+async function addBroadcaster_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const l = await limits(me);
   const c = (await one('select count(*)::int c from broadcasters where tenant_id=$1', [tid(me)]))!.c;
   if (c >= l.b) return { error: `Your plan allows ${l.b} Broadcaster${l.b === 1 ? '' : 's'}. Contact us to upgrade.` };
   if (s(f,'name')) await rows('insert into broadcasters(tenant_id,name) values($1,$2)', [tid(me), s(f,'name')]); revalidatePath('/productions'); return { ok: 'Added.' };
 }
-export async function addProduction(_: FormState, f: FormData): Promise<FormState> {
+async function addProduction_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const p = Number(s(f,'parent')); await own('broadcasters', p, me); const l = await limits(me);
   const c = (await one('select count(*)::int c from productions where broadcaster_id=$1', [p]))!.c;
   if (c >= l.p) return { error: `Your plan allows ${l.p} Production${l.p === 1 ? '' : 's'} per Broadcaster.` };
   if (s(f,'name')) await rows('insert into productions(broadcaster_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/productions'); return { ok: 'Added.' };
 }
-export async function addSourceSet(_: FormState, f: FormData): Promise<FormState> {
+async function addSourceSet_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const list = s(f,'sources').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 500);
   if (s(f,'name')) await rows('insert into source_sets(tenant_id,name,sources) values($1,$2,$3)', [tid(me), s(f,'name'), JSON.stringify(list)]); revalidatePath('/sources'); revalidatePath('/productions'); return { ok: 'Added.' };
 }
-export async function updateSourceSet(f: FormData) {
+async function updateSourceSet_(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id')); await own('sourceSets', id, me);
   const list = s(f,'sources').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 500);
   if (s(f,'name')) await rows('update source_sets set name=$1,sources=$2 where id=$3', [s(f,'name'), JSON.stringify(list), id]); revalidatePath('/sources');
 }
-export async function deleteSourceSet(f: FormData) {
+async function deleteSourceSet_(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id')); await own('sourceSets', id, me);
   await rows('update jobs set source_set_id=null where source_set_id=$1', [id]); await rows('delete from source_sets where id=$1', [id]); revalidatePath('/sources'); revalidatePath('/productions');
 }
-export async function addJob(_: FormState, f: FormData): Promise<FormState> {
+async function addJob_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const p = Number(s(f,'parent')); await own('productions', p, me); const l = await limits(me);
   const c = (await one('select count(*)::int c from jobs where production_id=$1 and (expires_at is null or expires_at >= current_date)', [p]))!.c;
   if (c >= l.j) return { error: `Your plan allows ${l.j} active Job${l.j === 1 ? '' : 's'} per Production.` };
@@ -532,15 +533,15 @@ export async function addJob(_: FormState, f: FormData): Promise<FormState> {
     values($1,$2,$3,$4,coalesce($5::date,$4::date+5),$6)`, [p, s(f,'name'), s(f,'date') || null, fin, exp, ss]);
   revalidatePath('/productions'); return { ok: 'Added.' };
 }
-export async function updateBroadcaster(f: FormData) {
+async function updateBroadcaster_(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id')); await own('broadcasters', id, me);
   if (s(f,'name')) await rows('update broadcasters set name=$1 where id=$2', [s(f,'name'), id]); revalidatePath('/productions');
 }
-export async function updateProduction(f: FormData) {
+async function updateProduction_(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id')); await own('productions', id, me);
   if (s(f,'name')) await rows('update productions set name=$1 where id=$2', [s(f,'name'), id]); revalidatePath('/productions');
 }
-export async function updateJob(f: FormData) {
+async function updateJob_(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id')); await own('jobs', id, me);
   const ss = Number(s(f,'sourceSet')) || null; if (ss) await own('sourceSets', ss, me);
   const fin = s(f,'final') || s(f,'date') || null, exp = s(f,'expires') || null;
@@ -548,35 +549,35 @@ export async function updateJob(f: FormData) {
   revalidatePath('/productions'); revalidatePath('/plans');
 }
 // Deleting removes everything underneath (Productions, Jobs, their Monitor Plans and guest links). Admin only.
-export async function deleteProduction(f: FormData) {
+async function deleteProduction_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
   const id = Number(s(f,'id')); await own('productions', id, me);
   await rows('delete from productions where id=$1', [id]); revalidatePath('/productions'); revalidatePath('/plans');
 }
-export async function deleteBroadcaster(f: FormData) {
+async function deleteBroadcaster_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
   const id = Number(s(f,'id')); await own('broadcasters', id, me);
   await rows('delete from broadcasters where id=$1', [id]); revalidatePath('/productions'); revalidatePath('/walls'); revalidatePath('/tenant');
 }
 // A Wall Template sits in a Room (Sites page); a Job is then given the specific walls it will plan.
 const OWN_RW = 'select 1 from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where rw.id=$1 and s.tenant_id=$2';
-export async function assignWall(f: FormData) {
+async function assignWall_(f: FormData) {
   const me = await mgr(); const job = Number(s(f,'job')), wall = Number(s(f,'wall')); await own('jobs', job, me);
   if (!wall || !(await one(OWN_RW, [wall, tid(me)]))) throw new Error('Not found');
   await rows('insert into job_walls(job_id,room_wall_id) values($1,$2) on conflict do nothing', [job, wall]); revalidatePath('/productions'); revalidatePath('/plans');
 }
-export async function unassignWall(f: FormData) {
+async function unassignWall_(f: FormData) {
   const me = await mgr(); const job = Number(s(f,'job')), wall = Number(s(f,'wall')); await own('jobs', job, me);
   await rows('delete from job_walls where job_id=$1 and room_wall_id=$2', [job, wall]); revalidatePath('/productions'); revalidatePath('/plans');
 }
-export async function deleteJob(f: FormData) {
+async function deleteJob_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
   const id = Number(s(f, 'id')); await own('jobs', id, me);
   await rows('delete from jobs where id=$1', [id]); revalidatePath('/archive'); revalidatePath('/productions'); revalidatePath('/plans');
 }
 
 // ---- Monitor Plans ----
-export async function savePlan(jobId: number, name: string, data: any) {
+async function savePlan_(jobId: number, name: string, data: any) {
   const me = await requireMe(); if (!(await canAccessJob(me, jobId))) throw new Error('Not found');
   if (JSON.stringify(data ?? {}).length > 100_000) throw new Error('Too large');
   name = String(name).slice(0, 80) || 'Room Layout';
@@ -585,7 +586,7 @@ export async function savePlan(jobId: number, name: string, data: any) {
   else await rows('insert into monitor_plans(job_id,user_id,name,data) values($1,$2,$3,$4)', [jobId, me.id, name, JSON.stringify(data)]);
   revalidatePath('/plans');
 }
-export async function addComment(f: FormData) {
+async function addComment_(f: FormData) {
   const me = await requireMe(); const job = Number(s(f,'job')), room = Number(s(f,'room'));
   if (!(await canAccessJob(me, job)) || !(await one('select 1 from job_walls jw join room_walls rw on rw.id=jw.room_wall_id where jw.job_id=$1 and rw.room_id=$2', [job, room]))) throw new Error('Not found');
   if (s(f,'body')) await rows('insert into comments(job_id,room_id,user_id,body) values($1,$2,$3,$4)', [job, room, me.id, s(f,'body').slice(0, 2000)]);
@@ -593,7 +594,7 @@ export async function addComment(f: FormData) {
 }
 
 // One-click sample data for a tenant admin: a Broadcaster, Production, Room with a Wall, two Jobs and saved Monitor Plans.
-export async function loadDemoData() {
+async function loadDemoData_() {
   const me = await requireMe(); if (!isAdmin(me) || !me.tenant_id) throw new Error('Admin only');
   const t = tid(me);
   if (await one("select 1 from broadcasters where tenant_id=$1 and name='Demo Broadcaster'", [t])) redirect('/');
@@ -634,3 +635,55 @@ export async function sendTestEmail(_: FormState, f: FormData): Promise<FormStat
   const r = await sendMailDetailed(to, 'TelePlanner test email', `This is a test email from TelePlanner.\n\nSent: ${new Date().toISOString()}\nFrom: ${mailFrom()}\nSite: ${await baseUrl()}\n\nIf you can read this, email sending works.`);
   return r.ok ? { ok: `Test email sent to ${to}. It should arrive within a minute (check spam too). Resend id: ${r.id ?? 'n/a'}` } : { error: r.error };
 }
+
+// Audit trail: each of these is recorded (who, what, when) once it succeeds.
+export async function inviteUser(...a: Parameters<typeof inviteUser_>) { return audited('inviteUser', inviteUser_, a) as ReturnType<typeof inviteUser_>; }
+export async function inviteTeam(...a: Parameters<typeof inviteTeam_>) { return audited('inviteTeam', inviteTeam_, a) as ReturnType<typeof inviteTeam_>; }
+export async function resendInvite(...a: Parameters<typeof resendInvite_>) { return audited('resendInvite', resendInvite_, a) as ReturnType<typeof resendInvite_>; }
+export async function removeMember(...a: Parameters<typeof removeMember_>) { return audited('removeMember', removeMember_, a) as ReturnType<typeof removeMember_>; }
+export async function setUserRole(...a: Parameters<typeof setUserRole_>) { return audited('setUserRole', setUserRole_, a) as ReturnType<typeof setUserRole_>; }
+export async function setUserSuspended(...a: Parameters<typeof setUserSuspended_>) { return audited('setUserSuspended', setUserSuspended_, a) as ReturnType<typeof setUserSuspended_>; }
+export async function setUserMaxJobs(...a: Parameters<typeof setUserMaxJobs_>) { return audited('setUserMaxJobs', setUserMaxJobs_, a) as ReturnType<typeof setUserMaxJobs_>; }
+export async function removeJobUser(...a: Parameters<typeof removeJobUser_>) { return audited('removeJobUser', removeJobUser_, a) as ReturnType<typeof removeJobUser_>; }
+export async function saveSessionSettings(...a: Parameters<typeof saveSessionSettings_>) { return audited('saveSessionSettings', saveSessionSettings_, a) as ReturnType<typeof saveSessionSettings_>; }
+export async function changePassword(...a: Parameters<typeof changePassword_>) { return audited('changePassword', changePassword_, a) as ReturnType<typeof changePassword_>; }
+export async function addSite(...a: Parameters<typeof addSite_>) { return audited('addSite', addSite_, a) as ReturnType<typeof addSite_>; }
+export async function addLocation(...a: Parameters<typeof addLocation_>) { return audited('addLocation', addLocation_, a) as ReturnType<typeof addLocation_>; }
+export async function addRoom(...a: Parameters<typeof addRoom_>) { return audited('addRoom', addRoom_, a) as ReturnType<typeof addRoom_>; }
+export async function renameNode(...a: Parameters<typeof renameNode_>) { return audited('renameNode', renameNode_, a) as ReturnType<typeof renameNode_>; }
+export async function deleteNode(...a: Parameters<typeof deleteNode_>) { return audited('deleteNode', deleteNode_, a) as ReturnType<typeof deleteNode_>; }
+export async function addRoomWall(...a: Parameters<typeof addRoomWall_>) { return audited('addRoomWall', addRoomWall_, a) as ReturnType<typeof addRoomWall_>; }
+export async function renameRoomWall(...a: Parameters<typeof renameRoomWall_>) { return audited('renameRoomWall', renameRoomWall_, a) as ReturnType<typeof renameRoomWall_>; }
+export async function removeRoomWall(...a: Parameters<typeof removeRoomWall_>) { return audited('removeRoomWall', removeRoomWall_, a) as ReturnType<typeof removeRoomWall_>; }
+export async function setWallRooms(...a: Parameters<typeof setWallRooms_>) { return audited('setWallRooms', setWallRooms_, a) as ReturnType<typeof setWallRooms_>; }
+export async function wallToRoom(...a: Parameters<typeof wallToRoom_>) { return audited('wallToRoom', wallToRoom_, a) as ReturnType<typeof wallToRoom_>; }
+export async function wallFromRoom(...a: Parameters<typeof wallFromRoom_>) { return audited('wallFromRoom', wallFromRoom_, a) as ReturnType<typeof wallFromRoom_>; }
+export async function saveWall(...a: Parameters<typeof saveWall_>) { return audited('saveWall', saveWall_, a) as ReturnType<typeof saveWall_>; }
+export async function deleteWall(...a: Parameters<typeof deleteWall_>) { return audited('deleteWall', deleteWall_, a) as ReturnType<typeof deleteWall_>; }
+export async function saveTile(...a: Parameters<typeof saveTile_>) { return audited('saveTile', saveTile_, a) as ReturnType<typeof saveTile_>; }
+export async function copyTile(...a: Parameters<typeof copyTile_>) { return audited('copyTile', copyTile_, a) as ReturnType<typeof copyTile_>; }
+export async function renameTile(...a: Parameters<typeof renameTile_>) { return audited('renameTile', renameTile_, a) as ReturnType<typeof renameTile_>; }
+export async function setTileStandard(...a: Parameters<typeof setTileStandard_>) { return audited('setTileStandard', setTileStandard_, a) as ReturnType<typeof setTileStandard_>; }
+export async function deleteTile(...a: Parameters<typeof deleteTile_>) { return audited('deleteTile', deleteTile_, a) as ReturnType<typeof deleteTile_>; }
+export async function saveLayout(...a: Parameters<typeof saveLayout_>) { return audited('saveLayout', saveLayout_, a) as ReturnType<typeof saveLayout_>; }
+export async function saveLayoutTiles(...a: Parameters<typeof saveLayoutTiles_>) { return audited('saveLayoutTiles', saveLayoutTiles_, a) as ReturnType<typeof saveLayoutTiles_>; }
+export async function copyLayout(...a: Parameters<typeof copyLayout_>) { return audited('copyLayout', copyLayout_, a) as ReturnType<typeof copyLayout_>; }
+export async function setLayoutStandard(...a: Parameters<typeof setLayoutStandard_>) { return audited('setLayoutStandard', setLayoutStandard_, a) as ReturnType<typeof setLayoutStandard_>; }
+export async function deleteLayout(...a: Parameters<typeof deleteLayout_>) { return audited('deleteLayout', deleteLayout_, a) as ReturnType<typeof deleteLayout_>; }
+export async function addBroadcaster(...a: Parameters<typeof addBroadcaster_>) { return audited('addBroadcaster', addBroadcaster_, a) as ReturnType<typeof addBroadcaster_>; }
+export async function addProduction(...a: Parameters<typeof addProduction_>) { return audited('addProduction', addProduction_, a) as ReturnType<typeof addProduction_>; }
+export async function addSourceSet(...a: Parameters<typeof addSourceSet_>) { return audited('addSourceSet', addSourceSet_, a) as ReturnType<typeof addSourceSet_>; }
+export async function updateSourceSet(...a: Parameters<typeof updateSourceSet_>) { return audited('updateSourceSet', updateSourceSet_, a) as ReturnType<typeof updateSourceSet_>; }
+export async function deleteSourceSet(...a: Parameters<typeof deleteSourceSet_>) { return audited('deleteSourceSet', deleteSourceSet_, a) as ReturnType<typeof deleteSourceSet_>; }
+export async function addJob(...a: Parameters<typeof addJob_>) { return audited('addJob', addJob_, a) as ReturnType<typeof addJob_>; }
+export async function updateBroadcaster(...a: Parameters<typeof updateBroadcaster_>) { return audited('updateBroadcaster', updateBroadcaster_, a) as ReturnType<typeof updateBroadcaster_>; }
+export async function updateProduction(...a: Parameters<typeof updateProduction_>) { return audited('updateProduction', updateProduction_, a) as ReturnType<typeof updateProduction_>; }
+export async function updateJob(...a: Parameters<typeof updateJob_>) { return audited('updateJob', updateJob_, a) as ReturnType<typeof updateJob_>; }
+export async function deleteProduction(...a: Parameters<typeof deleteProduction_>) { return audited('deleteProduction', deleteProduction_, a) as ReturnType<typeof deleteProduction_>; }
+export async function deleteBroadcaster(...a: Parameters<typeof deleteBroadcaster_>) { return audited('deleteBroadcaster', deleteBroadcaster_, a) as ReturnType<typeof deleteBroadcaster_>; }
+export async function deleteJob(...a: Parameters<typeof deleteJob_>) { return audited('deleteJob', deleteJob_, a) as ReturnType<typeof deleteJob_>; }
+export async function assignWall(...a: Parameters<typeof assignWall_>) { return audited('assignWall', assignWall_, a) as ReturnType<typeof assignWall_>; }
+export async function unassignWall(...a: Parameters<typeof unassignWall_>) { return audited('unassignWall', unassignWall_, a) as ReturnType<typeof unassignWall_>; }
+export async function savePlan(...a: Parameters<typeof savePlan_>) { return audited('savePlan', savePlan_, a) as ReturnType<typeof savePlan_>; }
+export async function addComment(...a: Parameters<typeof addComment_>) { return audited('addComment', addComment_, a) as ReturnType<typeof addComment_>; }
+export async function loadDemoData(...a: Parameters<typeof loadDemoData_>) { return audited('loadDemoData', loadDemoData_, a) as ReturnType<typeof loadDemoData_>; }

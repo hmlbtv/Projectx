@@ -37,6 +37,8 @@ alter table tenants add column if not exists max_walls_per_broadcaster int not n
 alter table wall_templates add column if not exists broadcaster_id int references broadcasters(id) on delete set null;
 alter table wall_templates add column if not exists site_id int references sites(id) on delete set null;
 create table if not exists wall_images(id serial primary key, tenant_id int not null, name text not null, mime text not null, w int not null, h int not null, data bytea not null, created_at timestamptz not null default now());
+create table if not exists audit_log(id bigserial primary key, tenant_id int, user_id int, who text not null, action text not null, detail text not null default '', at timestamptz not null default now());
+create index if not exists ix_audit_tenant_at on audit_log(tenant_id, at desc);
 create index if not exists ix_wall_images_tenant on wall_images(tenant_id);
 create index if not exists ix_wall_templates_site on wall_templates(site_id);
 alter table tenants add column if not exists max_broadcasters int not null default 2;
