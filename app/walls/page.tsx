@@ -1,27 +1,47 @@
 import { rows, one } from '@/lib/db';
 import { requireMe, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
-import { deleteWall } from '@/lib/actions';
+import { deleteWall, setWallRooms } from '@/lib/actions';
 import WallEditor from './WallEditor';
+import { WallArt } from './WallArt';
+import { WALL_W, WALL_H } from './wallAssets';
 import Menu from '../Menu';
 import Link from 'next/link';
 export const dynamic = 'force-dynamic';
 
-export default async function Walls({ searchParams }: { searchParams: Promise<{ id?: string; q?: string; b?: string }> }) {
+const Thumb = ({ assets }: { assets: any[] }) => (<svg viewBox={`0 0 ${WALL_W} ${WALL_H}`} width="100%" style={{ display: 'block', borderRadius: 6, background: '#1b2027', aspectRatio: '16/9' }} aria-hidden>
+  {assets.map((a: any) => <svg key={a.id} x={a.x} y={a.y} width={a.w} height={a.h} viewBox={`0 0 ${a.w} ${a.h}`}><WallArt a={a} /></svg>)}</svg>);
+
+export default async function Walls({ searchParams }: { searchParams: Promise<{ id?: string; q?: string }> }) {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
-  const { id, q, b } = await searchParams; const t = me.tenant_id ?? 0;
-  const list = await rows('select w.*, b.name bname from wall_templates w left join sites b on b.id=w.site_id where w.tenant_id=$1 and w.name ilike $2 order by w.name', [t, `%${q ?? ''}%`]);
-  const lim = (await one('select max_walls_per_broadcaster m, plan from tenants where id=$1', [t]))!;
-  const bcs = await rows('select b.id,b.name,(select count(*)::int from wall_templates w where w.site_id=b.id) c from sites b where b.tenant_id=$1 order by b.name', [t]);
-  const pick = bcs.find((x: any) => String(x.id) === b);
+  const { id, q } = await searchParams; const t = me.tenant_id ?? 0;
+  const list = await rows('select w.* from wall_templates w where w.tenant_id=$1 and w.name ilike $2 order by w.name', [t, `%${q ?? ''}%`]);
+  const lim = (await one('select max_walls_per_broadcaster m, plan, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [t]))!;
+  const rooms = await rows(`select r.id, s.name sname, l.name lname, r.name from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name,l.name,r.name`, [t]);
+  const used = await rows(`select rw.wall_template_id w, rw.room_id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1`, [t]);
+  const label = (r: any) => `${r.sname} › ${r.lname} › ${r.name}`;
+  const roomsOf = (w: number) => used.filter((u: any) => u.w === w).map((u: any) => rooms.find((r: any) => r.id === u.room_id)).filter(Boolean);
   const cur = id === 'new' ? { id: null, name: 'New Wall Template', data: { assets: [] } } : list.find((w: any) => String(w.id) === id);
-  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Wall Designer</h1><Link href="/walls?id=new" className="btn small">+ New Wall Template</Link></div>
-    <p className="mut">Plan allows {lim.m >= 100000 ? 'unlimited' : lim.m} Wall Template{lim.m === 1 ? '' : 's'} per Site <span className="tag">{lim.plan}</span>{bcs.map((x: any) => <span key={x.id} className="tag">{x.name}: {x.c}{lim.m >= 100000 ? '' : ` of ${lim.m}`}</span>)}</p>
+  if (cur) {
+    const mine = cur.id ? roomsOf(cur.id) : [];
+    const notice = (<div className="card" style={{ margin: '0 0 8px' }}>
+      <b>Used in: </b>{mine.length === 0 ? <span className="mut">no Rooms yet. Use the ⋯ menu in the library to apply it.</span> : mine.map((r: any) => <span key={r.id} className="tag">{label(r)}</span>)}
+      {mine.length > 1 && <p style={{ margin: '6px 0 0', color: '#b45309' }}><b>Warning:</b> this Wall Template is used in {mine.length} Rooms. Changes here change the wall in all of them.</p>}</div>);
+    return <WallEditor key={String(cur.id)} id={cur.id} initialName={cur.name} initial={cur.data.assets} notice={notice} />;
+  }
+  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Wall Template library</h1><Link href="/walls?id=new" className="btn small">+ New Wall Template</Link></div>
+    <p className="mut">{lim.c} Wall Template{lim.c === 1 ? '' : 's'}{lim.m >= 100000 ? '' : ` of ${lim.m} allowed`} <span className="tag">{lim.plan}</span></p>
     <form className="row"><input name="q" placeholder="Search Wall Templates" defaultValue={q} /><button className="sec">Search</button></form>
-    <div className="split" style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 12 }}>
-      <div>{list.map((w: any) => (<div key={w.id} className="card tile"><Link href={`/walls?id=${w.id}`} className="tilelink"><b>{w.name}</b><span className="mut">{w.bname ? w.bname + ' · ' : ''}{w.data.assets.length} assets</span></Link>
-        {w.tenant_id && <Menu><form action={deleteWall} className="del-row"><input type="hidden" name="id" value={w.id} /><span className="mut">Delete this Wall Template? It is removed from any Room and Job using it.</span><button className="del">Yes, delete</button></form></Menu>}</div>))}</div>
-      <div>{id === 'new' && !pick ? (bcs.length === 0 ? <p className="mut">Add a Site first (Sites page) - each Wall Template belongs to a Site, then is added to that Site's Rooms.</p> :
-        <div className="card"><b>Which Site is this Wall Template for?</b>{bcs.map((x: any) => <div key={x.id}><a href={`/walls?id=new&b=${x.id}`}>{x.name}</a> <span className="mut">{x.c} of {lim.m} used</span></div>)}</div>)
-      : cur ? <WallEditor key={String(cur.id) + (pick?.id ?? '')} id={cur.id} initialName={cur.name} initial={cur.data.assets} siteId={pick?.id ?? cur.site_id ?? null} /> : <p className="mut">Select a Wall Template or create a new one.</p>}</div></div></>);
+    {list.length === 0 && <p className="mut">No Wall Templates yet. Press “+ New Wall Template” to design one.</p>}
+    <div className="tiles">{list.map((w: any) => { const mine = roomsOf(w.id); const on = new Set(mine.map((r: any) => r.id));
+      return (<div key={w.id} className="card tile" style={{ display: 'block' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><Link href={`/walls?id=${w.id}`} className="tilelink"><b>{w.name}</b></Link>
+          <Menu><b>Apply to Rooms</b>
+            {rooms.length === 0 ? <span className="mut">No Rooms yet. Add Rooms on the Sites page.</span> :
+            <form action={setWallRooms} className="stack"><input type="hidden" name="wall" value={w.id} />
+              <div style={{ maxHeight: 220, overflow: 'auto' }}>{rooms.map((r: any) => <label key={r.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" name="room" value={r.id} defaultChecked={on.has(r.id)} />{label(r)}</label>)}</div>
+              <span className="mut">Unticking a Room removes this wall from it, and from Jobs using it there.</span><button className="sec">Save</button></form>}
+            <form action={deleteWall} className="del-row"><input type="hidden" name="id" value={w.id} /><span className="mut">Delete this Wall Template? It is removed from any Room and Job using it.</span><button className="del">Yes, delete</button></form></Menu></div>
+        <Link href={`/walls?id=${w.id}`} style={{ display: 'block', margin: '6px 0' }}><Thumb assets={w.data.assets} /></Link>
+        <div className="mut" style={{ fontSize: 13 }}>{mine.length === 0 ? 'Not used in any Room' : <>Used in: {mine.map((r: any) => <span key={r.id} className="tag">{label(r)}</span>)}</>}</div></div>); })}</div></>);
 }

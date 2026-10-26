@@ -26,10 +26,10 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
   const rid = Number(q.r) || 0;
   if (rid) {
     const r = rms.find((x: any) => x.id === rid); if (!r) redirect('/tenant');
-    const l = locs.find((x: any) => x.id === r.location_id)!; const s = sites.find((x: any) => x.id === l.site_id)!; const mine = rw.filter((x: any) => x.room_id === r.id); const siteWalls = walls.filter((w: any) => !w.site_id || w.site_id === s.id);
+    const l = locs.find((x: any) => x.id === r.location_id)!; const s = sites.find((x: any) => x.id === l.site_id)!; const mine = rw.filter((x: any) => x.room_id === r.id); const siteWalls = walls;
     return (<><Bar back={`/tenant?l=${l.id}`} />
       <Head crumb={`${s.name} › ${l.name}`} title={r.name} sub={`Room · ${plural(mine.length, 'Wall Template')}`}><Edit table="rooms" id={r.id} name={r.name} what="Room" /></Head>
-      {siteWalls.length === 0 ? <p className="mut">No Wall Templates for {s.name} yet. <Link href="/walls">Build one in the Wall Designer</Link> for this Site, then add it here.</p> :
+      {siteWalls.length === 0 ? <p className="mut">No Wall Templates built yet. <Link href="/walls">Build one in the Wall Designer</Link>, then add it here.</p> :
         <AddDialog action={addRoomWall} label="Add Wall Template" title="Add a Wall Template to this Room" placeholder="Wall name in this Room"><input type="hidden" name="room" value={r.id} />
           <select name="wall">{siteWalls.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></AddDialog>}
       {mine.length === 0 && <p className="mut">No Wall Template yet. The Room is saved and can be used now; add a wall whenever it is ready.</p>}
