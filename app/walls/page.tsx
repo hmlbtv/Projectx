@@ -1,7 +1,7 @@
 import { rows, one } from '@/lib/db';
 import { requireMe, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
-import { deleteWall, setWallRooms, wallToRoom, wallFromRoom } from '@/lib/actions';
+import { deleteWall, setWallRooms, wallFromRoom } from '@/lib/actions';
 import WallEditor from './WallEditor';
 import WallThumb from './WallThumb';
 import Menu from '../Menu';
@@ -26,10 +26,9 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
   const keep = new URLSearchParams({ ...(q ? { q } : {}), ...(f !== 'all' ? { f } : {}), ...(siteF ? { site: String(siteF) } : {}), ...(sort !== 'name' ? { sort } : {}), ...(view === 'list' ? { view } : {}) });
   const cur = id === 'new' ? { id: null, name: 'New Wall Template', data: { assets: [] } } : list.find((w: any) => String(w.id) === id);
   if (cur) {
-    const mine = cur.id ? roomsOf(cur.id) : []; const free = rooms.filter((r: any) => !mine.some((m: any) => m.id === r.id));
+    const mine = cur.id ? roomsOf(cur.id) : [];
     const notice = (<div className="card" style={{ margin: '0 0 8px' }}>
-      <b>Used in: </b>{mine.length === 0 ? <span className="mut">no Rooms yet. Save the template, then add it to a Room here or from the library.</span> : mine.map((r: any) => <form key={r.id} action={wallFromRoom} style={{ display: 'inline' }}><input type="hidden" name="wall" value={cur.id} /><input type="hidden" name="room" value={r.id} /><span className="tag">{label(r)} <button className="del" style={{ padding: '0 6px', marginLeft: 4 }} title="Remove from this Room (Jobs using it there lose it)" aria-label={`Remove from ${label(r)}`}>×</button></span></form>)}
-      {cur.id && mine.length === 0 && free.length > 0 && <form action={wallToRoom} style={{ display: 'inline-flex', gap: 6, marginLeft: 8 }}><input type="hidden" name="wall" value={cur.id} /><select name="room" aria-label="Room">{free.map((r: any) => <option key={r.id} value={r.id}>{label(r)}</option>)}</select><button className="sec">Add to Room</button></form>}
+      <b>Used in: </b>{mine.length === 0 ? <span className="mut">no Rooms yet. Save the template, then add it to a Room from the library menu (⋯) or the Room page.</span> : mine.map((r: any) => <form key={r.id} action={wallFromRoom} style={{ display: 'inline' }}><input type="hidden" name="wall" value={cur.id} /><input type="hidden" name="room" value={r.id} /><span className="tag">{label(r)} <button className="del" style={{ padding: '0 6px', marginLeft: 4 }} title="Remove from this Room (Jobs using it there lose it)" aria-label={`Remove from ${label(r)}`}>×</button></span></form>)}
       {mine.length > 1 && <p style={{ margin: '6px 0 0', color: '#b45309' }}><b>Note:</b> a Wall Template can be in only one Room, but this one is in {mine.length} from before. Remove it from the extra Rooms (the × above) to keep just one.</p>}</div>);
     return <WallEditor key={String(cur.id)} id={cur.id} initialName={cur.name} initial={cur.data.assets} notice={notice} mvs={mvs} dsets={dsets} backQuery={keep.toString() ? '?' + keep.toString() : ''} />;
   }
