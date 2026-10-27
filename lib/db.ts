@@ -30,6 +30,9 @@ create table if not exists user_emails(email text primary key, user_id int not n
 create table if not exists attempts(key text not null, at timestamptz not null default now());
 create index if not exists attempts_key_at on attempts(key, at);
 alter table attempts add column if not exists id bigserial;
+create table if not exists destination_sets(id serial primary key, tenant_id int not null references tenants(id) on delete cascade, site_id int not null references sites(id) on delete cascade, name text not null);
+create table if not exists destinations(id serial primary key, set_id int not null references destination_sets(id) on delete cascade, name text not null, pos int not null default 0);
+create index if not exists ix_dest_set on destinations(set_id, pos);
 create table if not exists settings(key text primary key, value text not null);
 alter table sessions add column if not exists last_active timestamptz not null default now();
 alter table tenants add column if not exists plan text not null default 'demo';

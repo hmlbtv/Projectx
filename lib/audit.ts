@@ -10,7 +10,7 @@ const LABEL: Record<string, string> = {
   saveWall: 'Saved a Wall Template', deleteWall: 'Deleted a Wall Template',
   saveTile: 'Saved an MV Tile', copyTile: 'Copied an MV Tile', renameTile: 'Renamed an MV Tile', setTileStandard: 'Changed an MV Tile Standard setting', deleteTile: 'Deleted an MV Tile',
   saveLayout: 'Created an MV Layout', saveLayoutTiles: 'Saved an MV Layout', copyLayout: 'Copied an MV Layout', setLayoutStandard: 'Changed an MV Layout Standard setting', deleteLayout: 'Deleted an MV Layout',
-  addBroadcaster: 'Added a Broadcaster', addProduction: 'Added a Production', addSourceSet: 'Added a Source Set', updateSourceSet: 'Edited a Source Set', deleteSourceSet: 'Deleted a Source Set',
+  addBroadcaster: 'Added a Broadcaster', addProduction: 'Added a Production', addDestSet: 'Added a Destination Set', updateDestSet: 'Edited a Destination Set', deleteDestSet: 'Deleted a Destination Set', addSourceSet: 'Added a Source Set', updateSourceSet: 'Edited a Source Set', deleteSourceSet: 'Deleted a Source Set',
   addJob: 'Added a Job', updateBroadcaster: 'Edited a Broadcaster', updateProduction: 'Edited a Production', updateJob: 'Edited a Job', deleteProduction: 'Deleted a Production', deleteBroadcaster: 'Deleted a Broadcaster', deleteJob: 'Deleted a Job',
   assignWall: 'Assigned a wall to a Job', unassignWall: 'Removed a wall from a Job', savePlan: 'Saved a Monitor Plan', addComment: 'Added a comment',
   addContact: 'Added a Contact', deleteContact: 'Deleted a Contact', assignContact: 'Assigned a Contact', unassignContact: 'Unassigned a Contact', updateContact: 'Edited a Contact',
@@ -22,7 +22,7 @@ export const AUDITED = Object.keys(LABEL).filter(k => !k.startsWith('image'));
 
 // What each delete looks up first, so the name is still known afterwards.
 const NAME_OF: Record<string, [string, string]> = { deleteWall: ['wall_templates', 'name'], deleteLayout: ['mv_layouts', 'name'], deleteTile: ['mv_tiles', 'name'], deleteJob: ['jobs', 'name'], deleteProduction: ['productions', 'name'], deleteBroadcaster: ['broadcasters', 'name'],
-  removeMember: ['users', 'email'], deleteSourceSet: ['source_sets', 'name'], removeRoomWall: ['room_walls', 'name'], deleteContact: ['contacts', 'name'], renameTile: ['mv_tiles', 'name'] };
+  removeMember: ['users', 'email'], deleteSourceSet: ['source_sets', 'name'], deleteDestSet: ['destination_sets', 'name'], removeRoomWall: ['room_walls', 'name'], deleteContact: ['contacts', 'name'], renameTile: ['mv_tiles', 'name'] };
 const SHOW = ['name', 'email', 'role', 'plan', 'table', 'date', 'final', 'expires', 'suspend', 'max'];
 
 async function detail(name: string, args: any[], pre: string | null): Promise<string> {

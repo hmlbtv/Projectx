@@ -5,7 +5,7 @@ import { rows } from '@/lib/db';
 import { requireMe, isAdmin, canManage } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import AddDialog from '../AddDialog';
-import { addSite, addLocation, addRoom, renameNode, addRoomWall, removeRoomWall, renameRoomWall, deleteNode } from '@/lib/actions';
+import { addSite, addLocation, addRoom, renameNode, addRoomWall, removeRoomWall, renameRoomWall, deleteNode, addDestSet, updateDestSet, deleteDestSet } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
 export default async function Sites({ searchParams }: { searchParams: Promise<{ s?: string; l?: string; r?: string }> }) {
@@ -14,6 +14,7 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
   const sites = await rows('select * from sites where tenant_id=$1 order by name', [t]);
   const locs = await rows('select l.* from locations l join sites s on s.id=l.site_id where s.tenant_id=$1 order by l.name', [t]);
   const rms = await rows('select r.* from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by r.name', [t]);
+  const dsets = (await rows('select s.id, s.site_id, s.name, coalesce((select json_agg(d.name order by d.pos, d.id) from destinations d where d.set_id=s.id), \'[]\'::json) dests from destination_sets s where s.tenant_id=$1 order by s.name', [t])) as any[];
   const walls = await rows('select id,name,site_id from wall_templates where tenant_id=$1 order by name', [t]);
   const rw = await rows('select rw.*, w.name wall, w.data wdata from room_walls rw join wall_templates w on w.id=rw.wall_template_id join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by rw.name', [t]);
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -63,7 +64,14 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
       <AddDialog action={addLocation} label="Add Location" title="New Location" placeholder="Location name"><input type="hidden" name="parent" value={s.id} /></AddDialog>
       {mine.length === 0 && <p className="mut">No Locations yet.</p>}
       <div className="tiles">{mine.map((l: any) => (<div key={l.id} className="card tile"><Link href={`/tenant?l=${l.id}`} className="tilelink"><b>{l.name}</b><span className="mut">{plural(rms.filter((r: any) => r.location_id === l.id).length, 'Room')}</span><Strip list={rw.filter((x: any) => rms.some((r: any) => r.id === x.room_id && r.location_id === l.id))} /></Link>
-        <Menu><Edit table="locations" id={l.id} name={l.name} what="Location" /></Menu></div>))}</div></>);
+        <Menu><Edit table="locations" id={l.id} name={l.name} what="Location" /></Menu></div>))}</div>
+      <h2 style={{ margin: '22px 0 4px' }}>Destination Sets</h2>
+      <p className="mut" style={{ margin: '0 0 8px' }}>The named outputs of this Site (for example “UHD 5”). A monitor in a Wall Template is given some of them, and the multiview windows take those names.</p>
+      <AddDialog action={addDestSet} label="Add Destination Set" title="New Destination Set" placeholder="Destination Set name (e.g. UHD 5)"><input type="hidden" name="site" value={s.id} /><textarea name="dests" placeholder="One destination per line" rows={8} /></AddDialog>
+      {dsets.filter((d: any) => d.site_id === s.id).length === 0 && <p className="mut">No Destination Sets yet.</p>}
+      <div className="tiles">{dsets.filter((d: any) => d.site_id === s.id).map((d: any) => (<div key={d.id} className="card tile"><div className="tilelink"><b>{d.name}</b><span className="mut">{plural(d.dests.length, 'destination')}</span><span className="mut" style={{ fontSize: '.85rem' }}>{d.dests.slice(0, 5).join(' · ')}{d.dests.length > 5 ? ` · +${d.dests.length - 5} more` : ''}</span></div>
+        <Menu><b>Edit Destination Set</b><form action={updateDestSet} className="stack"><input type="hidden" name="id" value={d.id} /><input name="name" defaultValue={d.name} required /><textarea name="dests" rows={Math.min(12, Math.max(4, d.dests.length + 1))} defaultValue={d.dests.join('\n')} /><button className="sec">Save</button></form>
+          <form action={deleteDestSet} className="del-row"><input type="hidden" name="id" value={d.id} /><span className="mut">Delete this Destination Set? Monitors using it lose their destinations.</span><button className="del">Yes, delete</button></form></Menu></div>))}</div></>);
   }
   // ---- Home: sites ----
   return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Sites</h1><AddDialog action={addSite} inline label="Add Site" title="New Site" placeholder="Site name" /></div>
