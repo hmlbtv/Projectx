@@ -10,10 +10,11 @@ export const dynamic = 'force-dynamic';
 export default async function Team() {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
   const t = me.tenant_id ?? 0; const adm = isAdmin(me); const top = me.role === 'master_admin' || me.role === 'webappdev';
-  const tenant = await one('select name,plan,max_walls_per_broadcaster m from tenants where id=$1', [t]);
-  const members = await rows(`select id,name,email,role,suspended,totp_enabled,(password_hash is null) pending, max_jobs,
+  const tenant_p = one('select name,plan,max_walls_per_broadcaster m from tenants where id=$1', [t]);
+  const members_p = rows(`select id,name,email,role,suspended,totp_enabled,(password_hash is null) pending, max_jobs,
     (select count(*)::int from job_users ju join jobs j on j.id=ju.job_id where ju.user_id=users.id and j.expires_at >= current_date) active
     from users where tenant_id=$1 order by id`, [t]);
+  const [tenant, members] = await Promise.all([tenant_p, members_p]);
   const founderId = members.find((x: any) => x.role === 'master_admin')?.id;
   const mayManage = (m: any) => adm && m.id !== me.id && m.role !== 'webappdev' && (m.role === 'user' || m.role === 'manager' || (top && (m.role === 'admin' || (m.role === 'master_admin' && m.id !== founderId))));
   return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Team · {tenant.name}</h1>

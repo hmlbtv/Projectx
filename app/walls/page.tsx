@@ -12,12 +12,14 @@ export const dynamic = 'force-dynamic';
 export default async function Walls({ searchParams }: { searchParams: Promise<{ id?: string; q?: string; f?: string; site?: string; sort?: string; view?: string }> }) {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
   const { id, q: q0, f: fl, site: st0, sort: so, view: vw } = await searchParams; const t = me.tenant_id ?? 0, q = (q0 ?? '').trim().slice(0, 80);
-  const list = await rows('select w.* from wall_templates w where w.tenant_id=$1 order by w.name', [t]);
-  const lim = (await one('select max_walls_per_broadcaster m, plan, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [t]))!;
-  const rooms = await rows(`select r.id, s.id sid, l.id lid, s.name sname, l.name lname, r.name from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name,l.name,r.name`, [t]);
-  const used = await rows(`select rw.wall_template_id w, rw.room_id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1`, [t]);
-  const mvs = ((await rows('select id, name, (tenant_id is null) standard, jsonb_array_length(tiles)::int n, tiles from mv_layouts where tenant_id is null or tenant_id=$1 order by (tenant_id is null), name', [t])) as any[]).map(m => ({ ...m, tiles: (m.tiles ?? []).map((x: any) => ({ x: x.x, y: x.y, w: x.w, h: x.h })) }));
-  const dsets = ((await rows(`select ds.id, ds.name, st.name site, coalesce((select json_agg(json_build_object('id', d.id, 'name', d.name) order by d.pos, d.id) from destinations d where d.set_id=ds.id), '[]'::json) dests from destination_sets ds join sites st on st.id=ds.site_id where ds.tenant_id=$1 order by st.name, ds.name`, [t])) as any[]);
+  const list_p = rows('select w.* from wall_templates w where w.tenant_id=$1 order by w.name', [t]);
+  const lim_p = one('select max_walls_per_broadcaster m, plan, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [t]);
+  const rooms_p = rows(`select r.id, s.id sid, l.id lid, s.name sname, l.name lname, r.name from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name,l.name,r.name`, [t]);
+  const used_p = rows(`select rw.wall_template_id w, rw.room_id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1`, [t]);
+  const mvs_p = rows('select id, name, (tenant_id is null) standard, jsonb_array_length(tiles)::int n, tiles from mv_layouts where tenant_id is null or tenant_id=$1 order by (tenant_id is null), name', [t]);
+  const dsets_p = rows(`select ds.id, ds.name, st.name site, coalesce((select json_agg(json_build_object('id', d.id, 'name', d.name) order by d.pos, d.id) from destinations d where d.set_id=ds.id), '[]'::json) dests from destination_sets ds join sites st on st.id=ds.site_id where ds.tenant_id=$1 order by st.name, ds.name`, [t]);
+  const [list, lim0, rooms, used, mvs0, dsets] = await Promise.all([list_p, lim_p, rooms_p, used_p, mvs_p, dsets_p]); // queries run together
+  const lim = lim0!; const mvs = (mvs0 as any[]).map(m => ({ ...m, tiles: (m.tiles ?? []).map((x: any) => ({ x: x.x, y: x.y, w: x.w, h: x.h })) }));
   const sites = Array.from(new Map(rooms.map((r: any) => [r.sid, { id: r.sid, name: r.sname }])).values()) as any[];
   const locs = Array.from(new Map(rooms.map((r: any) => [r.lid, { id: r.lid, sid: r.sid, lname: r.lname }])).values()) as any[];
   const label = (r: any) => `${r.sname} › ${r.lname} › ${r.name}`;
