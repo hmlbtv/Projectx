@@ -98,9 +98,15 @@ export default function Editor(p: Props) {
     const clip = getClip(); if (readOnly || !clip.length) return; pasteN++;
     const bx = Math.min(...clip.map(a => a.x)), by = Math.min(...clip.map(a => a.y)), bw = Math.max(...clip.map(a => a.x + a.w)) - bx, bh = Math.max(...clip.map(a => a.y + a.h)) - by;
     if (bw > world.w || bh > world.h) { setMsg('That is too big for this canvas.'); return; }
-    const nx = Math.min(Math.max(bx + 20 * pasteN, 0), world.w - bw), ny = Math.min(Math.max(by + 20 * pasteN, 0), world.h - bh);
-    const copies = clip.filter(a => a && typeof a.x === 'number').map(a => ({ ...a, id: rid(), x: a.x - bx + nx, y: a.y - by + ny, props: { ...a.props } }));
-    if (!free([...items, ...copies], copies)) { setMsg('No room to paste there - move things and try again.'); return; }
+    const mk = (nx: number, ny: number) => clip.filter(a => a && typeof a.x === 'number').map(a => ({ ...a, id: rid(), x: a.x - bx + nx, y: a.y - by + ny, props: { ...a.props } }));
+    const wx = Math.min(Math.max(bx + 20 * pasteN, 0), world.w - bw), wy = Math.min(Math.max(by + 20 * pasteN, 0), world.h - bh);
+    let copies = mk(wx, wy);
+    if (!free([...items, ...copies], copies)) { // the offset spot is taken: use the free spot nearest to it
+      let best: { x: number; y: number; d: number } | null = null; const step = Math.max(10, Math.round(Math.min(bw, bh) / 4 / 10) * 10);
+      for (let y = 0; y <= world.h - bh; y += step) for (let x = 0; x <= world.w - bw; x += step) { const d = (x - wx) ** 2 + (y - wy) ** 2; if (best && d >= best.d) continue; const t = mk(x, y); if (free([...items, ...t], t)) best = { x, y, d }; }
+      if (!best) { setMsg('No room to paste - make some space and try again.'); return; }
+      copies = mk(best.x, best.y);
+    }
     apply([...items, ...copies]); setSel(copies.map(c => c.id)); setMsg(`${copies.length} pasted`);
   }
 
