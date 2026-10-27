@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { one, rows } from './db';
@@ -10,10 +11,13 @@ export const isAdmin = (me: Me) => ['webappdev', 'master_admin', 'admin'].includ
 // __Host- prefix (production): browser only accepts it over HTTPS, for this exact host, with no Domain attribute.
 const COOKIE = process.env.NODE_ENV === 'production' ? '__Host-gp_session' : 'gp_session';
 // Sign-in length is set by the site admin: signed out after IDLE_HOURS with no activity (0 = never), and always after MAX_DAYS.
+let limitsAt = 0, limitsVal: { idleHours: number; maxDays: number } | null = null; // settings change rarely: kept for 30 s so most requests skip the query
+export const resetLimits = () => { limitsVal = null; };
 export async function sessionLimits() {
+  if (limitsVal && Date.now() - limitsAt < 30_000) return limitsVal;
   const r = await rows<{ key: string; value: string }>("select key, value from settings where key in ('idle_hours','max_days')");
   const v = (k: string, d: number) => { const x = r.find(y => y.key === k); const n = x ? Number(x.value) : NaN; return Number.isFinite(n) ? n : d; };
-  return { idleHours: v('idle_hours', 8), maxDays: v('max_days', 30) };
+  limitsVal = { idleHours: v('idle_hours', 8), maxDays: v('max_days', 30) }; limitsAt = Date.now(); return limitsVal;
 }
 
 // The cookie holds a random token; only its SHA-256 hash is stored, so a database leak can't be used to log in.
@@ -34,18 +38,20 @@ export async function destroySession() {
   if (t) await rows('delete from sessions where id=$1', [sha256(t)]);
   c.delete(COOKIE);
 }
-export async function getMe(): Promise<Me | null> {
+// Once per request (the layout and the page both ask): one query, and the activity heartbeat only when it is more than a minute old.
+export const getMe = cache(async function getMe(): Promise<Me | null> {
   const t = (await cookies()).get(COOKIE)?.value; if (!t) return null;
   const h = sha256(t);
   const { idleHours } = await sessionLimits();
-  const me = (await one<Me>(`select u.id,u.name,u.email,u.role,u.tenant_id from sessions s join users u on u.id=s.user_id
+  const r = await one<Me & { stale: boolean }>(`select u.id,u.name,u.email,u.role,u.tenant_id, (s.last_active < now() - interval '1 minute') stale from sessions s join users u on u.id=s.user_id
     left join tenants t on t.id=u.tenant_id
-    where s.id=$1 and s.expires_at > now() and ($2::numeric = 0 or s.last_active > now() - ($2::numeric * interval '1 hour')) and (u.role='webappdev' or (not u.suspended and (t.id is null or t.status='active')))`, [h, idleHours])) ?? null;
+    where s.id=$1 and s.expires_at > now() and ($2::numeric = 0 or s.last_active > now() - ($2::numeric * interval '1 hour')) and (u.role='webappdev' or (not u.suspended and (t.id is null or t.status='active')))`, [h, idleHours]);
+  if (!r) return null;
+  const { stale, ...me } = r;
   // Activity heartbeat (at most once a minute) so session length can be measured; stores no page content.
-  if (me) await rows("update sessions set last_active=now() where id=$1 and last_active < now() - interval '1 minute'", [h]);
-  if (me) await rows("update login_events set last_seen_at=now() where session_id=$1 and last_seen_at < now() - interval '1 minute'", [h]);
+  if (stale) await rows("with a as (update sessions set last_active=now() where id=$1) update login_events set last_seen_at=now() where session_id=$1 and last_seen_at < now() - interval '1 minute'", [h]);
   return me;
-}
+});
 export async function requireMe(): Promise<Me> {
   const me = await getMe();
   if (!me) {

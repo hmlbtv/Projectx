@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 import { unseal, checkCode } from './totp';
 import { revalidatePath } from 'next/cache';
 import { one, rows } from './db';
-import { requireMe, canManage, isAdmin, createSession, destroySession, type Me } from './session';
+import { requireMe, canManage, isAdmin, createSession, destroySession, resetLimits, type Me } from './session';
 import { allow, clientIp } from './security';
 import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, sendMail, sendMailDetailed, mailFrom, baseUrl } from './mail';
 import { verifyPassword, hashPassword, passwordProblem, newToken, sha256 } from './password';
@@ -260,7 +260,7 @@ async function saveSessionSettings_(f: FormData) {
   const idle = Math.min(Math.max(Math.round(Number(s(f, 'idle'))), 0), 720), days = Math.min(Math.max(Math.round(Number(s(f, 'days'))), 1), 90);
   if (!Number.isFinite(idle) || !Number.isFinite(days)) return;
   for (const [k, v] of [['idle_hours', idle], ['max_days', days]]) await rows('insert into settings(key,value) values($1,$2) on conflict (key) do update set value=excluded.value', [k, String(v)]);
-  revalidatePath('/webappdev');
+  resetLimits(); revalidatePath('/webappdev');
 }
 export async function setTenantStatus(f: FormData) {
   const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');

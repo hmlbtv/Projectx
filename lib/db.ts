@@ -1,5 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { hashPassword } from './password';
 
 // Embedded Postgres for local dev. For production swap this module for a
@@ -109,6 +110,8 @@ function oneAndFive() {
   return t;
 }
 
+// Bump this when the start-up code below (not SCHEMA) changes and must run again.
+const MIGRATION_REV = 'r1';
 type Client = { query: (sql: string, params?: any[]) => Promise<{ rows: any[] }>; exec: (sql: string) => Promise<any> };
 
 async function init(): Promise<Client> {
@@ -124,6 +127,9 @@ async function init(): Promise<Client> {
     mkdirSync(dir, { recursive: true });
     client = new PGlite(dir) as unknown as Client;
   }
+  // Start-up work (creating tables, one-time upgrades, first-run data) only runs when the schema or sign-in settings changed, so most cold starts skip it.
+  const ver = createHash('sha1').update(SCHEMA + MIGRATION_REV + (process.env.ADMIN_EMAIL ?? '') + (process.env.TENANT_NAME ?? '')).digest('hex');
+  try { if ((await client.query("select value from settings where key='schema_ver'")).rows[0]?.value === ver) return client; } catch { /* first run: no settings table yet */ }
   const hadTiles = (await client.query("select to_regclass('public.mv_tiles') t")).rows[0].t;
   const hadTenants = (await client.query("select to_regclass('public.tenants') t")).rows[0].t;
   const hadJobWalls = (await client.query("select to_regclass('public.job_walls') t")).rows[0].t;
@@ -143,6 +149,7 @@ async function init(): Promise<Client> {
   await client.query("insert into settings(key,value) values('canvas','1080') on conflict (key) do nothing");
   await bootstrap(client);
   if (!hadTiles) await seedTiles(client);
+  await client.query("insert into settings(key,value) values('schema_ver',$1) on conflict (key) do update set value=excluded.value", [ver]);
   return client;
 }
 
@@ -210,6 +217,7 @@ export async function db(): Promise<Client> {
   return g.__wm;
 }
 export async function rows<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+  if (process.env.QLOG) console.log('Q', sql.replace(/\s+/g, ' ').slice(0, 70));
   return (await (await db()).query(sql, params)).rows as T[];
 }
 export async function one<T = any>(sql: string, params: any[] = []): Promise<T | undefined> {

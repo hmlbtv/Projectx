@@ -11,12 +11,13 @@ export const dynamic = 'force-dynamic';
 export default async function Sites({ searchParams }: { searchParams: Promise<{ s?: string; l?: string; r?: string }> }) {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
   const t = me.tenant_id ?? 0; const q = await searchParams; const adm = isAdmin(me);
-  const sites = await rows('select * from sites where tenant_id=$1 order by name', [t]);
-  const locs = await rows('select l.* from locations l join sites s on s.id=l.site_id where s.tenant_id=$1 order by l.name', [t]);
-  const rms = await rows('select r.* from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by r.name', [t]);
-  const dsets = (await rows('select s.id, s.site_id, s.name, coalesce((select json_agg(d.name order by d.pos, d.id) from destinations d where d.set_id=s.id), \'[]\'::json) dests from destination_sets s where s.tenant_id=$1 order by s.name', [t])) as any[];
-  const walls = await rows('select id,name,site_id from wall_templates where tenant_id=$1 order by name', [t]);
-  const rw = await rows('select rw.*, w.name wall, w.data wdata from room_walls rw join wall_templates w on w.id=rw.wall_template_id join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by rw.name', [t]);
+  const sites_p = rows('select * from sites where tenant_id=$1 order by name', [t]);
+  const locs_p = rows('select l.* from locations l join sites s on s.id=l.site_id where s.tenant_id=$1 order by l.name', [t]);
+  const rms_p = rows('select r.* from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by r.name', [t]);
+  const dsets_p = rows('select s.id, s.site_id, s.name, coalesce((select json_agg(d.name order by d.pos, d.id) from destinations d where d.set_id=s.id), \'[]\'::json) dests from destination_sets s where s.tenant_id=$1 order by s.name', [t]);
+  const walls_p = rows('select id,name,site_id from wall_templates where tenant_id=$1 order by name', [t]);
+  const rw_p = rows('select rw.*, w.name wall, w.data wdata from room_walls rw join wall_templates w on w.id=rw.wall_template_id join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by rw.name', [t]);
+  const [sites, locs, rms, walls, rw, dsets] = await Promise.all([sites_p, locs_p, rms_p, walls_p, rw_p, dsets_p]); // run the page's queries together instead of one after another
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
   const Edit = ({ table, id, name, what }: { table: string; id: number; name: string; what: string }) => (<>
     <b>Edit {what}</b><form action={renameNode} className="stack"><input type="hidden" name="table" value={table} /><input type="hidden" name="id" value={id} /><input name="name" defaultValue={name} required /><button className="sec">Save</button></form>
