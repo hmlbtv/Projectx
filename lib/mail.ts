@@ -3,6 +3,9 @@ import { rows } from './db';
 
 // Email goes through Resend. Without RESEND_API_KEY nothing is sent.
 export const emailOn = () => !!process.env.RESEND_API_KEY;
+// In production an address is never trusted without a verification email: sign-up is refused while email is not set up. (Local testing can still auto-verify.)
+export const signupBlocked = () => !emailOn() && process.env.NODE_ENV === 'production';
+export const SIGNUP_BLOCKED_MSG = 'Sign-up is temporarily unavailable because email verification is not set up. Please contact the site administrator.';
 export const mailFrom = () => process.env.MAIL_FROM || 'TelePlanner <onboarding@resend.dev>';
 // Like sendMail, but says why it failed (Resend's own message) so an admin can fix the setup.
 // Every send attempt is logged (recipient, subject, result only - never the body, which holds sign-in links). Kept 30 days.

@@ -16,6 +16,8 @@ export async function GET() {
 // Upload: the browser has already scaled the picture down; PNG, JPEG or SVG only.
 export async function POST(req: Request) {
   const me = await getMe(); if (!me || !me.tenant_id || !canManage(me) || !sameOrigin(req)) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+  // Refuse oversized bodies before reading them (picture is capped at 3 MB; a little extra for the form fields).
+  const len = Number(req.headers.get('content-length')); if (!len || len > MAX_BYTES + 65536) return NextResponse.json({ error: 'That image is too big (3 MB maximum after scaling).' }, { status: 413 });
   const f = await req.formData(); const file = f.get('file');
   if (!(file instanceof File)) return NextResponse.json({ error: 'No file.' }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: 'That image is too big (3 MB maximum after scaling).' }, { status: 400 });

@@ -6,7 +6,7 @@ import { one, rows } from './db';
 import { requireMe, canManage, createSession, type Me } from './session';
 import { myEmails } from './emails';
 import { allow, clientIp } from './security';
-import { emailOn, sendMail, baseUrl } from './mail';
+import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, sendMail, baseUrl } from './mail';
 import { newToken, sha256, hashPassword, passwordProblem } from './password';
 import type { FormState } from './actions';
 
@@ -48,6 +48,7 @@ export async function signUpGuest(_: FormState, f: FormData): Promise<FormState>
   if (pw !== String(f.get('password2') ?? '')) return { error: 'Passwords do not match.' };
   const bad = passwordProblem(pw); if (bad) return { error: bad };
   if ((await one('select 1 from users where email=$1', [link.email]))) return { error: 'An account with this email already exists. Sign in instead.' };
+  if (signupBlocked()) return { error: SIGNUP_BLOCKED_MSG };
   const verify = emailOn(), vt = newToken();
   const u = (await one(`insert into users(tenant_id,email,name,role,password_hash,email_verified,verify_hash,verify_expires)
     values(null,$1,$2,'onetime',$3,$4,$5,now() + interval '2 days') returning id`, [link.email, name, await hashPassword(pw), !verify, verify ? sha256(vt) : null]))!;

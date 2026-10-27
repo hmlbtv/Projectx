@@ -10,9 +10,10 @@ export async function clientIp(): Promise<string> {
 // Returns true if the caller is allowed (and records the hit).
 export async function allow(action: string, key: string, max: number, minutes: number): Promise<boolean> {
   const k = `${action}:${key}`.slice(0, 200);
+  // Record the hit first, then count: parallel requests can no longer all slip under the limit (at worst a burst is refused slightly early).
+  const mine = await one('insert into attempts(key) values($1) returning id', [k]);
   const r = await one("select count(*)::int c from attempts where key=$1 and at > now() - ($2 || ' minutes')::interval", [k, String(minutes)]);
-  if (r.c >= max) return false;
-  await rows('insert into attempts(key) values($1)', [k]);
+  if (r.c > max) { if (mine?.id) await rows('delete from attempts where id=$1', [mine.id]); return false; }
   if (Math.random() < 0.02) { // occasional housekeeping
     await rows("delete from attempts where at < now() - interval '1 day'");
     await rows('delete from sessions where expires_at < now()');

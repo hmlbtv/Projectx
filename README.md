@@ -10,8 +10,8 @@ Local demo logins (password `demo-password-1`): master@demo.test, admin@demo.tes
 ## Production environment variables (Vercel)
 - `DATABASE_URL` - set by the Neon integration.
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD` - creates the site admin (WebAppDev) on first run. That account sees the Site admin page where tenant plans and Wall Template limits are set. Change the password in Account after signing in.
-- `RESEND_API_KEY`, `MAIL_FROM` - sends verification, invite and password-reset emails (Resend, free tier, available in the Vercel Marketplace). `MAIL_FROM` must use a domain verified in Resend, e.g. `TelePlanner <hello@yourdomain.com>`; the default test sender only delivers to your own address. Without these, new sign-ups are not email-verified and invite links are shown to the Manager to pass on.
-- Guests (One-Time Users) create an account from their first invitation link and verify their email, so `RESEND_API_KEY` is needed for verification in production. Without it accounts are auto-verified. Extra email addresses (Account page) always need working email to confirm. `DEV_SHOW_CODES=1` shows confirmation links on screen for local testing only - never set it in production.
+- `RESEND_API_KEY`, `MAIL_FROM` - sends verification, invite and password-reset emails (Resend, free tier, available in the Vercel Marketplace). `MAIL_FROM` must use a domain verified in Resend, e.g. `TelePlanner <hello@yourdomain.com>`; the default test sender only delivers to your own address. In production, sign-up (including guest sign-up) is refused until `RESEND_API_KEY` is set, so an unverified address is never trusted. Outside production, sign-ups are auto-verified for local testing.
+- Guests (One-Time Users) create an account from their first invitation link and verify their email, so `RESEND_API_KEY` is required in production (without it guest sign-up is refused). Extra email addresses (Account page) always need working email to confirm. `DEV_SHOW_CODES=1` shows confirmation links on screen for local testing only - never set it in production.
 - `APP_URL` - optional; base URL used in invite links.
 
 ## Security
