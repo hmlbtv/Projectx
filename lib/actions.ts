@@ -302,7 +302,8 @@ async function renameNode_(f: FormData) {
 }
 async function addRoomWall_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const room = Number(s(f,'room')), wall = Number(s(f,'wall')); await own('rooms', room, me); await own('walls', wall, me);
-  if (await one('select 1 from room_walls where room_id=$1 and wall_template_id=$2', [room, wall])) return { error: 'That Wall Template is already in this Room.' };
+  const inRoom = await one('select r.name from room_walls rw join rooms r on r.id=rw.room_id where rw.wall_template_id=$1 limit 1', [wall]); // a Wall Template can be in only one Room
+  if (inRoom) return { error: `That Wall Template is already in the Room “${inRoom.name}”. A Wall Template can be in only one Room.` };
   const wn = (await one('select name from wall_templates where id=$1', [wall]))!.name;
   await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, wn]); revalidatePath('/walls'); revalidatePath('/tenant'); return { ok: 'Added.' };
 }
@@ -359,7 +360,7 @@ async function saveWall_(id: number | null, name: string, assets: any[], _unused
 // Apply a Wall Template to the chosen Rooms (any Room in the workspace). Unticked Rooms lose it (and Jobs using it there).
 async function setWallRooms_(f: FormData) {
   const me = await mgr(); const wall = Number(s(f,'wall')); await own('walls', wall, me);
-  const want = Array.from(new Set(f.getAll('room').map(Number).filter(Boolean)));
+  const want = Array.from(new Set(f.getAll('room').map(Number).filter(Boolean))).slice(0, 1); // a Wall Template can be in only one Room
   for (const r of want) await own('rooms', r, me);
   const w = (await one('select name from wall_templates where id=$1', [wall]))!;
   await rows('delete from room_walls where wall_template_id=$1 and not (room_id = any($2::int[]))', [wall, want]);
@@ -368,7 +369,7 @@ async function setWallRooms_(f: FormData) {
 }
 async function wallToRoom_(f: FormData) {
   const me = await mgr(); const wall = Number(s(f,'wall')), room = Number(s(f,'room')); await own('walls', wall, me); await own('rooms', room, me);
-  if (await one('select 1 from room_walls where room_id=$1 and wall_template_id=$2', [room, wall])) return;
+  if (await one('select 1 from room_walls where wall_template_id=$1', [wall])) return; // already in a Room (only one allowed)
   const w = (await one('select name from wall_templates where id=$1', [wall]))!;
   await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, w.name]);
   revalidatePath('/walls'); revalidatePath('/tenant'); revalidatePath('/plans');

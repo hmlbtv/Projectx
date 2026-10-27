@@ -73,7 +73,7 @@ function MvPick({ a, mvs, setProps, filt, setFilt, copied, setCopied }: { copied
 }
 
 // The Wall Designer: drag monitors, Sony BVM/PVM monitors, speakers and timecode clocks onto a 6.4 m x 3.6 m wall. Same tools as the other designers.
-export default function WallEditor({ id, initialName, initial, notice, mvs, dsets }: { dsets: DSet[]; id: number | null; initialName: string; initial: DAsset[]; notice?: React.ReactNode; mvs: MvOpt[] }) {
+export default function WallEditor({ id, initialName, initial, notice, mvs, dsets, backQuery }: { backQuery?: string; dsets: DSet[]; id: number | null; initialName: string; initial: DAsset[]; notice?: React.ReactNode; mvs: MvOpt[] }) {
   // Saved walls open in view mode (cropped to the monitors, multiview templates can be assigned). Edit mode gives the full canvas and the Arrange/Add tools, but no multiview assignment.
   const [edit, setEdit] = useState(id === null || initial.length === 0);
   // Search, sort and Max PiP for the multiview dialog are kept for this browser tab (so they survive saving, switching walls and reloads).
@@ -82,7 +82,7 @@ export default function WallEditor({ id, initialName, initial, notice, mvs, dset
   const setFilt = (f: Filt) => { setFiltState(f); try { sessionStorage.setItem('wallMvFilter', JSON.stringify(f)); } catch { /* ignore */ } };
   const [copied, setCopied] = useState<number[] | null>(null); // templates copied from one monitor, to paste onto others
   const [picker, setPicker] = useState<null | ((over: Partial<PaletteItem>) => void)>(null);
-  return (<><Editor onAction={(_, add) => setPicker(() => add)}  viewOnly={!edit} zoomable headerExtra={<button type="button" className={'small' + (edit ? '' : ' sec')} aria-pressed={edit} title={edit ? 'Finish editing: shrink the canvas and go back to assigning multiview templates' : 'Edit the wall: add, move and arrange monitors and other items'} onClick={() => setEdit(!edit)}>{edit ? 'Done editing' : 'Edit'}</button>}  kind="Wall Template" canvasName="wall" backHref="/walls" world={{ w: WALL_W, h: WALL_H }} palette={WALL_PALETTE} rotatable notice={notice} renderAsset={a => <WallArt a={a} />}
+  return (<><Editor backQuery={backQuery} onAction={(_, add) => setPicker(() => add)}  viewOnly={!edit} zoomable headerExtra={<button type="button" className={'small' + (edit ? '' : ' sec')} aria-pressed={edit} title={edit ? 'Finish editing: shrink the canvas and go back to assigning multiview templates' : 'Edit the wall: add, move and arrange monitors and other items'} onClick={() => setEdit(!edit)}>{edit ? 'Done editing' : 'Edit'}</button>}  kind="Wall Template" canvasName="wall" backHref="/walls" world={{ w: WALL_W, h: WALL_H }} palette={WALL_PALETTE} rotatable notice={notice} renderAsset={a => <WallArt a={a} />}
     extras={(a, setProps) => !edit && isScreen(a.type) ? <><MvPick key={a.id} a={a} mvs={mvs} setProps={setProps} filt={filt} setFilt={setFilt} copied={copied} setCopied={setCopied} /><Dests key={'d' + a.id} a={a} dsets={dsets} setProps={setProps} /></> : null}
     id={id} initialName={initialName} initial={initial}
     backdrop={<svg viewBox={`0 0 ${WALL_W} ${WALL_H}`} width="100%" height="100%" style={{ display: 'block', pointerEvents: 'none' }}><rect width={WALL_W} height={WALL_H} fill="#1b2027" /><rect x={0} y={WALL_H - 6} width={WALL_W} height={6} fill="#2c333d" /></svg>}
