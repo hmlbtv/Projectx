@@ -10,37 +10,66 @@ type Data = Record<string, { layoutId?: number; assign: Record<string, string>; 
 
 
 const isScreen = (t: string) => /^(mon|monitor|bvm|pvm)/.test(t);
-// One MV layout drawn inside a monitor: numbered windows, each carrying the name of the destination it takes.
+// One MV layout drawn inside a monitor: clear numbered windows, each carrying the name of the destination it takes.
 function LayoutPic({ lay, names, big, pos }: { lay: Layout; names?: string[]; big?: boolean; pos?: { x: number; y: number; w: number; h: number } }) {
-  return (<svg viewBox="0 0 1920 1080" {...(pos ? { x: pos.x, y: pos.y, width: pos.w, height: pos.h, preserveAspectRatio: 'xMidYMid meet' } : { width: '100%' })} style={pos ? undefined : { display: 'block', background: '#05070a', borderRadius: big ? 6 : 0 }}>{pos && <rect width="1920" height="1080" fill="#05070a" />}
-    {lay.tiles.map(t => { const nm = names?.[t.n - 1]; return (<g key={t.n}><rect x={t.x + 4} y={t.y + 4} width={t.w - 8} height={t.h - 8} fill="#161b22" stroke="#4b5563" strokeWidth="4" />
-      <text x={t.x + 22} y={t.y + 22} fill="#e5352b" fontSize={Math.min(90, t.h / 3)} dominantBaseline="hanging" fontWeight="700">{t.n}</text>
-      {nm && <text x={t.x + t.w / 2} y={t.y + t.h / 2 + 10} fill="#fff" fontSize={Math.max(28, Math.min(80, t.w / Math.max(6, nm.length * 0.62)))} textAnchor="middle" dominantBaseline="middle">{nm}</text>}</g>); })}</svg>);
+  return (<svg viewBox="0 0 1920 1080" {...(pos ? { x: pos.x, y: pos.y, width: pos.w, height: pos.h, preserveAspectRatio: 'xMidYMid meet' } : { width: '100%' })} style={pos ? undefined : { display: 'block', background: '#0b0f14', borderRadius: big ? 8 : 0 }}>
+    <rect width="1920" height="1080" fill="#0b0f14" />
+    {lay.tiles.map(t => { const nm = names?.[t.n - 1], bs = Math.max(34, Math.min(120, t.h / 3.2)), bw = bs * (t.n > 9 ? 1.6 : 1.25);
+      return (<g key={t.n}><rect x={t.x + 5} y={t.y + 5} width={t.w - 10} height={t.h - 10} fill="#1d3557" stroke="#cbd5e1" strokeWidth="6" />
+        <rect x={t.x + 5} y={t.y + 5} width={bw} height={bs} fill="#e5352b" /><text x={t.x + 5 + bw / 2} y={t.y + 5 + bs / 2} fill="#fff" fontSize={bs * 0.72} fontWeight="800" textAnchor="middle" dominantBaseline="central" fontFamily="system-ui,sans-serif">{t.n}</text>
+        {nm && <text x={t.x + t.w / 2} y={t.y + t.h / 2 + bs * 0.3} fill="#fff" fontSize={Math.max(30, Math.min(96, (t.w - 40) / Math.max(5, nm.length * 0.6)))} fontWeight="700" textAnchor="middle" dominantBaseline="central" fontFamily="system-ui,sans-serif">{nm}</text>}</g>); })}</svg>);
 }
-// The wall as saved in its Wall Template, locked. "Layout" lets you tap a monitor and choose which of its MV layouts it shows.
+// The wall as saved in its Wall Template, locked. "Layout" lets you tap a monitor and choose which of its MV layouts it shows; "View" shows the wall full screen (turned to landscape on a phone).
 function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: Layout[]; cur: Data[string] | undefined; setMon: (assetId: string, layoutId: number) => void; readOnly: boolean }) {
-  const [editing, setEditing] = useState(false), [pick, setPick] = useState<string | null>(null);
-  const ref = useRef<HTMLDialogElement>(null);
+  const [editing, setEditing] = useState(false), [pick, setPick] = useState<string | null>(null), [full, setFull] = useState(false), [turned, setTurned] = useState(false);
+  const ref = useRef<HTMLDialogElement>(null), box = useRef<HTMLDivElement>(null), fsUsed = useRef(false);
   const list = wl.assets ?? [], M = 24;
   const x0 = Math.min(...list.map(a => a.x)), y0 = Math.min(...list.map(a => a.y)), x1 = Math.max(...list.map(a => a.x + a.w)), y1 = Math.max(...list.map(a => a.y + a.h));
   const w = Math.max(x1 - x0 + 2 * M, 360), h = Math.max(y1 - y0 + 2 * M, 200), vx = (x0 + x1) / 2 - w / 2, vy = (y0 + y1) / 2 - h / 2;
   const mvsOf = (a: Asset) => (Array.isArray(a.props?.mvs) ? a.props.mvs : []).map((id: number) => layouts.find(l => l.id === id)).filter(Boolean) as Layout[];
   const chosen = (a: Asset) => { const opts = mvsOf(a); return opts.find(l => l.id === cur?.mons?.[a.id]) ?? opts[0]; };
-  useEffect(() => { const d = ref.current; if (!d) return; if (pick && !d.open) d.showModal(); if (!pick && d.open) d.close(); }, [pick]);
+  const inline = full; // in full screen the chooser sits inside the (possibly turned) view; otherwise it is a normal dialog
+  useEffect(() => { const d = ref.current; if (!d || inline) return; if (pick && !d.open) d.showModal(); if (!pick && d.open) d.close(); }, [pick, inline]);
+  // Full screen: the browser's own full screen where it exists (phones are asked for landscape); otherwise a full-window view, turned sideways by hand on a portrait phone.
+  const portrait = () => typeof window !== 'undefined' && window.innerHeight > window.innerWidth && window.innerWidth < 900;
+  function enter() { setFull(true); }
+  // Once the full view is on screen, ask the browser for real full screen (and landscape on a phone).
+  useEffect(() => { if (!full) return; let live = true; (async () => { const el = box.current;
+    try { if (el?.requestFullscreen) { await el.requestFullscreen(); fsUsed.current = true; try { await (screen.orientation as any)?.lock?.('landscape'); } catch { /* not allowed here */ } } } catch { /* use the full-window view */ }
+    setTimeout(() => { if (live) setTurned(portrait()); }, 300); })(); return () => { live = false; }; }, [full]); // eslint-disable-line react-hooks/exhaustive-deps
+  function leave() { fsUsed.current = false; setFull(false); setTurned(false); setPick(null); try { (screen.orientation as any)?.unlock?.(); } catch { /* ignore */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+  useEffect(() => {
+    if (!full) return;
+    const onFs = () => { if (!document.fullscreenElement && fsUsed.current) leave(); }, onSize = () => setTurned(portrait()), onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !pick) leave(); };
+    document.addEventListener('fullscreenchange', onFs); window.addEventListener('resize', onSize); window.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('fullscreenchange', onFs); window.removeEventListener('resize', onSize); window.removeEventListener('keydown', onKey); };
+  }, [full, pick]); // eslint-disable-line react-hooks/exhaustive-deps
   const pa = list.find(a => a.id === pick);
-  return (<div className="card"><div className="row" style={{ justifyContent: 'space-between' }}><b>{wl.name}</b>
-      {!readOnly && <button type="button" className={editing ? '' : 'sec'} aria-pressed={editing} onClick={() => setEditing(!editing)}>{editing ? 'Done' : 'Layout'}</button>}</div>
-    {editing && <p className="mut" style={{ margin: '4px 0' }}>Tap a monitor to choose its MV layout.</p>}
-    <svg viewBox={`${vx} ${vy} ${w} ${h}`} width="100%" style={{ display: 'block', background: '#1b2027', borderRadius: 8, maxHeight: '70vh' }} preserveAspectRatio="xMidYMid meet">
-      {list.map(a => { const lay = isScreen(a.type) ? chosen(a) : undefined, can = editing && !!lay && mvsOf(a).length > 0;
-        return (<g key={a.id}><svg x={a.x} y={a.y} width={a.w} height={a.h} viewBox={`0 0 ${a.w} ${a.h}`}><WallArt a={{ ...a, name: a.name ?? '' }} /></svg>
-          {lay && <LayoutPic lay={lay} names={wl.dests?.[a.id]} pos={{ x: a.x + 4, y: a.y + 4, w: a.w - 8, h: a.h - 8 }} />}
-          {can && <rect x={a.x} y={a.y} width={a.w} height={a.h} fill="rgba(229,53,43,.08)" stroke="#e5352b" strokeWidth="5" style={{ cursor: 'pointer' }} role="button" tabIndex={0} aria-label={`Choose MV layout for ${a.name ?? 'monitor'}`} onClick={() => setPick(a.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPick(a.id); } }} />}</g>); })}</svg>
-    <dialog ref={ref} className="dlg" onClose={() => setPick(null)} style={{ width: 'min(1100px, 96vw)', maxWidth: '96vw', height: '90vh', maxHeight: '90vh', display: pick ? 'flex' : 'none', flexDirection: 'column' }}>
-      {pa && <><div className="row" style={{ justifyContent: 'space-between', margin: '0 0 8px' }}><h3 style={{ margin: 0 }}>MV layout for {pa.name ?? 'monitor'}</h3><button type="button" className="sec" onClick={() => setPick(null)}>Close</button></div>
-        <div style={{ flex: 1, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12, alignContent: 'start' }}>
-          {mvsOf(pa).map(l => { const on = chosen(pa)?.id === l.id; return (<button key={l.id} type="button" className="sec" onClick={() => { setMon(pa.id, l.id); setPick(null); }} style={{ display: 'grid', gap: 6, textAlign: 'left', padding: 10, borderWidth: on ? 3 : 1, borderStyle: 'solid', borderColor: on ? '#e5352b' : 'var(--line)', borderRadius: 10 }}>
-            <LayoutPic lay={l} names={wl.dests?.[pa.id]} big /><b>{l.name}{on ? ' ✓' : ''}</b><span className="mut">{l.tiles.length} window{l.tiles.length === 1 ? '' : 's'}</span></button>); })}</div></>}</dialog></div>);
+  const chooser = pa && (<div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--line)' }}>
+      <div><div className="mut" style={{ fontSize: '.8rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Choose MV layout</div><h3 style={{ margin: 0, fontSize: '1.25rem' }}>{pa.name ?? 'Monitor'}</h3></div>
+      <button type="button" className="sec" onClick={() => setPick(null)} aria-label="Close">✕ Close</button></div>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 14, alignContent: 'start', padding: '14px 2px 4px' }}>
+      {mvsOf(pa).map(l => { const on = chosen(pa)?.id === l.id; return (<button key={l.id} type="button" onClick={() => { setMon(pa.id, l.id); setPick(null); }} aria-pressed={on}
+        style={{ all: 'unset', cursor: 'pointer', boxSizing: 'border-box', display: 'grid', gap: 8, padding: 10, borderRadius: 12, border: on ? '3px solid #e5352b' : '2px solid var(--line)', background: 'var(--bg)', position: 'relative' }}>
+        <LayoutPic lay={l} names={wl.dests?.[pa.id]} big />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}><b style={{ fontSize: '1.05rem' }}>{l.name}</b><span className="mut" style={{ whiteSpace: 'nowrap' }}>{l.tiles.length} window{l.tiles.length === 1 ? '' : 's'}</span></div>
+        {on && <span style={{ position: 'absolute', top: 16, right: 16, background: '#e5352b', color: '#fff', borderRadius: 999, padding: '2px 10px', fontSize: '.8rem', fontWeight: 700 }}>✓ In use</span>}</button>); })}</div></div>);
+  const wall = (<svg viewBox={`${vx} ${vy} ${w} ${h}`} width="100%" height={full ? '100%' : undefined} style={{ display: 'block', background: '#1b2027', borderRadius: full ? 0 : 8, maxHeight: full ? undefined : '70vh', flex: full ? 1 : undefined, minHeight: 0 }} preserveAspectRatio="xMidYMid meet">
+    {list.map(a => { const lay = isScreen(a.type) ? chosen(a) : undefined, can = editing && !!lay && mvsOf(a).length > 0;
+      return (<g key={a.id}><svg x={a.x} y={a.y} width={a.w} height={a.h} viewBox={`0 0 ${a.w} ${a.h}`}><WallArt a={{ ...a, name: a.name ?? '' }} /></svg>
+        {lay && <LayoutPic lay={lay} names={wl.dests?.[a.id]} pos={{ x: a.x + 4, y: a.y + 4, w: a.w - 8, h: a.h - 8 }} />}
+        {can && <rect x={a.x} y={a.y} width={a.w} height={a.h} fill="rgba(229,53,43,.10)" stroke="#e5352b" strokeWidth="5" style={{ cursor: 'pointer' }} role="button" tabIndex={0} aria-label={`Choose MV layout for ${a.name ?? 'monitor'}`} onClick={() => setPick(a.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPick(a.id); } }} />}</g>); })}</svg>);
+  const bar = (<div className="row" style={{ justifyContent: 'space-between', gap: 8 }}><b>{wl.name}</b>
+    <span style={{ display: 'flex', gap: 8 }}>{!readOnly && <button type="button" className={editing ? '' : 'sec'} aria-pressed={editing} onClick={() => setEditing(!editing)}>{editing ? 'Done' : 'Layout'}</button>}
+      {full ? <button type="button" className="sec" onClick={leave}>Exit</button> : <button type="button" className="sec" onClick={enter} title="Show this wall full screen">View</button>}</span></div>);
+  const body = (<>{bar}{editing && <p className="mut" style={{ margin: '4px 0' }}>Tap a monitor to choose its MV layout.</p>}{wall}</>);
+  return (<div className="card" style={full ? { padding: 0, border: 0 } : undefined}>
+    {full ? (<div ref={box} style={turned ? { position: 'fixed', top: 0, left: '100vw', width: '100vh', height: '100vw', transform: 'rotate(90deg)', transformOrigin: 'top left', background: 'var(--panel)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: 10, boxSizing: 'border-box', overflow: 'hidden' }
+        : { position: 'fixed', inset: 0, background: 'var(--panel)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: 10, boxSizing: 'border-box', overflow: 'hidden' }}>
+      {body}{pick && pa && <div role="dialog" aria-modal="true" style={{ position: 'absolute', inset: 8, background: 'var(--panel)', borderRadius: 14, padding: 16, boxShadow: '0 20px 50px rgba(0,0,0,.4)', border: '1px solid var(--line)', zIndex: 2 }}>{chooser}</div>}</div>)
+      : (<div ref={box}>{body}</div>)}
+    {!full && <dialog ref={ref} className="dlg" onClose={() => setPick(null)} onClick={e => { if (e.target === ref.current) setPick(null); }} style={{ width: 'min(1100px, 96vw)', maxWidth: '96vw', height: '90vh', maxHeight: '90vh', display: pick ? 'block' : 'none', padding: 18 }}>{chooser}</dialog>}</div>);
 }
 
 export default function Plan({ walls, layouts, sources, saved, save, readOnly = false, start }: { start?: string; walls: Wall[]; layouts: Layout[]; sources: string[]; saved: { name: string; data: Data }[]; save?: (name: string, data: Data) => Promise<void>; readOnly?: boolean }) {
