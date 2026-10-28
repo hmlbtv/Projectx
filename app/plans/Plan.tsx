@@ -49,11 +49,11 @@ function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: L
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--line)' }}>
       <div><div className="mut" style={{ fontSize: '.8rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Choose MV layout</div><h3 style={{ margin: 0, fontSize: '1.25rem' }}>{pa.name ?? 'Monitor'}</h3></div>
       <button type="button" className="sec" onClick={() => setPick(null)} aria-label="Close">✕ Close</button></div>
-    <div style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: 16, alignContent: 'start', justifyContent: 'center', padding: '14px 2px 4px' }}>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))', gap: 10, alignContent: 'start', justifyContent: 'center', padding: '14px 2px 4px' }}>
       {mvsOf(pa).map(l => { const on = chosen(pa)?.id === l.id; return (<button key={l.id} type="button" onClick={() => { setMon(pa.id, l.id); setPick(null); }} aria-pressed={on}
-        style={{ all: 'unset', cursor: 'pointer', boxSizing: 'border-box', display: 'grid', gap: 8, width: '100%', maxWidth: 680, justifySelf: 'center', padding: 10, borderRadius: 12, border: on ? '3px solid #e5352b' : '2px solid var(--line)', background: 'var(--bg)', position: 'relative' }}>
-        <LayoutPic lay={l} names={wl.dests?.[pa.id]} big />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}><b style={{ fontSize: '1.05rem' }}>{l.name}</b><span className="mut" style={{ whiteSpace: 'nowrap' }}>{l.tiles.length} window{l.tiles.length === 1 ? '' : 's'}</span></div>
+        style={{ all: 'unset', cursor: 'pointer', boxSizing: 'border-box', display: 'grid', gap: 8, width: '100%', maxWidth: 300, justifySelf: 'center', padding: 6, borderRadius: 12, border: on ? '3px solid #e5352b' : '2px solid var(--line)', background: 'var(--bg)', position: 'relative' }}>
+        <LayoutPic lay={l} names={wl.dests?.[pa.id]} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}><b style={{ fontSize: '.85rem' }}>{l.name}</b><span className="mut" style={{ whiteSpace: 'nowrap' }}>{l.tiles.length} window{l.tiles.length === 1 ? '' : 's'}</span></div>
         {on && <span style={{ position: 'absolute', top: 16, right: 16, background: '#e5352b', color: '#fff', borderRadius: 999, padding: '2px 10px', fontSize: '.8rem', fontWeight: 700 }}>✓ In use</span>}</button>); })}</div></div>);
   const wall = (<svg viewBox={`${vx} ${vy} ${w} ${h}`} width="100%" height={full ? '100%' : undefined} style={{ display: 'block', background: '#1b2027', borderRadius: full ? 0 : 8, maxHeight: full ? undefined : '70vh', flex: full ? 1 : undefined, minHeight: 0 }} preserveAspectRatio="xMidYMid meet">
     {list.map(a => { const lay = isScreen(a.type) ? chosen(a) : undefined, can = editing && !!lay && mvsOf(a).length > 1;
