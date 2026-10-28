@@ -59,6 +59,7 @@ function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: L
     {list.map(a => { const lay = isScreen(a.type) ? chosen(a) : undefined, can = editing && !!lay && mvsOf(a).length > 0;
       return (<g key={a.id}><svg x={a.x} y={a.y} width={a.w} height={a.h} viewBox={`0 0 ${a.w} ${a.h}`}><WallArt a={{ ...a, name: a.name ?? '' }} /></svg>
         {lay && <LayoutPic lay={lay} names={wl.dests?.[a.id]} pos={{ x: a.x + 4, y: a.y + 4, w: a.w - 8, h: a.h - 8 }} />}
+        {isScreen(a.type) && !lay && <rect x={a.x + 4} y={a.y + 4} width={a.w - 8} height={a.h - 8} fill="#f8fafc" stroke="#94a3b8" strokeWidth="4" pointerEvents="none" />}
         {can && <rect x={a.x} y={a.y} width={a.w} height={a.h} fill="rgba(229,53,43,.10)" stroke="#e5352b" strokeWidth="5" style={{ cursor: 'pointer' }} role="button" tabIndex={0} aria-label={`Choose MV layout for ${a.name ?? 'monitor'}`} onClick={() => setPick(a.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPick(a.id); } }} />}</g>); })}</svg>);
   const sm = full ? { padding: '2px 12px', minHeight: 0, height: 28, fontSize: '.8rem', lineHeight: 1 } : undefined;
   const bar = (<div className="row" style={{ justifyContent: 'space-between', gap: 8, ...(full ? { margin: 0, flex: '0 0 auto', minHeight: 0 } : {}) }}><b style={full ? { fontSize: '.85rem' } : undefined}>{wl.name}</b>
