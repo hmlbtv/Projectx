@@ -21,7 +21,7 @@ function LayoutPic({ lay, names, big, pos }: { lay: Layout; names?: string[]; bi
 }
 // The wall as saved in its Wall Template, locked. "Layout" lets you tap a monitor and choose which of its MV layouts it shows; "View" shows the wall full screen (turned to landscape on a phone).
 function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: Layout[]; cur: Data[string] | undefined; setMon: (assetId: string, layoutId: number) => void; readOnly: boolean }) {
-  const [editing, setEditing] = useState(false), [pick, setPick] = useState<string | null>(null), [full, setFull] = useState(false), [turned, setTurned] = useState(false);
+  const [editing, setEditing] = useState(false), [pick, setPick] = useState<string | null>(null), [full, setFull] = useState(false), [turned, setTurned] = useState(false), [vp, setVp] = useState({ w: 0, h: 0 });
   const ref = useRef<HTMLDialogElement>(null), box = useRef<HTMLDivElement>(null), fsUsed = useRef(false);
   const list = wl.assets ?? [], M = full ? 10 : 24; // full screen: crop tight so the wall is as big as it can be
   const x0 = Math.min(...list.map(a => a.x)), y0 = Math.min(...list.map(a => a.y)), x1 = Math.max(...list.map(a => a.x + a.w)), y1 = Math.max(...list.map(a => a.y + a.h));
@@ -40,9 +40,9 @@ function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: L
   function leave() { fsUsed.current = false; setFull(false); setTurned(false); setPick(null); try { (screen.orientation as any)?.unlock?.(); } catch { /* ignore */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
   useEffect(() => {
     if (!full) return;
-    const onFs = () => { if (!document.fullscreenElement && fsUsed.current) leave(); }, onSize = () => setTurned(portrait()), onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !pick) leave(); };
-    document.addEventListener('fullscreenchange', onFs); window.addEventListener('resize', onSize); window.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('fullscreenchange', onFs); window.removeEventListener('resize', onSize); window.removeEventListener('keydown', onKey); };
+    const onFs = () => { if (!document.fullscreenElement && fsUsed.current) leave(); }, onSize = () => { setTurned(portrait()); const v = window.visualViewport; setVp({ w: Math.round(v?.width ?? window.innerWidth), h: Math.round(v?.height ?? window.innerHeight) }); }, onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !pick) leave(); };
+    document.addEventListener('fullscreenchange', onFs); window.addEventListener('resize', onSize); window.visualViewport?.addEventListener('resize', onSize); window.addEventListener('keydown', onKey); onSize();
+    return () => { document.removeEventListener('fullscreenchange', onFs); window.removeEventListener('resize', onSize); window.visualViewport?.removeEventListener('resize', onSize); window.removeEventListener('keydown', onKey); };
   }, [full, pick]); // eslint-disable-line react-hooks/exhaustive-deps
   const pa = list.find(a => a.id === pick);
   const chooser = pa && (<div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -66,8 +66,8 @@ function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: L
       {full ? <button type="button" style={sm} className="sec" onClick={leave}>Exit</button> : <button type="button" className="sec" onClick={enter} title="Show this wall full screen">View</button>}</span></div>);
   const body = (<>{bar}{editing && !full && <p className="mut" style={{ margin: '4px 0' }}>Tap a monitor to choose its MV layout.</p>}{wall}</>);
   return (<div className="card" style={full ? { padding: 0, border: 0 } : undefined}>
-    {full ? (<div ref={box} style={turned ? { position: 'fixed', top: 0, left: '100vw', width: '100vh', height: '100vw', transform: 'rotate(90deg)', transformOrigin: 'top left', background: 'var(--panel)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: '4px 8px', gap: 4, boxSizing: 'border-box', overflow: 'hidden' }
-        : { position: 'fixed', inset: 0, background: 'var(--panel)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: '4px 8px', gap: 4, boxSizing: 'border-box', overflow: 'hidden' }}>
+    {full ? (<div ref={box} style={turned ? { position: 'fixed', top: 0, left: vp.w || '100vw', width: vp.h || '100vh', height: vp.w || '100vw', transform: 'rotate(90deg)', transformOrigin: 'top left', background: 'var(--panel)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: '4px 8px', gap: 4, boxSizing: 'border-box', overflow: 'hidden' }
+          : { position: 'fixed', top: 0, left: 0, width: '100%', height: vp.h || '100%', background: 'var(--panel)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: '4px 8px', gap: 4, boxSizing: 'border-box', overflow: 'hidden' }}>
       {body}{pick && pa && <div role="dialog" aria-modal="true" style={{ position: 'absolute', inset: 8, background: 'var(--panel)', borderRadius: 14, padding: 16, boxShadow: '0 20px 50px rgba(0,0,0,.4)', border: '1px solid var(--line)', zIndex: 2 }}>{chooser}</div>}</div>)
       : (<div ref={box}>{body}</div>)}
     {!full && <dialog ref={ref} className="dlg" onClose={() => setPick(null)} onClick={e => { if (e.target === ref.current) setPick(null); }} style={{ width: 'min(1100px, 96vw)', maxWidth: '96vw', height: '90vh', maxHeight: '90vh', display: pick ? 'block' : 'none', padding: 18 }}>{chooser}</dialog>}</div>);
