@@ -23,9 +23,9 @@ function LayoutPic({ lay, names, big, pos }: { lay: Layout; names?: string[]; bi
 function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: Layout[]; cur: Data[string] | undefined; setMon: (assetId: string, layoutId: number) => void; readOnly: boolean }) {
   const [editing, setEditing] = useState(false), [pick, setPick] = useState<string | null>(null), [full, setFull] = useState(false), [turned, setTurned] = useState(false);
   const ref = useRef<HTMLDialogElement>(null), box = useRef<HTMLDivElement>(null), fsUsed = useRef(false);
-  const list = wl.assets ?? [], M = 24;
+  const list = wl.assets ?? [], M = full ? 10 : 24; // full screen: crop tight so the wall is as big as it can be
   const x0 = Math.min(...list.map(a => a.x)), y0 = Math.min(...list.map(a => a.y)), x1 = Math.max(...list.map(a => a.x + a.w)), y1 = Math.max(...list.map(a => a.y + a.h));
-  const w = Math.max(x1 - x0 + 2 * M, 360), h = Math.max(y1 - y0 + 2 * M, 200), vx = (x0 + x1) / 2 - w / 2, vy = (y0 + y1) / 2 - h / 2;
+  const w = full ? x1 - x0 + 2 * M : Math.max(x1 - x0 + 2 * M, 360), h = full ? y1 - y0 + 2 * M : Math.max(y1 - y0 + 2 * M, 200), vx = (x0 + x1) / 2 - w / 2, vy = (y0 + y1) / 2 - h / 2;
   const mvsOf = (a: Asset) => (Array.isArray(a.props?.mvs) ? a.props.mvs : []).map((id: number) => layouts.find(l => l.id === id)).filter(Boolean) as Layout[];
   const chosen = (a: Asset) => { const opts = mvsOf(a); return opts.find(l => l.id === cur?.mons?.[a.id]) ?? opts[0]; };
   const inline = full; // in full screen the chooser sits inside the (possibly turned) view; otherwise it is a normal dialog
@@ -60,13 +60,14 @@ function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: L
       return (<g key={a.id}><svg x={a.x} y={a.y} width={a.w} height={a.h} viewBox={`0 0 ${a.w} ${a.h}`}><WallArt a={{ ...a, name: a.name ?? '' }} /></svg>
         {lay && <LayoutPic lay={lay} names={wl.dests?.[a.id]} pos={{ x: a.x + 4, y: a.y + 4, w: a.w - 8, h: a.h - 8 }} />}
         {can && <rect x={a.x} y={a.y} width={a.w} height={a.h} fill="rgba(229,53,43,.10)" stroke="#e5352b" strokeWidth="5" style={{ cursor: 'pointer' }} role="button" tabIndex={0} aria-label={`Choose MV layout for ${a.name ?? 'monitor'}`} onClick={() => setPick(a.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPick(a.id); } }} />}</g>); })}</svg>);
-  const bar = (<div className="row" style={{ justifyContent: 'space-between', gap: 8 }}><b>{wl.name}</b>
-    <span style={{ display: 'flex', gap: 8 }}>{!readOnly && <button type="button" className={editing ? '' : 'sec'} aria-pressed={editing} onClick={() => setEditing(!editing)}>{editing ? 'Done' : 'Layout'}</button>}
-      {full ? <button type="button" className="sec" onClick={leave}>Exit</button> : <button type="button" className="sec" onClick={enter} title="Show this wall full screen">View</button>}</span></div>);
-  const body = (<>{bar}{editing && <p className="mut" style={{ margin: '4px 0' }}>Tap a monitor to choose its MV layout.</p>}{wall}</>);
+  const sm = full ? { padding: '2px 12px', minHeight: 0, height: 28, fontSize: '.8rem', lineHeight: 1 } : undefined;
+  const bar = (<div className="row" style={{ justifyContent: 'space-between', gap: 8, ...(full ? { margin: 0, flex: '0 0 auto', minHeight: 0 } : {}) }}><b style={full ? { fontSize: '.85rem' } : undefined}>{wl.name}</b>
+    <span style={{ display: 'flex', gap: 8 }}>{!readOnly && <button type="button" style={sm} className={editing ? '' : 'sec'} aria-pressed={editing} onClick={() => setEditing(!editing)}>{editing ? 'Done' : 'Layout'}</button>}
+      {full ? <button type="button" style={sm} className="sec" onClick={leave}>Exit</button> : <button type="button" className="sec" onClick={enter} title="Show this wall full screen">View</button>}</span></div>);
+  const body = (<>{bar}{editing && !full && <p className="mut" style={{ margin: '4px 0' }}>Tap a monitor to choose its MV layout.</p>}{wall}</>);
   return (<div className="card" style={full ? { padding: 0, border: 0 } : undefined}>
-    {full ? (<div ref={box} style={turned ? { position: 'fixed', top: 0, left: '100vw', width: '100vh', height: '100vw', transform: 'rotate(90deg)', transformOrigin: 'top left', background: 'var(--panel)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: 10, boxSizing: 'border-box', overflow: 'hidden' }
-        : { position: 'fixed', inset: 0, background: 'var(--panel)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: 10, boxSizing: 'border-box', overflow: 'hidden' }}>
+    {full ? (<div ref={box} style={turned ? { position: 'fixed', top: 0, left: '100vw', width: '100vh', height: '100vw', transform: 'rotate(90deg)', transformOrigin: 'top left', background: 'var(--panel)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: '4px 8px', gap: 4, boxSizing: 'border-box', overflow: 'hidden' }
+        : { position: 'fixed', inset: 0, background: 'var(--panel)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: '4px 8px', gap: 4, boxSizing: 'border-box', overflow: 'hidden' }}>
       {body}{pick && pa && <div role="dialog" aria-modal="true" style={{ position: 'absolute', inset: 8, background: 'var(--panel)', borderRadius: 14, padding: 16, boxShadow: '0 20px 50px rgba(0,0,0,.4)', border: '1px solid var(--line)', zIndex: 2 }}>{chooser}</div>}</div>)
       : (<div ref={box}>{body}</div>)}
     {!full && <dialog ref={ref} className="dlg" onClose={() => setPick(null)} onClick={e => { if (e.target === ref.current) setPick(null); }} style={{ width: 'min(1100px, 96vw)', maxWidth: '96vw', height: '90vh', maxHeight: '90vh', display: pick ? 'block' : 'none', padding: 18 }}>{chooser}</dialog>}</div>);
