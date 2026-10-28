@@ -17,7 +17,7 @@ export default function DevBar({ owner }: { owner: boolean }) {
   useEffect(() => { load().then(() => { const id = Number(new URLSearchParams(location.search).get('devnote')); if (id) setActive(id); }); }, [path, load]);
   useEffect(() => { const f = () => setSize({ w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight }); f();
     const ro = new ResizeObserver(f); ro.observe(document.body); window.addEventListener('resize', f); return () => { ro.disconnect(); window.removeEventListener('resize', f); }; }, [path, notes]);
-  const top = notes.filter(n => !n.parent_id), repliesOf = (id: number) => notes.filter(n => n.parent_id === id);
+  const device = typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop', allTop = notes.filter(n => !n.parent_id), top = allTop.filter(n => n.device === device), other = allTop.length - top.length, repliesOf = (id: number) => notes.filter(n => n.parent_id === id);
   useEffect(() => { const n = top.find(t => t.id === active); if (n && n.y != null) window.scrollTo({ top: Math.max(0, n.y - 120), behavior: 'smooth' }); }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
   const pt = (e: React.PointerEvent) => ({ x: Math.round(e.pageX), y: Math.round(e.pageY) });
   const down = (e: React.PointerEvent) => {
@@ -31,7 +31,7 @@ export default function DevBar({ owner }: { owner: boolean }) {
     else if (tool === 'highlight' && rect && rect.w > 6 && rect.h > 6) { setDraft({ kind: 'highlight', x: rect.x, y: rect.y, drawing: rect }); setText(''); }
     setLive(null); setRect(null); };
   async function save() {
-    if (!draft) return; const r = await addNote({ page: page(), kind: draft.kind, body: text, severity: sev, x: draft.x, y: draft.y, vw: window.innerWidth, drawing: draft.drawing });
+    if (!draft) return; const r = await addNote({ page: page(), kind: draft.kind, body: text, severity: sev, x: draft.x, y: draft.y, vw: window.innerWidth, device, drawing: draft.drawing });
     if (r.error) { setMsg(r.error); return; } setDraft(null); setText(''); setMsg(''); setTool(null); await load(); setList(true); }
   const idx = (id: number) => top.findIndex(n => n.id === id) + 1;
   const mark = (n: DevNote) => { const c = COL[n.severity] ?? COL[2], a = n.id === active;
@@ -54,7 +54,7 @@ export default function DevBar({ owner }: { owner: boolean }) {
         <b style={{ color: '#60a5fa', fontSize: 12, letterSpacing: '.05em' }}>DEV</b>
         {open && <>{(['note', 'draw', 'highlight'] as const).map(t => <button key={t} type="button" onClick={() => { setTool(tool === t ? null : t); setDraft(null); }} style={btn(tool === t)}>{t === 'note' ? '📌 Note' : t === 'draw' ? '✏️ Draw' : '🖍 Highlight'}</button>)}
           <span title="Severity" style={{ display: 'flex', gap: 3 }}>{[1, 2, 3].map(s => <button key={s} type="button" onClick={() => setSev(s)} aria-pressed={sev === s} title={['', 'Severity 1: minor', 'Severity 2: medium', 'Severity 3: serious'][s]} style={{ ...btn(sev === s), background: sev === s ? COL[s] : '#222a35', color: '#fff', minWidth: 28 }}>{s}</button>)}</span>
-          <button type="button" onClick={() => setList(!list)} style={btn(list)}>List ({top.length})</button>
+          <button type="button" onClick={() => setList(!list)} style={btn(list)}>List ({top.length}{other ? `+${other}` : ''})</button>
           {owner && <a href="/webappdev/markup" style={{ ...btn(false), textDecoration: 'none' }}>Markup</a>}</>}
         <button type="button" onClick={() => setOpen(!open)} aria-label={open ? 'Collapse' : 'Expand'} style={{ ...btn(false), marginLeft: 'auto' }}>{open ? '–' : '＋'}</button>
       </div>
@@ -64,9 +64,10 @@ export default function DevBar({ owner }: { owner: boolean }) {
         {msg && <span style={{ color: '#ff7b72' }}>{msg}</span>}
         <div style={{ display: 'flex', gap: 6 }}><button type="button" onClick={save} style={{ ...btn(true), background: '#2563eb' }}>Save (severity {sev})</button><button type="button" onClick={() => { setDraft(null); setMsg(''); }} style={btn(false)}>Cancel</button></div></div>}
       {open && list && <div style={{ maxHeight: '45vh', overflow: 'auto', borderTop: '1px solid #30363d', padding: 8, display: 'grid', gap: 8 }}>
-        {top.length === 0 && <span style={{ color: '#9aa7b5' }}>No comments on this page yet.</span>}
+        {other > 0 && <span style={{ color: '#9aa7b5', fontSize: 12 }}>{other} more on the {device === 'mobile' ? 'desktop' : 'mobile'} view (marks are placed for that screen size).</span>}
+        {top.length === 0 && <span style={{ color: '#9aa7b5' }}>No {device} comments on this page yet.</span>}
         {top.map(n => (<div key={n.id} onClick={() => setActive(n.id)} style={{ border: `1px solid ${n.id === active ? COL[n.severity] : '#30363d'}`, borderLeft: `5px solid ${COL[n.severity]}`, borderRadius: 8, padding: 8, cursor: 'pointer' }}>
-          <div style={{ fontSize: 12, color: '#9aa7b5' }}>#{idx(n.id)} · {n.user_name} · {new Date(n.created_at).toLocaleString()} · {n.kind}{n.status === 'done' ? ' · done' : ''}</div>
+          <div style={{ fontSize: 12, color: '#9aa7b5' }}>#{idx(n.id)} · {n.device === 'mobile' ? '📱' : '🖥'} · {n.user_name} · {new Date(n.created_at).toLocaleString()} · {n.kind}{n.status === 'done' ? ' · done' : ''}</div>
           {n.body && <div style={{ whiteSpace: 'pre-wrap', margin: '4px 0' }}>{n.body}</div>}
           {repliesOf(n.id).map(r => <div key={r.id} style={{ marginTop: 6, padding: '6px 8px', background: '#1f2a3a', borderRadius: 6 }}><div style={{ fontSize: 11, color: '#60a5fa' }}>{r.user_name} replied · {new Date(r.created_at).toLocaleString()}</div><div style={{ whiteSpace: 'pre-wrap' }}>{r.body}</div></div>)}
           {owner && <form onSubmit={async e => { e.preventDefault(); const t = (reply[n.id] ?? '').trim(); if (!t) return; await replyNote(n.id, t); setReply({ ...reply, [n.id]: '' }); load(); }} style={{ display: 'flex', gap: 6, marginTop: 6 }}>

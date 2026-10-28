@@ -13,7 +13,7 @@ export default async function Markup({ searchParams }: { searchParams: Promise<{
   if (!devSite()) notFound();
   const me = await requireMe(); if (me.role !== 'webappdev') redirect('/');
   const { tab: t0, sev } = await searchParams; const tab = ['list', 'blocks', 'archive', 'people'].includes(t0 ?? '') ? t0! : 'list';
-  const notes = await rows<any>(`select n.id,n.page,n.kind,n.body,n.severity,n.status,n.archived,n.block_id,n.created_at,n.done_at,u.name user_name,u.email,
+  const notes = await rows<any>(`select n.id,n.page,n.kind,n.device,n.body,n.severity,n.status,n.archived,n.block_id,n.created_at,n.done_at,u.name user_name,u.email,
     (select json_agg(json_build_object('id',r.id,'body',r.body,'at',r.created_at,'by',ru.name) order by r.created_at) from dev_notes r join users ru on ru.id=r.user_id where r.parent_id=n.id) replies
     from dev_notes n join users u on u.id=n.user_id where n.parent_id is null order by n.severity desc, n.created_at desc`);
   const blocks = await rows<any>('select id,name,created_at from dev_blocks order by created_at');
@@ -22,7 +22,7 @@ export default async function Markup({ searchParams }: { searchParams: Promise<{
   const link = (n: any) => `${n.page}${n.page.includes('?') ? '&' : '?'}devnote=${n.id}`;
   const card = (n: any, archived = false) => (<div key={n.id} className="card" style={{ borderLeft: `6px solid ${COL[n.severity]}`, margin: '10px 0' }}>
     <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-      <span><b style={{ color: COL[n.severity] }}>Severity {n.severity}</b> <span className="mut">({SEVTXT[n.severity]})</span> · {n.kind} · {n.user_name} <span className="mut">{n.email}</span></span>
+      <span><b style={{ color: COL[n.severity] }}>Severity {n.severity}</b> <span className="mut">({SEVTXT[n.severity]})</span> · {n.device === 'mobile' ? '📱 mobile' : '🖥 desktop'} · {n.kind} · {n.user_name} <span className="mut">{n.email}</span></span>
       <span className="mut">{new Date(n.created_at).toLocaleString('en-GB')}{n.done_at ? ` · done ${new Date(n.done_at).toLocaleString('en-GB')}` : ''}</span></div>
     <p style={{ margin: '6px 0', whiteSpace: 'pre-wrap' }}>{n.body || <span className="mut">(drawing / highlight only)</span>}</p>
     <p style={{ margin: '4px 0' }}><Link href={link(n)}>Open page: {n.page}</Link></p>
