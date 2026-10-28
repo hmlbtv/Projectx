@@ -43,9 +43,9 @@ function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: L
             <LayoutPic lay={l} names={wl.dests?.[pa.id]} big /><b>{l.name}{on ? ' ✓' : ''}</b><span className="mut">{l.tiles.length} window{l.tiles.length === 1 ? '' : 's'}</span></button>); })}</div></>}</dialog></div>);
 }
 
-export default function Plan({ walls, layouts, sources, saved, save, readOnly = false }: { walls: Wall[]; layouts: Layout[]; sources: string[]; saved: { name: string; data: Data }[]; save?: (name: string, data: Data) => Promise<void>; readOnly?: boolean }) {
-  const [name, setName] = useState(saved[0]?.name ?? 'Room Layout 1');
-  const [data, setData] = useState<Data>(saved[0]?.data ?? {});
+export default function Plan({ walls, layouts, sources, saved, save, readOnly = false, start }: { start?: string; walls: Wall[]; layouts: Layout[]; sources: string[]; saved: { name: string; data: Data }[]; save?: (name: string, data: Data) => Promise<void>; readOnly?: boolean }) {
+  const [name, setName] = useState((saved.find(x => x.name === start) ?? saved[0])?.name ?? 'Room Layout 1');
+  const [data, setData] = useState<Data>((saved.find(x => x.name === start) ?? saved[0])?.data ?? {});
   const [msg, setMsg] = useState('');
   const w = (id: number) => data[id] ?? { layoutId: undefined, assign: {} };
   // Sources are stored per tile NUMBER, so they stay in the same numbered tile when the layout changes.

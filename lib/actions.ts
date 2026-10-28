@@ -640,6 +640,30 @@ async function savePlan_(jobId: number, name: string, data: any) {
   else await rows('insert into monitor_plans(job_id,user_id,name,data) values($1,$2,$3,$4)', [jobId, me.id, name, JSON.stringify(data)]);
   revalidatePath('/plans');
 }
+// Copy a saved Monitor Plan (from another Job, including one that has expired) into this Job. Each wall is matched by its place in a Room, or failing that by its Wall Template.
+// Only the monitors' chosen MV layouts and sources that still exist on the wall are kept.
+async function copyPlan_(f: FormData) {
+  const me = await requireMe(); const job = Number(s(f, 'job')), planId = Number(s(f, 'plan'));
+  if (!(await canAccessJob(me, job))) throw new Error('Not found');
+  const src = await one('select mp.id, mp.job_id, mp.user_id, mp.name, mp.data from monitor_plans mp where mp.id=$1 and mp.link_id is null', [planId]);
+  if (!src || !(await canAccessJob(me, src.job_id)) || (src.user_id !== me.id && !canManage(me))) throw new Error('Not found');
+  const walls = await rows('select rw.id, rw.wall_template_id wt, w.data from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join wall_templates w on w.id=rw.wall_template_id where jw.job_id=$1', [job]);
+  const old = await rows('select rw.id, rw.wall_template_id wt from room_walls rw where rw.id = any($1::int[])', [Object.keys(src.data ?? {}).map(Number).filter(Boolean)]);
+  const wtOf = new Map<number, number>(old.map((o: any) => [o.id, o.wt]));
+  const out: Record<string, any> = {};
+  for (const w of walls) {
+    const key = (src.data ?? {})[w.id] ? String(w.id) : Object.keys(src.data ?? {}).find(k => wtOf.get(Number(k)) === w.wt && !walls.some((x: any) => String(x.id) === k));
+    const d = key ? src.data[key] : null; if (!d) continue;
+    const assets: any[] = Array.isArray(w.data?.assets) ? w.data.assets : [], mons: Record<string, number> = {};
+    for (const [aid, lid] of Object.entries(d.mons ?? {})) { const a = assets.find(x => x.id === aid); if (a && Array.isArray(a.props?.mvs) && a.props.mvs.includes(Number(lid))) mons[aid] = Number(lid); }
+    out[w.id] = { ...(d.layoutId ? { layoutId: d.layoutId } : {}), assign: d.assign ?? {}, ...(Object.keys(mons).length ? { mons } : {}) };
+  }
+  if (!Object.keys(out).length) { redirect(`/plans?job=${job}&copied=none`); }
+  let name = String(src.name).slice(0, 70), n = 1;
+  while (await one('select 1 from monitor_plans where job_id=$1 and user_id=$2 and name=$3', [job, me.id, name])) name = `${String(src.name).slice(0, 60)} ${++n}`;
+  await rows('insert into monitor_plans(job_id,user_id,name,data) values($1,$2,$3,$4)', [job, me.id, name, JSON.stringify(out)]);
+  revalidatePath('/plans'); redirect(`/plans?job=${job}&plan=${encodeURIComponent(name)}`);
+}
 async function addComment_(f: FormData) {
   const me = await requireMe(); const job = Number(s(f,'job')), room = Number(s(f,'room'));
   if (!(await canAccessJob(me, job)) || !(await one('select 1 from job_walls jw join room_walls rw on rw.id=jw.room_wall_id where jw.job_id=$1 and rw.room_id=$2', [job, room]))) throw new Error('Not found');
@@ -741,6 +765,7 @@ export async function deleteBroadcaster(...a: Parameters<typeof deleteBroadcaste
 export async function deleteJob(...a: Parameters<typeof deleteJob_>) { return audited('deleteJob', deleteJob_, a) as ReturnType<typeof deleteJob_>; }
 export async function assignWall(...a: Parameters<typeof assignWall_>) { return audited('assignWall', assignWall_, a) as ReturnType<typeof assignWall_>; }
 export async function unassignWall(...a: Parameters<typeof unassignWall_>) { return audited('unassignWall', unassignWall_, a) as ReturnType<typeof unassignWall_>; }
+export async function copyPlan(...a: Parameters<typeof copyPlan_>) { return audited('copyPlan', copyPlan_, a) as ReturnType<typeof copyPlan_>; }
 export async function savePlan(...a: Parameters<typeof savePlan_>) { return audited('savePlan', savePlan_, a) as ReturnType<typeof savePlan_>; }
 export async function addComment(...a: Parameters<typeof addComment_>) { return audited('addComment', addComment_, a) as ReturnType<typeof addComment_>; }
 export async function loadDemoData(...a: Parameters<typeof loadDemoData_>) { return audited('loadDemoData', loadDemoData_, a) as ReturnType<typeof loadDemoData_>; }
