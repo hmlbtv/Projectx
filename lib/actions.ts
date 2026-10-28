@@ -647,18 +647,20 @@ async function copyPlan_(f: FormData) {
   if (!(await canAccessJob(me, job))) throw new Error('Not found');
   const src = await one('select mp.id, mp.job_id, mp.user_id, mp.name, mp.data from monitor_plans mp where mp.id=$1 and mp.link_id is null', [planId]);
   if (!src || !(await canAccessJob(me, src.job_id)) || (src.user_id !== me.id && !canManage(me))) throw new Error('Not found');
-  const walls = await rows('select rw.id, rw.wall_template_id wt, w.data from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join wall_templates w on w.id=rw.wall_template_id where jw.job_id=$1', [job]);
-  const old = await rows('select rw.id, rw.wall_template_id wt from room_walls rw where rw.id = any($1::int[])', [Object.keys(src.data ?? {}).map(Number).filter(Boolean)]);
-  const wtOf = new Map<number, number>(old.map((o: any) => [o.id, o.wt]));
+  const walls = await rows('select rw.id, rw.wall_template_id wt, r.location_id loc, w.data from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join rooms r on r.id=rw.room_id join wall_templates w on w.id=rw.wall_template_id where jw.job_id=$1', [job]);
+  const old = await rows('select rw.id, rw.wall_template_id wt, r.location_id loc from room_walls rw join rooms r on r.id=rw.room_id where rw.id = any($1::int[])', [Object.keys(src.data ?? {}).map(Number).filter(Boolean)]);
+  const wtOf = new Map<number, number>(old.map((o: any) => [o.id, o.wt])), locOf = new Map<number, number>(old.map((o: any) => [o.id, o.loc]));
+  // A plan belongs to its Location: it can only be copied onto walls in that same Location.
   const out: Record<string, any> = {};
   for (const w of walls) {
-    const key = (src.data ?? {})[w.id] ? String(w.id) : Object.keys(src.data ?? {}).find(k => wtOf.get(Number(k)) === w.wt && !walls.some((x: any) => String(x.id) === k));
+    const key = (src.data ?? {})[w.id] ? String(w.id) : Object.keys(src.data ?? {}).find(k => wtOf.get(Number(k)) === w.wt && locOf.get(Number(k)) === w.loc && !walls.some((x: any) => String(x.id) === k));
+    if (key && locOf.get(Number(key)) !== w.loc) continue;
     const d = key ? src.data[key] : null; if (!d) continue;
     const assets: any[] = Array.isArray(w.data?.assets) ? w.data.assets : [], mons: Record<string, number> = {};
     for (const [aid, lid] of Object.entries(d.mons ?? {})) { const a = assets.find(x => x.id === aid); if (a && Array.isArray(a.props?.mvs) && a.props.mvs.includes(Number(lid))) mons[aid] = Number(lid); }
     out[w.id] = { ...(d.layoutId ? { layoutId: d.layoutId } : {}), assign: d.assign ?? {}, ...(Object.keys(mons).length ? { mons } : {}) };
   }
-  if (!Object.keys(out).length) { redirect(`/plans?job=${job}&copied=none`); }
+  if (!Object.keys(out).length) { redirect(`/plans?job=${job}&copied=none`); } // nothing in a shared Location
   let name = String(src.name).slice(0, 70), n = 1;
   while (await one('select 1 from monitor_plans where job_id=$1 and user_id=$2 and name=$3', [job, me.id, name])) name = `${String(src.name).slice(0, 60)} ${++n}`;
   await rows('insert into monitor_plans(job_id,user_id,name,data) values($1,$2,$3,$4)', [job, me.id, name, JSON.stringify(out)]);

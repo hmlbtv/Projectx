@@ -23,15 +23,19 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
   const comments = await rows(`select c.*, coalesce(u.name, c.guest_email || ' (guest)') uname from comments c left join users u on u.id=c.user_id where c.job_id=$1 order by c.id`, [cur.id]);
   const tenantId = (await rows('select b.tenant_id from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where j.id=$1', [cur.id]))[0].tenant_id;
   const pw = await planWalls(rws.filter((r: any) => r.id).map((r: any) => ({ id: r.id, name: r.name, data: r.data })), tenantId);
-  // Saved plans of other Jobs (expired ones too) that this person may copy: their own, or any in the workspace for Admin/Manager.
-  const cands = await rows(`select mp.id, mp.name, mp.updated_at, j.name job, p.name prod, (j.expires_at < current_date) expired, coalesce(u.name, u.email) who, mp.user_id
+  // Saved plans this person may copy into this Job: other Jobs (finished ones too) of the same workspace, and only plans for walls in a Location this Job also uses.
+  // A person sees their own plans; Admin/Manager see all. Grouped by Production, then Job, in the dialog.
+  const locIds = (await rows('select distinct r.location_id from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join rooms r on r.id=rw.room_id where jw.job_id=$1', [cur.id])).map((x: any) => x.location_id);
+  const cands = locIds.length === 0 ? [] : await rows(`select mp.id, mp.name, mp.updated_at, j.id job_id, j.name job, p.id prod_id, p.name prod, (j.expires_at < current_date) expired, coalesce(u.name, u.email) who, mp.user_id,
+      (select string_agg(distinct st.name || ' › ' || l.name, ', ') from jsonb_object_keys(mp.data) k join room_walls rw on rw.id=(case when k ~ '^[0-9]+$' then k::int end) join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites st on st.id=l.site_id where k ~ '^[0-9]+$' and l.id = any($5::int[])) place
     from monitor_plans mp join jobs j on j.id=mp.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id left join users u on u.id=mp.user_id
     where mp.job_id<>$1 and mp.link_id is null and b.tenant_id=$2 and ($3::boolean or (mp.user_id=$4 and j.id in (select job_id from job_users where user_id=$4)))
-    order by mp.updated_at desc limit 100`, [cur.id, tenantId, canManage(me), me.id]);
+      and exists (select 1 from jsonb_object_keys(mp.data) k join room_walls rw on rw.id=(case when k ~ '^[0-9]+$' then k::int end) join rooms r on r.id=rw.room_id where k ~ '^[0-9]+$' and r.location_id = any($5::int[]))
+    order by p.name, j.job_date desc nulls last, mp.updated_at desc limit 200`, [cur.id, tenantId, canManage(me), me.id, locIds]);
   const roomIds = [...new Set(rws.map((r: any) => r.room_id))];
   return (<><a href="/plans">← Jobs</a><h1>{cur.prod} / {cur.name}</h1>
     {copied === 'none' && <p role="alert" style={{ color: '#b45309' }}>Nothing was copied: that plan has no walls in common with this Job.</p>}
-    {cands.length > 0 && <CopyPlan job={cur.id} action={copyPlan} plans={cands.map((c: any) => ({ id: c.id, name: c.name, job: `${c.prod} / ${c.job}`, expired: !!c.expired, when: String(c.updated_at).slice(0, 10), who: c.user_id === me.id ? '' : c.who }))} />}
+    {cands.length > 0 && <CopyPlan job={cur.id} action={copyPlan} plans={cands.map((c: any) => ({ id: c.id, name: c.name, prod: c.prod, prodId: c.prod_id, job: c.job, jobId: c.job_id, place: c.place ?? '', expired: !!c.expired, when: String(c.updated_at).slice(0, 10), who: c.user_id === me.id ? '' : c.who }))} />}
     {roomIds.map(rid => { const rs = rws.filter((r: any) => r.room_id === rid); return (<div key={rid}><h2>Room: {rs[0].room}</h2>
       {rs.filter((r: any) => r.id).length === 0 ? <div className="card mut">No Wall Template has been added to this Room yet. Check back once it has been set up.</div> : <Plan save={savePlan.bind(null, cur.id)} walls={pw.filter(w => rs.some((r: any) => r.id === w.id))} layouts={layouts} sources={j.sources ?? []} saved={saved} start={planQ} />}
       <div className="card"><b>Comments</b>{comments.filter((c: any) => c.room_id === rid).map((c: any) => <div key={c.id}><b>{c.uname}</b>: {c.body}</div>)}
