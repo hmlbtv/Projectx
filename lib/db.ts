@@ -1,3 +1,4 @@
+import { devSite, DEV_SCHEMA } from './devmode';
 import { PGlite } from '@electric-sql/pglite';
 import { mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -128,13 +129,14 @@ async function init(): Promise<Client> {
     client = new PGlite(dir) as unknown as Client;
   }
   // Start-up work (creating tables, one-time upgrades, first-run data) only runs when the schema or sign-in settings changed, so most cold starts skip it.
-  const ver = createHash('sha1').update(SCHEMA + MIGRATION_REV + (process.env.ADMIN_EMAIL ?? '') + (process.env.TENANT_NAME ?? '')).digest('hex');
+  const ver = createHash('sha1').update(SCHEMA + MIGRATION_REV + (devSite() ? DEV_SCHEMA : '') + (process.env.ADMIN_EMAIL ?? '') + (process.env.TENANT_NAME ?? '')).digest('hex');
   try { if ((await client.query("select value from settings where key='schema_ver'")).rows[0]?.value === ver) return client; } catch { /* first run: no settings table yet */ }
   const hadTiles = (await client.query("select to_regclass('public.mv_tiles') t")).rows[0].t;
   const hadTenants = (await client.query("select to_regclass('public.tenants') t")).rows[0].t;
   const hadJobWalls = (await client.query("select to_regclass('public.job_walls') t")).rows[0].t;
   const hadAlpha = (await client.query("select 1 from information_schema.columns where table_name='wall_images' and column_name='alpha'")).rows.length;
   await client.exec(SCHEMA);
+  if (devSite()) await client.exec(DEV_SCHEMA);
   if (!hadAlpha) await client.exec("update wall_images set alpha=true where mime in ('image/png','image/svg+xml')");
   // Wall Templates now belong to a Site: carry over from any Room they were already placed in.
   await client.exec('update wall_templates w set site_id=(select l.site_id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id where rw.wall_template_id=w.id order by rw.id limit 1) where w.site_id is null');
