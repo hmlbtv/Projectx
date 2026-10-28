@@ -56,7 +56,7 @@ function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: L
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}><b style={{ fontSize: '1.05rem' }}>{l.name}</b><span className="mut" style={{ whiteSpace: 'nowrap' }}>{l.tiles.length} window{l.tiles.length === 1 ? '' : 's'}</span></div>
         {on && <span style={{ position: 'absolute', top: 16, right: 16, background: '#e5352b', color: '#fff', borderRadius: 999, padding: '2px 10px', fontSize: '.8rem', fontWeight: 700 }}>✓ In use</span>}</button>); })}</div></div>);
   const wall = (<svg viewBox={`${vx} ${vy} ${w} ${h}`} width="100%" height={full ? '100%' : undefined} style={{ display: 'block', background: '#1b2027', borderRadius: full ? 0 : 8, maxHeight: full ? undefined : '70vh', flex: full ? 1 : undefined, minHeight: 0 }} preserveAspectRatio="xMidYMid meet">
-    {list.map(a => { const lay = isScreen(a.type) ? chosen(a) : undefined, can = editing && !!lay && mvsOf(a).length > 0;
+    {list.map(a => { const lay = isScreen(a.type) ? chosen(a) : undefined, can = editing && !!lay && mvsOf(a).length > 1;
       return (<g key={a.id}><svg x={a.x} y={a.y} width={a.w} height={a.h} viewBox={`0 0 ${a.w} ${a.h}`}><WallArt a={{ ...a, name: a.name ?? '' }} /></svg>
         {lay && <LayoutPic lay={lay} names={wl.dests?.[a.id]} pos={{ x: a.x + 4, y: a.y + 4, w: a.w - 8, h: a.h - 8 }} />}
         {isScreen(a.type) && !lay && <rect x={a.x + 4} y={a.y + 4} width={a.w - 8} height={a.h - 8} fill="#f8fafc" stroke="#94a3b8" strokeWidth="4" pointerEvents="none" />}
