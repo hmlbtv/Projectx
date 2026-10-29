@@ -4,6 +4,7 @@ import { requireMe, canManage } from '@/lib/session';
 import { deleteContact, updateContact, addContact, assignContact, unassignContact } from '@/lib/contactActions';
 import AddDialog from '../AddDialog';
 import Menu from '../Menu';
+import ImportContacts from './ImportContacts';
 export const dynamic = 'force-dynamic';
 
 export default async function Contacts({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
@@ -14,9 +15,9 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
   const prods = await rows('select p.id, p.name, b.name bname from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 order by b.id, p.id', [t]);
   const pc = await rows('select pc.contact_id, pc.production_id from production_contacts pc join contacts c on c.id=pc.contact_id where c.tenant_id=$1', [t]);
   return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Contacts</h1>
-      <AddDialog inline action={addContact} label="Add Contact" title="New contact" placeholder="Name">
+      <div className="row" style={{ gap: 8 }}><ImportContacts /><AddDialog inline action={addContact} label="Add Contact" title="New contact" placeholder="Name">
         <input name="email" type="email" placeholder="Email" required /><input name="company" placeholder="Company (optional)" />
-        <select name="production"><option value="">Assign to Production…</option>{prods.map((p: any) => <option key={p.id} value={p.id}>{p.bname} / {p.name}</option>)}</select></AddDialog></div>
+        <select name="production"><option value="">Assign to Production…</option>{prods.map((p: any) => <option key={p.id} value={p.id}>{p.bname} / {p.name}</option>)}</select></AddDialog></div></div>
     <p className="mut">Your tenant's contact list. Assign a contact to the Productions they work on, then share walls with them from Productions.</p>
     <form className="row"><input name="q" placeholder="Search contacts" defaultValue={q} /><button className="sec">Search</button></form>
     {contacts.length === 0 && <p className="mut">No contacts yet.</p>}

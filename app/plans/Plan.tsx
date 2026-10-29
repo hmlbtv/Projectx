@@ -37,7 +37,7 @@ function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: L
   useEffect(() => { if (!full) return; let live = true; (async () => { const el = box.current;
     try { if (el?.requestFullscreen) { await el.requestFullscreen(); fsUsed.current = true; try { await (screen.orientation as any)?.lock?.('landscape'); } catch { /* not allowed here */ } } } catch { /* use the full-window view */ }
     setTimeout(() => { if (live) setTurned(portrait()); }, 300); })(); return () => { live = false; }; }, [full]); // eslint-disable-line react-hooks/exhaustive-deps
-  function leave() { fsUsed.current = false; setFull(false); setTurned(false); setPick(null); try { (screen.orientation as any)?.unlock?.(); } catch { /* ignore */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+  function leave() { fsUsed.current = false; setEditing(false); setFull(false); setTurned(false); setPick(null); try { (screen.orientation as any)?.unlock?.(); } catch { /* ignore */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
   useEffect(() => {
     if (!full) return;
     const onFs = () => { if (!document.fullscreenElement && fsUsed.current) leave(); }, onSize = () => { setTurned(portrait()); const v = window.visualViewport; setVp({ w: Math.round(v?.width ?? window.innerWidth), h: Math.round(v?.height ?? window.innerHeight) }); }, onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !pick) leave(); };
@@ -62,8 +62,8 @@ function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: L
         {isScreen(a.type) && !lay && <rect x={a.x + 4} y={a.y + 4} width={a.w - 8} height={a.h - 8} fill="#f8fafc" stroke="#94a3b8" strokeWidth="4" pointerEvents="none" />}
         {can && <rect x={a.x} y={a.y} width={a.w} height={a.h} fill="rgba(229,53,43,.10)" stroke="#e5352b" strokeWidth="5" style={{ cursor: 'pointer' }} role="button" tabIndex={0} aria-label={`Choose MV layout for ${a.name ?? 'monitor'}`} onClick={() => setPick(a.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPick(a.id); } }} />}</g>); })}</svg>);
   const sm = full ? { padding: '2px 12px', minHeight: 0, height: 28, fontSize: '.8rem', lineHeight: 1 } : undefined;
-  const bar = (<div className="row" style={{ justifyContent: 'space-between', gap: 8, ...(full ? { margin: 0, flex: '0 0 auto', minHeight: 0 } : {}) }}><b style={full ? { fontSize: '.85rem' } : undefined}>{wl.name}</b>
-    <span style={{ display: 'flex', gap: 8 }}>{!readOnly && <button type="button" style={sm} className={editing ? '' : 'sec'} aria-pressed={editing} onClick={() => setEditing(!editing)}>{editing ? 'Done' : 'Layout'}</button>}
+  const bar = (<div className="row" style={{ justifyContent: 'space-between', gap: 8, ...(full ? { margin: 0, flex: '0 0 auto', minHeight: 0 } : {}) }}><b style={full ? { fontSize: '.85rem' } : undefined}>{wl.name}</b>{full && editing && <span className="mut" style={{ fontSize: '.75rem' }}>Tap a monitor to choose its layout</span>}
+    <span style={{ display: 'flex', gap: 8 }}>{!readOnly && <button type="button" style={sm} className={editing ? '' : 'sec'} aria-pressed={editing} onClick={() => { if (editing) setEditing(false); else { setEditing(true); if (!full) enter(); } }}>{editing ? 'Done' : 'Layout'}</button>}
       {full ? <button type="button" style={sm} className="sec" onClick={leave}>Exit</button> : <button type="button" className="sec" onClick={enter} title="Show this wall full screen">View</button>}</span></div>);
   const body = (<>{bar}{editing && !full && <p className="mut" style={{ margin: '4px 0' }}>Tap a monitor to choose its MV layout.</p>}{wall}</>);
   return (<div className="card" style={full ? { padding: 0, border: 0 } : undefined}>
