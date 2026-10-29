@@ -17,6 +17,6 @@ export default async function Shared() {
   return (<><h1>Shared with me</h1><p className="mut">Monitor walls other teams have shared with you (sent to {me.email} or any other email you have added in Account). You can edit or only view each one, depending on the invitation.</p>
     {items.length === 0 && <div className="card mut">Nothing is shared with you right now. When someone invites you to a wall it will appear here.</div>}
     {groups.map(g => (<div key={g}><h2>{g}</h2>{items.filter((i: any) => i.tenant === g).map((i: any) => (
-      <div key={i.id} className="card"><div className="row" style={{ justifyContent: 'space-between' }}><div><b>{i.wall}</b> <div className="mut" style={{ fontSize: '.85rem' }}>Broadcaster: {i.broadcaster} · Production: {i.prod} · Job: {i.job} · {i.room}</div></div>
+      <div key={i.id} className="card"><div className="row" style={{ justifyContent: 'space-between' }}><div><b>{i.wall}</b> <div className="mut" style={{ fontSize: '.85rem' }}>{i.broadcaster} \ {i.prod} \ {i.job} · {i.room}</div></div>
         <div>{unread[`${i.job_id}:${i.room_wall_id}`] > 0 && <Link href={`/shared/${i.id}`} className="tag" style={{ background: '#e5352b', color: '#fff', fontWeight: 700, textDecoration: 'none', marginRight: 6 }}>💬 {unread[`${i.job_id}:${i.room_wall_id}`]} new</Link>}<span className="tag">{i.access === 'edit' ? 'Can edit' : 'View only'}</span> <Link href={`/shared/${i.id}`}><button className="sec" type="button">Open</button></Link></div></div></div>))}</div>))}</>);
 }

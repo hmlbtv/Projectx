@@ -18,7 +18,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
   const cur = jobs.find((j: any) => String(j.id) === job);
   if (!cur) { const unread = await unreadByJob(me.id);
     const card = (j: any, old: boolean) => (<div key={j.id} className="card"><div className="row" style={{ justifyContent: 'space-between', gap: 8 }}><div><a href={`/plans?job=${j.id}`}><b>{j.name}</b></a> <span className="mut">{String(j.job_date ?? '').slice(0, 10)}</span>
-      <div className="mut" style={{ fontSize: '.85rem' }}>Broadcaster: {j.broadcaster} · Production: {j.prod} · Job: {j.name}</div></div>
+      <div className="mut" style={{ fontSize: '.85rem' }}>{j.broadcaster} \ {j.prod} \ {j.name}</div></div>
       {!old && unread[j.id] > 0 && <a href={`/plans?job=${j.id}`} className="tag" style={{ background: '#e5352b', color: '#fff', fontWeight: 700, textDecoration: 'none' }}>💬 {unread[j.id]} new comment{unread[j.id] === 1 ? '' : 's'}</a>}</div></div>);
     const live = jobs.filter((j: any) => !j.expired), old = jobs.filter((j: any) => j.expired);
     return (<><h1>Monitor Plans</h1>{live.length === 0 && <p className="mut">No active Jobs assigned to you.</p>}{live.map((j: any) => card(j, false))}
