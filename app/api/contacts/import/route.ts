@@ -29,31 +29,27 @@ export async function POST(req: Request) {
     else return NextResponse.json({ error: 'Only Excel (.xlsx) or CSV files can be imported. Older .xls files: open and Save As .xlsx first.' }, { status: 400 });
   } catch { return NextResponse.json({ error: 'Could not read that file. Is it a valid .xlsx or .csv?' }, { status: 400 }); }
   // Find the header row (the one with an Email column) and which column is which.
-  const hi = grid.findIndex(r => r.some(c => /^e-?mail/i.test(str(c)))); if (hi < 0) return NextResponse.json({ error: 'No "Email" column found. Use the template: Name, Email, Company, Production.' }, { status: 400 });
+  const hi = grid.findIndex(r => r.some(c => /^e-?mail/i.test(str(c)))); if (hi < 0) return NextResponse.json({ error: 'No "Email" column found. Use the template: Name, Email, Company.' }, { status: 400 });
   const col = (re: RegExp) => grid[hi].findIndex(c => re.test(str(c)));
-  const cn = col(/^(full\s*)?name|^contact/i), ce = col(/^e-?mail/i), cc = col(/^(company|organi[sz]ation|business)/i), cp = col(/^production/i);
-  if (cn < 0) return NextResponse.json({ error: 'No "Name" column found. Use the template: Name, Email, Company, Production.' }, { status: 400 });
+  const cn = col(/^(full\s*)?name|^contact/i), ce = col(/^e-?mail/i), cc = col(/^(company|organi[sz]ation|business)/i);
+  if (cn < 0) return NextResponse.json({ error: 'No "Name" column found. Use the template: Name, Email, Company.' }, { status: 400 });
   const t = me.tenant_id;
   const have = new Set((await rows<{ email: string }>('select email from contacts where tenant_id=$1', [t])).map(r => r.email));
   let room = MAX_CONTACTS - have.size;
-  const prods = await rows<{ id: number; name: string; bname: string }>('select p.id,p.name,b.name bname from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1', [t]);
-  const byName = new Map<string, number[]>(); for (const p of prods) for (const k of [p.name.toLowerCase(), `${p.bname} / ${p.name}`.toLowerCase()]) byName.set(k, [...(byName.get(k) ?? []), p.id]);
-  const seen = new Set<string>(), add: { name: string; email: string; company: string; prod: number | null }[] = [], bad: { row: number; why: string }[] = [], noProd = new Set<string>(); let dup = 0, full = 0;
+  const seen = new Set<string>(), add: { name: string; email: string; company: string }[] = [], bad: { row: number; why: string }[] = []; let dup = 0, full = 0;
   grid.slice(hi + 1, hi + 1 + MAX_ROWS).forEach((r, i) => {
-    const name = str(r[cn]).slice(0, 200), email = str(r[ce]).toLowerCase().slice(0, 200), company = cc >= 0 ? str(r[cc]).slice(0, 200) : '', pr = cp >= 0 ? str(r[cp]) : '';
+    const name = str(r[cn]).slice(0, 200), email = str(r[ce]).toLowerCase().slice(0, 200), company = cc >= 0 ? str(r[cc]).slice(0, 200) : '';
     if (!name && !email && !company) return; const rowNo = hi + 2 + i;
     if (!name) return void bad.push({ row: rowNo, why: 'no name' }); if (!EMAIL.test(email)) return void bad.push({ row: rowNo, why: 'not a valid email' });
     if (have.has(email) || seen.has(email)) { dup++; return; } if (room <= 0) { full++; return; } room--; seen.add(email);
-    let prod: number | null = null; if (pr) { const m = byName.get(pr.toLowerCase()); if (m?.length === 1) prod = m[0]; else noProd.add(pr.slice(0, 60)); }
-    add.push({ name, email, company, prod });
+    add.push({ name, email, company });
   });
-  let added = 0, assigned = 0;
+  let added = 0;
   if (add.length) {
     const ins = await rows<{ id: number; email: string }>('insert into contacts(tenant_id,name,email,company) select $1, n, e, c from unnest($2::text[],$3::text[],$4::text[]) as u(n,e,c) on conflict do nothing returning id,email', [t, add.map(a => a.name), add.map(a => a.email), add.map(a => a.company)]);
-    added = ins.length; const id = new Map(ins.map(x => [x.email, x.id])); const links = add.filter(a => a.prod && id.has(a.email));
-    if (links.length) { const r = await rows('insert into production_contacts(production_id,contact_id) select p, c from unnest($1::int[],$2::int[]) as u(p,c) on conflict do nothing returning 1', [links.map(a => a.prod), links.map(a => id.get(a.email))]); assigned = r.length; }
+    added = ins.length;
   }
   await record(t, me.id, me.name, 'importContacts', `${added} added, ${dup} already there, ${bad.length} skipped`);
   revalidatePath('/contacts'); revalidatePath('/productions');
-  return NextResponse.json({ added, duplicates: dup, assigned, invalid: bad.length, problems: bad.slice(0, 10), unmatchedProductions: [...noProd].slice(0, 10), notAdded: full });
+  return NextResponse.json({ added, duplicates: dup, invalid: bad.length, problems: bad.slice(0, 10), notAdded: full });
 }
