@@ -144,8 +144,8 @@ async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
  <td style="color:#fff;font-size:24px;letter-spacing:-0.02em;line-height:1"><b>Tele</b>Planner</td></tr></table>
  <div style="color:#9aa4b2;font-size:11px;letter-spacing:.22em;text-transform:uppercase;margin-top:6px">teleplanner.tv · Monitor plans for live production</div></td></tr>
 <tr><td style="background:#fff;padding:26px 22px;border-radius:0 0 12px 12px">
- <p style="margin:0 0 6px;font-size:20px;font-weight:700">${esc(me.name)} shared ${walls.length === 1 ? 'a monitor wall' : `${walls.length} monitor walls`} with you</p>
- <p style="margin:0 0 20px;color:#555;font-size:15px">On teleplanner.tv · ${who}.</p>
+ <p style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111">${esc(me.name)} shared ${walls.length === 1 ? 'a monitor wall' : `${walls.length} monitor walls`} with you on <b>teleplanner.tv</b></p>
+ <div style="height:14px;line-height:14px">&nbsp;</div>
  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 8px"><tr><td style="background:#e5352b;border-radius:8px"><a href="${link}" style="display:inline-block;padding:13px 26px;color:#fff;font-size:16px;font-weight:700;text-decoration:none;${font}">Open my Monitor Plans</a></td></tr></table>
  <p style="margin:0 0 18px;color:#777;font-size:12px">Button not working? Copy this link into your browser:<br><a href="${link}" style="color:#777;word-break:break-all">${link}</a></p>
  ${shown.map((w: any) => `<p style="margin:16px 0 6px;font-size:15px"><b>${esc(String(w.name))}</b></p>${images.some(i => i.cid === `wall${w.id}`) ? `<img src="cid:wall${w.id}" alt="${esc(String(w.name))}" width="556" style="max-width:100%;height:auto;border-radius:8px;display:block">` : ''}`).join('')}
