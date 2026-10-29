@@ -101,6 +101,58 @@ async function reassignWallLink_(_: FormState, f: FormData): Promise<FormState> 
   return { ok: sent ? `New link emailed to ${contact.email}. The previous link no longer works.` : `Email sending is not set up. Send this new link to ${contact.email} (the previous link no longer works):`, link: sent ? undefined : link };
 }
 
+// ---- Invitations from Monitor Plans: one person, any number of the Job's walls, a contact or any email address ----
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+async function jobFor(me: Me, job: number) {
+  return one(`select j.id from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where j.id=$1 and b.tenant_id=$2`, [job, me.tenant_id ?? 0]);
+}
+const wallsOf = async (job: number, ids: number[]) => ids.length ? (await rows('select jw.room_wall_id id from job_walls jw where jw.job_id=$1 and jw.room_wall_id = any($2::int[])', [job, ids])).map((r: any) => r.id as number) : [];
+const ids = (f: FormData) => Array.from(new Set(f.getAll('wall').map(x => Number(x)).filter(n => Number.isInteger(n) && n > 0)));
+async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
+  const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
+  const tenant = me.tenant_id ?? 0, job = Number(s(f, 'job')); if (!(await jobFor(me, job))) return { error: 'Job not found.' };
+  if (!(await allow('wall-link', String(me.id), 60, 60))) return { error: 'Too many requests. Please wait a while and try again.' };
+  const access = s(f, 'access') === 'view' ? 'view' : 'edit';
+  const walls = await wallsOf(job, ids(f)); if (walls.length === 0) return { error: 'Tick at least one wall.' };
+  let email = s(f, 'email').toLowerCase(), contactId: number | null = null;
+  if (!email) { const c = await one('select id, email from contacts where id=$1 and tenant_id=$2', [Number(s(f, 'contact')), tenant]); if (c) { email = String(c.email).toLowerCase(); contactId = c.id; } }
+  if (!EMAIL.test(email) || email.length > 200) return { error: 'Choose a contact or type a valid email address.' };
+  let first = '';
+  for (const w of walls) {
+    const ex = await one('select id from wall_links where job_id=$1 and room_wall_id=$2 and lower(email)=$3 and not revoked', [job, w, email]);
+    if (ex) { await rows('update wall_links set access=$1 where id=$2', [access, ex.id]); continue; }
+    const token = newToken(); if (!first) first = token;
+    await rows('insert into wall_links(job_id,room_wall_id,email,access,token_hash,created_by,contact_id) values($1,$2,$3,$4,$5,$6,$7)', [job, w, email, access, sha256(token), me.id, contactId]);
+  }
+  revalidatePath('/plans');
+  if (!first) return { ok: `${email} already had these walls. Their access is now ${access === 'edit' ? 'can edit' : 'view only'}.` };
+  const link = `${await baseUrl()}/w/${first}`;
+  const sent = await sendMail(email, 'Monitor plans have been shared with you', `${me.name} shared ${walls.length} monitor wall${walls.length === 1 ? '' : 's'} with you on TelePlanner (${access === 'edit' ? 'you can edit' : 'view only'}).\nOpen this link to sign in or create your account:\n${link}\n\nThe account is tied to this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.`);
+  return { ok: sent ? `Invitation emailed to ${email}.` : `Email sending is not set up. Send this link to ${email}:`, link: sent ? undefined : link };
+}
+// Change what an invited person can open: tick or untick walls, switch edit / view only. Unticked walls are switched off, ticked new ones are added.
+async function updateInvite_(_: FormState, f: FormData): Promise<FormState> {
+  const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
+  const job = Number(s(f, 'job')); if (!(await jobFor(me, job))) return { error: 'Job not found.' };
+  const email = s(f, 'email').toLowerCase(), access = s(f, 'access') === 'view' ? 'view' : 'edit', want = await wallsOf(job, ids(f));
+  const cur = await rows('select id, room_wall_id from wall_links where job_id=$1 and lower(email)=$2 and not revoked', [job, email]);
+  if (cur.length === 0) return { error: 'Invitation not found.' };
+  const have = new Set(cur.map((c: any) => c.room_wall_id as number)), contact = (await one('select contact_id from wall_links where job_id=$1 and lower(email)=$2 and contact_id is not null limit 1', [job, email]))?.contact_id ?? null;
+  for (const c of cur) if (!want.includes(c.room_wall_id)) await rows('update wall_links set revoked=true where id=$1', [c.id]);
+  await rows('update wall_links set access=$1 where job_id=$2 and lower(email)=$3 and not revoked', [access, job, email]);
+  for (const w of want) if (!have.has(w)) await rows('insert into wall_links(job_id,room_wall_id,email,access,token_hash,created_by,contact_id) values($1,$2,$3,$4,$5,$6,$7)', [job, w, email, access, sha256(newToken()), me.id, contact]);
+  revalidatePath('/plans'); revalidatePath('/shared');
+  return { ok: want.length ? 'Saved.' : 'All walls removed, so this invitation is switched off.' };
+}
+async function removeInvite_(f: FormData) {
+  const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
+  const job = Number(s(f, 'job')); if (!(await jobFor(me, job))) return;
+  await rows('update wall_links set revoked=true where job_id=$1 and lower(email)=$2', [job, s(f, 'email').toLowerCase()]); revalidatePath('/plans'); revalidatePath('/shared');
+}
+export async function inviteToWalls(...a: Parameters<typeof inviteToWalls_>) { return audited('inviteToWalls', inviteToWalls_, a) as ReturnType<typeof inviteToWalls_>; }
+export async function updateInvite(...a: Parameters<typeof updateInvite_>) { return audited('updateInvite', updateInvite_, a) as ReturnType<typeof updateInvite_>; }
+export async function removeInvite(...a: Parameters<typeof removeInvite_>) { return audited('removeInvite', removeInvite_, a) as ReturnType<typeof removeInvite_>; }
+
 // Audit trail: each of these is recorded (who, what, when) once it succeeds.
 export async function createWallLink(...a: Parameters<typeof createWallLink_>) { return audited('createWallLink', createWallLink_, a) as ReturnType<typeof createWallLink_>; }
 export async function revokeWallLink(...a: Parameters<typeof revokeWallLink_>) { return audited('revokeWallLink', revokeWallLink_, a) as ReturnType<typeof revokeWallLink_>; }

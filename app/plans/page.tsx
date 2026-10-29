@@ -4,6 +4,7 @@ import { requireMe, canManage } from '@/lib/session';
 import { addComment, copyPlan } from '@/lib/actions';
 import Plan from './Plan';
 import CopyPlan from './CopyPlan';
+import Invites from './Invites';
 import { planWalls } from '@/lib/planWalls';
 import { savePlan } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
@@ -32,6 +33,9 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
     where mp.job_id<>$1 and mp.link_id is null and b.tenant_id=$2 and ($3::boolean or (mp.user_id=$4 and j.id in (select job_id from job_users where user_id=$4)))
       and exists (select 1 from jsonb_object_keys(mp.data) k join room_walls rw on rw.id=(case when k ~ '^[0-9]+$' then k::int end) join rooms r on r.id=rw.room_id where k ~ '^[0-9]+$' and r.location_id = any($5::int[]))
     order by p.name, j.job_date desc nulls last, mp.updated_at desc limit 200`, [cur.id, tenantId, canManage(me), me.id, locIds]);
+  const invRows = canManage(me) ? await rows('select lower(email) email, access, room_wall_id from wall_links where job_id=$1 and not revoked order by id', [cur.id]) : [];
+  const invited = Array.from(new Set(invRows.map((x: any) => x.email))).map(e => ({ email: e as string, access: invRows.find((x: any) => x.email === e).access as string, walls: invRows.filter((x: any) => x.email === e).map((x: any) => x.room_wall_id as number) }));
+  const contacts = canManage(me) ? await rows('select id,name,email,company from contacts where tenant_id=$1 order by name', [tenantId]) : [];
   const roomIds = [...new Set(rws.map((r: any) => r.room_id))];
   return (<><a href="/plans">← Jobs</a><h1>{cur.prod} / {cur.name}</h1>
     {copied === 'none' && <p role="alert" style={{ color: '#b45309' }}>Nothing was copied: that plan has no walls in common with this Job.</p>}
@@ -39,5 +43,6 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
     {roomIds.map(rid => { const rs = rws.filter((r: any) => r.room_id === rid); return (<div key={rid}><h2>Room: {rs[0].room}</h2>
       {rs.filter((r: any) => r.id).length === 0 ? <div className="card mut">No Wall Template has been added to this Room yet. Check back once it has been set up.</div> : <Plan save={savePlan.bind(null, cur.id)} walls={pw.filter(w => rs.some((r: any) => r.id === w.id))} layouts={layouts} sources={j.sources ?? []} saved={saved} start={planQ} />}
       <div className="card"><b>Comments</b>{comments.filter((c: any) => c.room_id === rid).map((c: any) => <div key={c.id}><b>{c.uname}</b>: {c.body}</div>)}
-        <form action={addComment} className="row"><input type="hidden" name="job" value={cur.id} /><input type="hidden" name="room" value={rid} /><input name="body" placeholder="Add a comment" required style={{ flex: 1 }} /><button className="sec">Post</button></form></div></div>); })}</>);
+        <form action={addComment} className="row"><input type="hidden" name="job" value={cur.id} /><input type="hidden" name="room" value={rid} /><input name="body" placeholder="Add a comment" required style={{ flex: 1 }} /><button className="sec">Post</button></form></div></div>); })}
+    {canManage(me) && <Invites job={cur.id} walls={rws.filter((r: any) => r.id).map((r: any) => ({ id: r.id, room: r.room, name: r.name }))} contacts={contacts as any} invited={invited} />}</>);
 }

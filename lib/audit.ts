@@ -14,7 +14,7 @@ const LABEL: Record<string, string> = {
   addJob: 'Added a Job', updateBroadcaster: 'Edited a Broadcaster', updateProduction: 'Edited a Production', updateJob: 'Edited a Job', deleteProduction: 'Deleted a Production', deleteBroadcaster: 'Deleted a Broadcaster', deleteJob: 'Deleted a Job',
   assignWall: 'Assigned a wall to a Job', unassignWall: 'Removed a wall from a Job', savePlan: 'Saved a Monitor Plan', copyPlan: 'Copied a Monitor Plan from another Job', addComment: 'Added a comment',
   addContact: 'Added a Contact', importContacts: 'Imported Contacts from a file', deleteContact: 'Deleted a Contact', assignContact: 'Assigned a Contact', unassignContact: 'Unassigned a Contact', updateContact: 'Edited a Contact',
-  createWallLink: 'Shared a wall with a guest', revokeWallLink: 'Revoked a guest link', reassignWallLink: 'Changed a guest link',
+  createWallLink: 'Shared a wall with a guest', inviteToWalls: 'Invited someone to Monitor Plans', updateInvite: 'Changed an invitation', removeInvite: 'Removed an invitation', revokeWallLink: 'Revoked a guest link', reassignWallLink: 'Changed a guest link',
   imageUpload: 'Uploaded an image', imageRename: 'Renamed an image', imageDelete: 'Deleted an image', loadDemoData: 'Loaded sample data',
 };
 export const actionLabel = (a: string) => LABEL[a] ?? a;
