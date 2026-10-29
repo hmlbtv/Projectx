@@ -135,7 +135,7 @@ async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
   const esc = (x: string) => x.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
   const images: { cid: string; png: Buffer }[] = [];
   const mark = await markPng(); if (mark) images.push({ cid: 'tpmark', png: mark });
-  for (const w of shown) { const png = await wallPng(Array.isArray(w.data?.assets) ? w.data.assets : []); if (png) images.push({ cid: `wall${w.id}`, png }); }
+  for (const w of shown) { const png = await wallPng(Array.isArray(w.data?.assets) ? w.data.assets : [], 480, me.tenant_id); if (png) images.push({ cid: `wall${w.id}`, png }); }
   const font = "font-family:system-ui,-apple-system,'Segoe UI',Arial,sans-serif";
   const html = `<div style="background:#f3f5f8;padding:24px 12px;${font};color:#111">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;border-collapse:collapse">
