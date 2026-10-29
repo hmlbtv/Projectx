@@ -13,7 +13,7 @@ export default async function WallDefaults({ searchParams }: { searchParams: Pro
   const [pw] = await planWalls([{ id: w.id, name: w.name, data: w.data }], t);
   const layouts = await rows('select id, name, tiles from mv_layouts where tenant_id is null or tenant_id=$1 order by tenant_id nulls first, id', [t]);
   const lim = (await one('select max_wall_defaults m from tenants where id=$1', [t]))?.m ?? 5;
-  return (<><div className="crumbs"><Link href="/walls" className="btn sec">← Wall Template library</Link></div>
+  return (<><div className="crumbs"><Link href={`/walls?id=${w.id}`} className="btn sec">← Back to {w.name}</Link></div>
     <h1 style={{ marginBottom: 4 }}>Default configuration: {w.name}</h1>
     <p className="mut">Choose the MV layout each monitor starts with. The default marked “Used for new plans” is what people get when this Wall Template is sent to them as a Monitor Plan. You can keep up to {lim}.</p>
     <Defaults wall={{ id: w.id, name: w.name, assets: pw.assets, dests: pw.dests }} layouts={layouts as any} initial={Array.isArray(w.defaults) ? w.defaults : []} limit={lim} /></>);
