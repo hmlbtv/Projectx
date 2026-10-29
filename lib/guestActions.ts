@@ -29,7 +29,7 @@ async function createWallLink_(_: FormState, f: FormData): Promise<FormState> {
   await rows('insert into wall_links(job_id,room_wall_id,email,access,token_hash,created_by,contact_id) values($1,$2,$3,$4,$5,$6,$7)', [job, wall, email, access, sha256(token), me.id, contact.id]);
   const link = `${await baseUrl()}/w/${token}`;
   revalidatePath('/productions');
-  const sent = await sendMail(email, 'A monitor wall has been shared with you', `${me.name} shared a monitor wall with you on TelePlanner (${access === 'edit' ? 'you can edit it' : 'view only'}).\nOpen this link to sign in or create your account:\n${link}\n\nThe account is tied to this email address. All walls shared with you appear in one place after you sign in. Access ends when the Job ends.`);
+  const sent = await sendMail(email, 'A monitor wall has been shared with you', `${me.name} shared a monitor wall with you on TelePlanner (${access === 'edit' ? 'you can edit it' : 'view only'}).\nOpen this link to sign in or create your account:\n${link}${note ? `\n\n${me.name} wrote:\n${note}` : ''}\n\nThe account is tied to this email address. All walls shared with you appear in one place after you sign in. Access ends when the Job ends.`);
   return { ok: sent ? `Invitation emailed to ${email}.` : `Email sending is not set up. Send this link to ${email}:`, link: sent ? undefined : link };
 }
 async function revokeWallLink_(f: FormData) {
@@ -128,6 +128,7 @@ async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
   revalidatePath('/plans');
   if (!first) return { ok: `${email} already had these walls. Their access is now ${access === 'edit' ? 'can edit' : 'view only'}.` };
   const link = `${await baseUrl()}/w/${first}`;
+  const note = String(f.get('comment') ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 1000);
   const who = access === 'edit' ? 'you can edit' : 'view only', many = walls.length === 1 ? '' : 's';
   const text = `${me.name} shared ${walls.length} monitor wall${many} with you on TelePlanner.tv (${who}).\nOpen this link to sign in or create your account:\n${link}\n\nThe account is tied to this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.`;
   // Pictures of the walls they were invited to, shown under the button.
@@ -146,6 +147,7 @@ async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
 <tr><td style="background:#fff;padding:26px 22px;border-radius:0 0 12px 12px">
  <p style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111">${esc(me.name)} shared ${walls.length === 1 ? 'a monitor wall' : `${walls.length} monitor walls`} with you on <b>TelePlanner.tv</b></p>
  <div style="height:14px;line-height:14px">&nbsp;</div>
+ ${note ? `<div style="margin:0 0 20px;padding:12px 14px;background:#f3f5f8;border-left:3px solid #e5352b;border-radius:4px;font-size:15px;color:#222;white-space:pre-wrap">${esc(note).replace(/\n/g, '<br>')}<div style="margin-top:8px;font-size:12px;color:#777">— ${esc(me.name)}</div></div>` : ''}
  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 8px"><tr><td style="background:#e5352b;border-radius:8px"><a href="${link}" style="display:inline-block;padding:13px 26px;color:#fff;font-size:16px;font-weight:700;text-decoration:none;${font}">Open my Monitor Plans</a></td></tr></table>
  <p style="margin:0 0 18px;color:#777;font-size:12px">Button not working? Copy this link into your browser:<br><a href="${link}" style="color:#777;word-break:break-all">${link}</a></p>
  ${shown.map((w: any) => `<p style="margin:16px 0 6px;font-size:15px"><b>${esc(String(w.name))}</b></p>${images.some(i => i.cid === `wall${w.id}`) ? `<img src="cid:wall${w.id}" alt="${esc(String(w.name))}" width="556" style="max-width:100%;height:auto;border-radius:8px;display:block">` : ''}`).join('')}

@@ -40,6 +40,7 @@ export default function Invites({ job, walls, contacts, invited }: { job: number
       <ContactPick contacts={contacts} />
       <input name="email" type="email" placeholder="…or type any email address" />
       <select name="access" defaultValue="edit"><option value="edit">Can edit</option><option value="view">View only</option></select>
+      <textarea name="comment" rows={3} maxLength={1000} placeholder="Add a comment to include in the email (optional)" style={{ width: '100%', resize: 'vertical' }} />
       <button disabled={pending}>Send invitation</button></form>
     {st?.error && <div role="alert" style={{ color: 'var(--bad)' }}>{st.error}</div>}
     {st?.ok && <div className="mut">{st.ok}</div>}{st?.link && <input readOnly value={st.link} style={{ width: '100%' }} onFocus={e => e.currentTarget.select()} />}
