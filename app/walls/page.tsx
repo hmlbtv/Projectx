@@ -30,6 +30,7 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
   if (cur) {
     const mine = cur.id ? roomsOf(cur.id) : [];
     const notice = (<div className="card" style={{ margin: '0 0 8px' }}>
+      {cur.id && <div className="row" style={{ marginBottom: 6 }}><Link href={`/walls/defaults?id=${cur.id}`} className="btn sec small">Default configuration</Link></div>}
       <b>Used in: </b>{mine.length === 0 ? <span className="mut">no Rooms yet. Save the template, then add it to a Room from the library menu (⋯) or the Room page.</span> : mine.map((r: any) => <form key={r.id} action={wallFromRoom} style={{ display: 'inline' }}><input type="hidden" name="wall" value={cur.id} /><input type="hidden" name="room" value={r.id} /><span className="tag">{label(r)} <button className="del" style={{ padding: '0 6px', marginLeft: 4 }} title="Remove from this Room (Jobs using it there lose it)" aria-label={`Remove from ${label(r)}`}>×</button></span></form>)}
       {mine.length > 1 && <p style={{ margin: '6px 0 0', color: '#b45309' }}><b>Note:</b> a Wall Template can be in only one Room, but this one is in {mine.length} from before. Remove it from the extra Rooms (the × above) to keep just one.</p>}</div>);
     return <WallEditor key={String(cur.id)} id={cur.id} initialName={cur.name} initial={cur.data.assets} notice={notice} mvs={mvs} dsets={dsets} backQuery={keep.toString() ? '?' + keep.toString() : ''} />;
