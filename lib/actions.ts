@@ -646,6 +646,19 @@ async function assignWall_(f: FormData) {
   if (!wall || !(await one(OWN_RW, [wall, tid(me)]))) throw new Error('Not found');
   await rows('insert into job_walls(job_id,room_wall_id) values($1,$2) on conflict do nothing', [job, wall]); revalidatePath('/productions'); revalidatePath('/plans');
 }
+// Add (or take away) many walls at once: everything in a Site, Location or Room.
+const wallIds = (f: FormData) => Array.from(new Set(f.getAll('wall').map(Number).filter(n => Number.isInteger(n) && n > 0))).slice(0, 500);
+async function assignWalls_(f: FormData) {
+  const me = await mgr(); const job = Number(s(f,'job')); await own('jobs', job, me);
+  const ok = wallIds(f).length ? (await rows('select rw.id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites st on st.id=l.site_id where rw.id = any($1::int[]) and st.tenant_id=$2', [wallIds(f), tid(me)])).map((x: any) => x.id) : [];
+  if (ok.length) await rows('insert into job_walls(job_id,room_wall_id) select $1, unnest($2::int[]) on conflict do nothing', [job, ok]);
+  revalidatePath('/productions'); revalidatePath('/plans');
+}
+async function unassignWalls_(f: FormData) {
+  const me = await mgr(); const job = Number(s(f,'job')); await own('jobs', job, me);
+  if (wallIds(f).length) await rows('delete from job_walls where job_id=$1 and room_wall_id = any($2::int[])', [job, wallIds(f)]);
+  revalidatePath('/productions'); revalidatePath('/plans');
+}
 async function unassignWall_(f: FormData) {
   const me = await mgr(); const job = Number(s(f,'job')), wall = Number(s(f,'wall')); await own('jobs', job, me);
   await rows('delete from job_walls where job_id=$1 and room_wall_id=$2', [job, wall]); revalidatePath('/productions'); revalidatePath('/plans');
@@ -792,6 +805,8 @@ export async function deleteProduction(...a: Parameters<typeof deleteProduction_
 export async function deleteBroadcaster(...a: Parameters<typeof deleteBroadcaster_>) { return audited('deleteBroadcaster', deleteBroadcaster_, a) as ReturnType<typeof deleteBroadcaster_>; }
 export async function deleteJob(...a: Parameters<typeof deleteJob_>) { return audited('deleteJob', deleteJob_, a) as ReturnType<typeof deleteJob_>; }
 export async function assignWall(...a: Parameters<typeof assignWall_>) { return audited('assignWall', assignWall_, a) as ReturnType<typeof assignWall_>; }
+export async function assignWalls(...a: Parameters<typeof assignWalls_>) { return audited('assignWalls', assignWalls_, a) as ReturnType<typeof assignWalls_>; }
+export async function unassignWalls(...a: Parameters<typeof unassignWalls_>) { return audited('unassignWalls', unassignWalls_, a) as ReturnType<typeof unassignWalls_>; }
 export async function unassignWall(...a: Parameters<typeof unassignWall_>) { return audited('unassignWall', unassignWall_, a) as ReturnType<typeof unassignWall_>; }
 export async function copyPlan(...a: Parameters<typeof copyPlan_>) { return audited('copyPlan', copyPlan_, a) as ReturnType<typeof copyPlan_>; }
 export async function savePlan(...a: Parameters<typeof savePlan_>) { return audited('savePlan', savePlan_, a) as ReturnType<typeof savePlan_>; }

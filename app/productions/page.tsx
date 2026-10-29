@@ -8,7 +8,7 @@ import { requireMe, canManage, isAdmin } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Menu from '../Menu';
-import { addBroadcaster, addProduction, addJob, removeJobUser, assignWall, unassignWall, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob } from '@/lib/actions';
+import { addBroadcaster, addProduction, addJob, removeJobUser, assignWall, unassignWall, assignWalls, unassignWalls, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
 export default async function Productions({ searchParams }: { searchParams: Promise<{ b?: string; p?: string; j?: string }> }) {
@@ -40,6 +40,12 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   if (jobId) {
     const j = js.find((x: any) => x.id === jobId); if (!j) redirect('/productions');
     const p = ps.find((x: any) => x.id === j.production_id)!; const b = bs.find((x: any) => x.id === p.broadcaster_id)!;
+    const inUse = (id: number) => rw.some((x: any) => x.job_id === j.id && x.id === id);
+    // Add or remove every wall under a Site, Location or Room in one click.
+    const Bulk = ({ ids, what }: { ids: number[]; what: string }) => { if (ids.length === 0) return null; const todo = ids.filter(i => !inUse(i)); const all = todo.length === 0;
+      return (<form action={all ? unassignWalls : assignWalls} className="row" style={{ margin: '2px 0 4px 16px' }}><input type="hidden" name="job" value={j.id} />{ids.map(i => <input key={i} type="hidden" name="wall" value={i} />)}
+        <button className={all ? 'del' : 'sec'} style={{ minHeight: 0, padding: '2px 10px' }}>{all ? `Remove all ${ids.length} from this Job` : `Add all ${todo.length === ids.length ? ids.length : todo.length + ' remaining'} in ${what}`}</button></form>); };
+    const wallsIn = (f: (r: any) => boolean) => allWalls.filter((w: any) => tree.some((r: any) => f(r) && w.room === r.room && w.loc === r.loc && w.site === r.site)).map((w: any) => w.id as number);
     return (<><Bar back={`/productions?p=${p.id}`} />
       <div className="card tile head"><div><div className="mut">{b.name} › {p.name}</div><h1 style={{ margin: 0 }}>{j.name}</h1><div className="mut">Job · {d(j.job_date)} · expires {d(j.expires_at)} · {j.ss_name ?? 'no Source Set'}</div></div>
         <Menu><b>Edit Job</b><form action={updateJob} className="stack"><input type="hidden" name="id" value={j.id} /><input name="name" defaultValue={j.name} required />
@@ -51,11 +57,11 @@ export default async function Productions({ searchParams }: { searchParams: Prom
       <div style={{ margin: '8px 0' }}><b>Choose Wall Templates</b> <span className="mut">(open a Site, Location and Room, then add the walls this Job uses)</span>
         {tree.length === 0 && <p className="mut">Add Rooms and Wall Templates on the Sites page first.</p>}
         {[...new Set(tree.map((x: any) => x.sid))].map((sid: any) => { const sr = tree.filter((x: any) => x.sid === sid); const inUseS = sr.filter((r: any) => rw.some((x: any) => x.job_id === j.id && allWalls.find((w: any) => w.id === x.id && w.room === r.room && w.loc === r.loc && w.site === r.site))).length;
-          return (<details key={sid} open={inUseS > 0} style={{ margin: '4px 0' }}><summary style={{ cursor: 'pointer' }}><b>{sr[0].site}</b></summary>
+          return (<details key={sid} open={inUseS > 0} style={{ margin: '4px 0' }}><summary style={{ cursor: 'pointer' }}><b>{sr[0].site}</b></summary><Bulk ids={wallsIn((r: any) => r.sid === sid)} what={sr[0].site} />
             {[...new Set(sr.map((x: any) => x.lid))].map((lid: any) => { const lr = sr.filter((x: any) => x.lid === lid);
-              return (<details key={lid} open={lr.some((r: any) => allWalls.some((w: any) => w.room === r.room && w.loc === r.loc && rw.some((x: any) => x.job_id === j.id && x.id === w.id)))} style={{ marginLeft: 16 }}><summary style={{ cursor: 'pointer' }}>{lr[0].loc}</summary>
+              return (<details key={lid} open={lr.some((r: any) => allWalls.some((w: any) => w.room === r.room && w.loc === r.loc && rw.some((x: any) => x.job_id === j.id && x.id === w.id)))} style={{ marginLeft: 16 }}><summary style={{ cursor: 'pointer' }}>{lr[0].loc}</summary><Bulk ids={wallsIn((r: any) => r.lid === lid)} what={lr[0].loc} />
                 {lr.map((r: any) => { const ws = allWalls.filter((w: any) => w.room === r.room && w.loc === r.loc && w.site === r.site); const used = ws.filter((w: any) => rw.some((x: any) => x.job_id === j.id && x.id === w.id));
-                  return (<details key={r.rid} open={used.length > 0} style={{ marginLeft: 16 }}><summary style={{ cursor: 'pointer' }}>{r.room} <span className="mut">· {used.length} of {ws.length} in use</span></summary>
+                  return (<details key={r.rid} open={used.length > 0} style={{ marginLeft: 16 }}><summary style={{ cursor: 'pointer' }}>{r.room} <span className="mut">· {used.length} of {ws.length} in use</span></summary>{ws.length > 1 && <Bulk ids={ws.map((w: any) => w.id as number)} what={r.room} />}
                     {ws.length === 0 && <p className="mut" style={{ marginLeft: 16 }}>No Wall Templates in this Room.</p>}
                     {ws.map((w: any) => { const on = used.some((u: any) => u.id === w.id);
                       return (<form key={w.id} action={on ? unassignWall : assignWall} className="row" style={{ marginLeft: 16, margin: '2px 0 2px 16px' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="wall" value={w.id} />
