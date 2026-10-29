@@ -20,5 +20,5 @@ export default async function Shared() {
   return (<><h1>Shared with me</h1><p className="mut">Monitor walls other teams have shared with you (sent to {me.email} or any other email you have added in Account). You can edit or only view each one, depending on the invitation.</p>
     {items.length === 0 && <div className="card mut">Nothing is shared with you right now. When someone invites you to a wall it will appear here.</div>}
     {render(live, false)}
-    {old.length > 0 && <><h2 style={{ marginTop: 28 }}>Archive</h2><p className="mut">Expired Jobs, kept for reference (view only).</p>{render(old, true)}</>}</>);
+    {old.length > 0 && <details><summary style={{ cursor: 'pointer', fontSize: '1.4rem', fontWeight: 700, margin: '28px 0 10px' }}>Archive ({old.length})</summary><><p className="mut">Expired Jobs, kept for reference (view only).</p>{render(old, true)}</></details>}</>);
 }

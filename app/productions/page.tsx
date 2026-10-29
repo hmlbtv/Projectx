@@ -85,9 +85,9 @@ export default async function Productions({ searchParams }: { searchParams: Prom
           <label className="mut">Job date<input type="date" name="date" defaultValue={d(j.job_date)} /></label><label className="mut">Final date<input type="date" name="final" defaultValue={d(j.final_date)} /></label><label className="mut">Expires<input type="date" name="expires" defaultValue={d(j.expires_at)} /></label>
           <select name="sourceSet" defaultValue={j.source_set_id ?? ''}><option value="">Source Set…</option>{sets.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}</select><button className="sec">Save</button></form>
           <Del action={deleteJob} id={j.id} what="Job" /></Menu></div>))}</div>
-      {old.length > 0 && <><h2 style={{ marginTop: 28 }}>Archive</h2><p className="mut">Expired Jobs, kept for reference. “Copy to new” makes a new Job with the same walls and Monitor Plans, without the dates.</p>
+      {old.length > 0 && <details><summary style={{ cursor: 'pointer', fontSize: '1.4rem', fontWeight: 700, margin: '28px 0 10px' }}>Archive ({old.length})</summary><><p className="mut">Expired Jobs, kept for reference. “Copy to new” makes a new Job with the same walls and Monitor Plans, without the dates.</p>
         <div className="tiles">{old.map((j: any) => (<div key={j.id} className="card tile"><Link href={`/productions?j=${j.id}`} className="tilelink"><b>{j.name}</b><span className="mut">{d(j.job_date)} · expired {d(j.expires_at)} · {j.ss_name ?? 'no Source Set'}</span></Link>
-          <form action={copyJobToNew}><input type="hidden" name="id" value={j.id} /><button className="sec small">Copy to new</button></form></div>))}</div></>}</>);
+          <form action={copyJobToNew}><input type="hidden" name="id" value={j.id} /><button className="sec small">Copy to new</button></form></div>))}</div></></details>}</>);
   }
 
   // ---- Productions of a Broadcaster ----

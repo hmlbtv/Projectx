@@ -22,7 +22,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
       {!old && unread[j.id] > 0 && <a href={`/plans?job=${j.id}`} style={{ textDecoration: 'none', flex: '0 0 auto' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#e5352b', color: '#fff', fontWeight: 800, fontSize: '.95rem', padding: '8px 14px', borderRadius: 999, boxShadow: '0 0 0 4px rgba(229,53,43,.25)' }}>🔔 {unread[j.id]} new comment{unread[j.id] === 1 ? '' : 's'}</span></a>}</div></div>);
     const live = jobs.filter((j: any) => !j.expired), old = jobs.filter((j: any) => j.expired);
     return (<><h1>Monitor Plans</h1>{live.length === 0 && <p className="mut">No active Jobs assigned to you.</p>}{live.map((j: any) => card(j, false))}
-      {old.length > 0 && <><h2 style={{ marginTop: 28 }}>Archive</h2><p className="mut">Expired Jobs, kept for reference (view only).</p>{old.map((j: any) => card(j, true))}</>}</>); }
+      {old.length > 0 && <details><summary style={{ cursor: 'pointer', fontSize: '1.4rem', fontWeight: 700, margin: '28px 0 10px' }}>Archive ({old.length})</summary><><p className="mut">Expired Jobs, kept for reference (view only).</p>{old.map((j: any) => card(j, true))}</></details>}</>); }
   const arch = !!cur.expired;
   const j = (await rows('select j.*, ss.sources from jobs j left join source_sets ss on ss.id=j.source_set_id where j.id=$1', [cur.id]))[0];
   const rws = await rows(`select r.id room_id, r.name room, rw.id, rw.name, wt.data, wt.defaults from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join wall_templates wt on wt.id=rw.wall_template_id join rooms r on r.id=rw.room_id where jw.job_id=$1 order by r.id, rw.id`, [cur.id]);
