@@ -20,8 +20,11 @@ function LayoutPic({ lay, names, big, pos }: { lay: Layout; names?: string[]; bi
         {nm && <text x={t.x + t.w / 2} y={t.y + t.h / 2 + bs * 0.3} fill="#fff" fontSize={Math.max(30, Math.min(96, (t.w - 40) / Math.max(5, nm.length * 0.6)))} fontWeight="700" textAnchor="middle" dominantBaseline="central" fontFamily="system-ui,sans-serif">{nm}</text>}</g>); })}</svg>);
 }
 // The wall as saved in its Wall Template, locked. "Layout" lets you tap a monitor and choose which of its MV layouts it shows; "View" shows the wall full screen (turned to landscape on a phone).
-export function WallPlan({ wl, layouts, cur, setMon, readOnly, autoFull, onExit }: { wl: Wall; layouts: Layout[]; cur: Data[string] | undefined; setMon: (assetId: string, layoutId: number) => void; readOnly: boolean; autoFull?: boolean; onExit?: () => void }) {
+export function WallPlan({ wl, layouts, cur, setMon, readOnly, autoFull, onExit, setAll }: { setAll?: (mons: Record<string, number>) => void; wl: Wall; layouts: Layout[]; cur: Data[string] | undefined; setMon: (assetId: string, layoutId: number) => void; readOnly: boolean; autoFull?: boolean; onExit?: () => void }) {
   const [editing, setEditing] = useState(!!autoFull), [pick, setPick] = useState<string | null>(null), [full, setFull] = useState(!!autoFull), [turned, setTurned] = useState(false), [vp, setVp] = useState({ w: 0, h: 0 });
+  const snap = useRef<Record<string, number> | null>(null); // the layout choices when editing began, so Exit can put them back
+  useEffect(() => { if (editing && !snap.current) snap.current = { ...(cur?.mons ?? {}) }; if (!editing) snap.current = null; }, [editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  const exitNoSave = () => { if (snap.current && setAll) setAll(snap.current); snap.current = null; leave(); };
   const ref = useRef<HTMLDialogElement>(null), box = useRef<HTMLDivElement>(null), fsUsed = useRef(false);
   const list = wl.assets ?? [], M = full ? 10 : 24; // full screen: crop tight so the wall is as big as it can be
   const x0 = Math.min(...list.map(a => a.x)), y0 = Math.min(...list.map(a => a.y)), x1 = Math.max(...list.map(a => a.x + a.w)), y1 = Math.max(...list.map(a => a.y + a.h));
@@ -61,10 +64,10 @@ export function WallPlan({ wl, layouts, cur, setMon, readOnly, autoFull, onExit 
         {lay && <LayoutPic lay={lay} names={wl.dests?.[a.id]} pos={{ x: a.x + 4, y: a.y + 4, w: a.w - 8, h: a.h - 8 }} />}
         {isScreen(a.type) && !lay && <rect x={a.x + 4} y={a.y + 4} width={a.w - 8} height={a.h - 8} fill="#f8fafc" stroke="#94a3b8" strokeWidth="4" pointerEvents="none" />}
         {can && <rect x={a.x} y={a.y} width={a.w} height={a.h} fill="rgba(229,53,43,.10)" stroke="#e5352b" strokeWidth="5" style={{ cursor: 'pointer' }} role="button" tabIndex={0} aria-label={`Choose MV layout for ${a.name ?? 'monitor'}`} onClick={() => setPick(a.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPick(a.id); } }} />}</g>); })}</svg>);
-  const sm = full ? { padding: '2px 12px', minHeight: 0, height: 28, fontSize: '.8rem', lineHeight: 1 } : undefined;
-  const bar = (<div className="row" style={{ justifyContent: 'space-between', gap: 8, ...(full ? { margin: 0, flex: '0 0 auto', minHeight: 0 } : {}) }}><b style={full ? { fontSize: '.85rem' } : undefined}>{wl.name}</b>{full && editing && <span className="mut" style={{ fontSize: '.75rem' }}>Tap a monitor to choose its layout</span>}
-    <span style={{ display: 'flex', gap: 8 }}>{!readOnly && <button type="button" style={sm} className={editing ? '' : 'sec'} aria-pressed={editing} onClick={() => { if (editing) setEditing(false); else { setEditing(true); if (!full) enter(); } }}>{editing ? 'Done' : 'Layout'}</button>}
-      {full ? <button type="button" style={sm} className="sec" onClick={leave}>Exit</button> : <button type="button" className="sec" onClick={enter} title="Show this wall full screen">View</button>}</span></div>);
+  const sm = full ? { padding: '0 28px', minHeight: 0, height: 46, fontSize: '1.05rem', fontWeight: 700, lineHeight: 1, borderRadius: 10 } : undefined;
+  const bar = (<div className="row" style={{ justifyContent: 'space-between', gap: 8, ...(full ? { margin: 0, flex: '0 0 auto', minHeight: 0 } : {}) }}><b style={full ? { fontSize: '.85rem' } : undefined}>{wl.name}</b>{full && editing && <span className="mut" style={{ fontSize: '.75rem' }}>Tap a monitor to choose its layout, then press Done to save</span>}
+    <span style={{ display: 'flex', gap: 8 }}>{!readOnly && <button type="button" style={sm} className={editing ? '' : 'sec'} aria-pressed={editing} onClick={() => { if (editing) { snap.current = null; leave(); } else { setEditing(true); if (!full) enter(); } }}>{editing ? '✓ Done – save' : 'Layout'}</button>}
+      {full ? <button type="button" style={full && editing ? { ...sm, background: 'transparent', color: '#ff6b61', border: '2px solid #e5352b' } : sm} className="sec" onClick={editing ? exitNoSave : leave} title={editing ? 'Leave without keeping the changes made in this session' : 'Close full screen'}>{editing ? '✕ Exit without saving' : 'Exit'}</button> : <button type="button" className="sec" onClick={enter} title="Show this wall full screen">View</button>}</span></div>);
   const body = (<>{bar}{editing && !full && <p className="mut" style={{ margin: '4px 0' }}>Tap a monitor to choose its MV layout.</p>}{wall}</>);
   return (<div className="card" style={full ? { padding: 0, border: 0 } : undefined}>
     {full ? (<div ref={box} style={turned ? { position: 'fixed', top: 0, left: vp.w || '100vw', width: vp.h || '100vh', height: vp.w || '100vw', transform: 'rotate(90deg)', transformOrigin: 'top left', background: 'var(--panel)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: '4px 8px', gap: 4, boxSizing: 'border-box', overflow: 'hidden' }
@@ -87,11 +90,12 @@ export default function Plan({ walls, layouts, sources, saved, save, readOnly = 
   const w = (id: number) => data[id] ?? { layoutId: undefined, assign: {} };
   // Sources are stored per tile NUMBER, so they stay in the same numbered tile when the layout changes.
   const setLayout = (id: number, layoutId: number) => setData({ ...data, [id]: { ...w(id), layoutId } });
+  const setMons = (id: number, mons: Record<string, number>) => setData({ ...data, [id]: { ...w(id), mons } });
   const setMon = (id: number, assetId: string, layoutId: number) => setData({ ...data, [id]: { ...w(id), mons: { ...(w(id).mons ?? {}), [assetId]: layoutId } } });
   const setSrc = (id: number, n: number, v: string) => setData({ ...data, [id]: { ...w(id), assign: { ...w(id).assign, [n]: v } } });
   return (<div>
     {!readOnly && msg && <div className="mut" style={{ textAlign: 'right', fontSize: '.8rem' }}>{msg}</div>}
-    {walls.map(wl => { if ((wl.assets ?? []).some(a => isScreen(a.type) && a.props?.mvs?.length)) return <WallPlan key={wl.id} wl={wl} layouts={layouts} cur={data[wl.id]} readOnly={readOnly} setMon={(a, l) => setMon(wl.id, a, l)} />;
+    {walls.map(wl => { if ((wl.assets ?? []).some(a => isScreen(a.type) && a.props?.mvs?.length)) return <WallPlan key={wl.id} wl={wl} layouts={layouts} cur={data[wl.id]} readOnly={readOnly} setMon={(a, l) => setMon(wl.id, a, l)} setAll={m => setMons(wl.id, m)} />;
       const cur = w(wl.id); const lay = layouts.find(l => l.id === cur.layoutId);
       return (<div key={wl.id} className="card"><b>{wl.name}</b>
         <div className="row"><select disabled={readOnly} value={cur.layoutId ?? ''} onChange={e => setLayout(wl.id, Number(e.target.value))}><option value="">Choose MV Layout…</option>{layouts.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
