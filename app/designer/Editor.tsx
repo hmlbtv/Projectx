@@ -49,7 +49,7 @@ export default function Editor(p: Props) {
   const { world, palette } = p; const viewOnly = !!p.viewOnly, readOnly = !!p.readOnly || viewOnly; // viewOnly: can select (and use extras) but not arrange; the canvas is cropped to the items
   const [name, setName] = useState(p.initialName), [items, setItems] = useState<DAsset[]>(p.initial), [sel, setSel] = useState<string[]>([]);
   const [marq, setMarq] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null);
-  const [snapOn, setSnapOn] = useState(true), [grid, setGrid] = useState(10), [showGrid, setShowGrid] = useState(true);
+  const [side, setSide] = useState<'right' | 'left' | 'up' | 'down'>('right'), [snapOn, setSnapOn] = useState(true), [grid, setGrid] = useState(10), [showGrid, setShowGrid] = useState(true);
   useEffect(() => { try { const v = JSON.parse(localStorage.getItem('dz-grid') || 'null'); if (v) { setSnapOn(!!v.snapOn); setGrid([10, 20, 50, 100].includes(v.grid) ? v.grid : 10); setShowGrid(!!v.showGrid); } } catch {} }, []);
   useEffect(() => { try { localStorage.setItem('dz-grid', JSON.stringify({ snapOn, grid, showGrid })); } catch {} }, [snapOn, grid, showGrid]);
   const [openSec, setOpenSec] = useState<Record<string, boolean>>({ props: true, add: true, arrange: true, grid: false });
@@ -80,7 +80,14 @@ export default function Editor(p: Props) {
   function add(pi: PaletteItem) {
     if (readOnly) return;
     const w = Math.min(pi.w, p.onWorld ? 20000 : world.w), h = Math.min(pi.h, p.onWorld ? 20000 : world.h); let pos = { x: 0, y: 0 }, found = false;
-    if (p.onWorld && items.length) { // new items carry on along the row of the right-most item, and the canvas widens to take them
+    const S0 = items.filter(a => sel.includes(a.id));
+    if (p.onWorld && S0.length) { // something is selected: the new item goes on the chosen side of it (right unless changed)
+      const bx = Math.min(...S0.map(a => a.x)), by = Math.min(...S0.map(a => a.y)), bx1 = Math.max(...S0.map(a => a.x + a.w)), by1 = Math.max(...S0.map(a => a.y + a.h)), gap = snapOn ? grid : 10;
+      const x = side === 'right' ? bx1 + gap : side === 'left' ? Math.max(0, bx - gap - w) : bx, y = side === 'down' ? by1 + gap : side === 'up' ? Math.max(0, by - gap - h) : by;
+      const t: DAsset = { id: '', type: '', name: '', x, y, w, h };
+      if (p.allowOverlap || !solid({ type: pi.type } as DAsset) || !items.some(a => solid(a) && hit(t, a))) { pos = { x, y }; found = true; grow(x + w, y + h); }
+    }
+    if (!found && p.onWorld && items.length) { // new items carry on along the row of the right-most item, and the canvas widens to take them
       const last = items.reduce((m, a) => (a.x + a.w > m.x + m.w ? a : m)), gap = snapOn ? grid : 10, x = last.x + last.w + gap;
       pos = { x, y: last.y }; found = true; grow(x + w, last.y + h); }
     else if (p.onWorld) { found = true; grow(w, h); }
@@ -353,6 +360,8 @@ export default function Editor(p: Props) {
         {!readOnly && <div className="dz-tools" role="toolbar" aria-label="Arrange">
           <span className="dz-tgl" title={`Align to the first selected`}></span>
           <div className="dz-tg">{([['left', 'Align left edges'], ['center', 'Centre horizontally (a vertical column)'], ['right', 'Align right edges'], ['top', 'Align top edges'], ['middle', 'Centre vertically (a horizontal row)'], ['bottom', 'Align bottom edges']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={k} /></button>)}</div>
+          <span className="dz-tgl" title="Where the next added item goes, beside the selected one"></span>
+          <div className="dz-tg">{([['left', '← Add next to the left of the selected item'], ['up', '↑ Add next above the selected item'], ['down', '↓ Add next below the selected item'], ['right', '→ Add next to the right of the selected item (default)']] as const).map(([k, tip]) => <button key={k} className={'sec small' + (side === k ? ' on' : '')} title={tip} aria-label={tip} aria-pressed={side === k} onClick={() => setSide(k)}>{({ left: '←', up: '↑', down: '↓', right: '→' })[k]}</button>)}</div>
           <span className="dz-tgl" title={`Space in selection order`}></span>
           <div className="dz-tg">{([['h', 'Space horizontally (left to right)'], ['v', 'Space vertically (top to bottom)']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={'sp' + k} /></button>)}</div>
           <span className="dz-tgl" title={`Size`}></span>
