@@ -17,6 +17,7 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export type FormState = { error?: string; ok?: string; link?: string; step?: string } | undefined;
 
 async function mgr() { const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only'); return me; }
+async function adm() { const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only'); return me; }
 
 // ---- Tenant isolation: every id from the browser is checked against the signed-in user's tenant ----
 const OWN: Record<string, string> = {
@@ -301,14 +302,14 @@ async function renameNode_(f: FormData) {
   await rows(`update ${t} set name=$1 where id=$2`, [s(f,'name'), id]); revalidatePath('/tenant');
 }
 async function addRoomWall_(_: FormState, f: FormData): Promise<FormState> {
-  const me = await mgr(); const room = Number(s(f,'room')), wall = Number(s(f,'wall')); await own('rooms', room, me); await own('walls', wall, me);
+  const me = await adm(); const room = Number(s(f,'room')), wall = Number(s(f,'wall')); await own('rooms', room, me); await own('walls', wall, me);
   const inRoom = await one('select r.name from room_walls rw join rooms r on r.id=rw.room_id where rw.wall_template_id=$1 limit 1', [wall]); // a Wall Template can be in only one Room
   if (inRoom) return { error: `That Wall Template is already in the Room “${inRoom.name}”. A Wall Template can be in only one Room.` };
   const wn = (await one('select name from wall_templates where id=$1', [wall]))!.name;
   await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, wn]); revalidatePath('/walls'); revalidatePath('/tenant'); return { ok: 'Added.' };
 }
 async function renameRoomWall_(f: FormData) {
-  const me = await mgr(); const id = Number(s(f,'id'));
+  const me = await adm(); const id = Number(s(f,'id'));
   if (s(f,'name')) await rows(`update room_walls set name=$1 where id=$2 and room_id in (select r.id from rooms r join locations l on l.id=r.location_id join sites st on st.id=l.site_id where st.tenant_id=$3)`, [s(f,'name'), id, tid(me)]);
   revalidatePath('/tenant'); revalidatePath('/plans');
 }
@@ -325,7 +326,7 @@ async function deleteNode_(f: FormData) {
 }
 
 async function removeRoomWall_(f: FormData) {
-  const me = await mgr(); const id = Number(s(f, 'id'));
+  const me = await adm(); const id = Number(s(f, 'id'));
   // only if the Room it sits in belongs to this tenant
   await rows(`delete from room_walls where id=$1 and room_id in (select r.id from rooms r join locations l on l.id=r.location_id join sites st on st.id=l.site_id where st.tenant_id=$2)`, [id, tid(me)]);
   revalidatePath('/tenant'); revalidatePath('/plans');
@@ -333,7 +334,7 @@ async function removeRoomWall_(f: FormData) {
 
 // ---- Wall Designer (Wall Templates live in a library and are applied to any Rooms; demo tenants get 1) ----
 async function saveWall_(id: number | null, name: string, assets: any[], _unused?: number | null): Promise<{ id?: number; error?: string }> {
-  const me = await mgr();
+  const me = await adm();
   if (!Array.isArray(assets) || assets.length > 300) return { error: 'Too many assets.' };
   const c = (v: any, lo: number, hi: number, d = lo) => Math.round(Math.min(Math.max(Number.isFinite(+v) ? +v : d, lo), hi));
   const clean = assets.map(a => { const w = c(a.w, 10, 1600, 10), h = c(a.h, 10, 900, 10), rot = c(a.props?.rot, 0, 3, 0);
@@ -359,7 +360,7 @@ async function saveWall_(id: number | null, name: string, assets: any[], _unused
 }
 // Apply a Wall Template to the chosen Rooms (any Room in the workspace). Unticked Rooms lose it (and Jobs using it there).
 async function setWallRooms_(f: FormData) {
-  const me = await mgr(); const wall = Number(s(f,'wall')); await own('walls', wall, me);
+  const me = await adm(); const wall = Number(s(f,'wall')); await own('walls', wall, me);
   const want = Array.from(new Set(f.getAll('room').map(Number).filter(Boolean))).slice(0, 1); // a Wall Template can be in only one Room
   for (const r of want) await own('rooms', r, me);
   const w = (await one('select name from wall_templates where id=$1', [wall]))!;
@@ -368,24 +369,24 @@ async function setWallRooms_(f: FormData) {
   revalidatePath('/walls'); revalidatePath('/tenant'); revalidatePath('/productions'); revalidatePath('/plans');
 }
 async function wallToRoom_(f: FormData) {
-  const me = await mgr(); const wall = Number(s(f,'wall')), room = Number(s(f,'room')); await own('walls', wall, me); await own('rooms', room, me);
+  const me = await adm(); const wall = Number(s(f,'wall')), room = Number(s(f,'room')); await own('walls', wall, me); await own('rooms', room, me);
   if (await one('select 1 from room_walls where wall_template_id=$1', [wall])) return; // already in a Room (only one allowed)
   const w = (await one('select name from wall_templates where id=$1', [wall]))!;
   await rows('insert into room_walls(room_id,wall_template_id,name) values($1,$2,$3)', [room, wall, w.name]);
   revalidatePath('/walls'); revalidatePath('/tenant'); revalidatePath('/plans');
 }
 async function wallFromRoom_(f: FormData) {
-  const me = await mgr(); const wall = Number(s(f,'wall')), room = Number(s(f,'room')); await own('walls', wall, me); await own('rooms', room, me);
+  const me = await adm(); const wall = Number(s(f,'wall')), room = Number(s(f,'room')); await own('walls', wall, me); await own('rooms', room, me);
   await rows('delete from room_walls where room_id=$1 and wall_template_id=$2', [room, wall]);
   revalidatePath('/walls'); revalidatePath('/tenant'); revalidatePath('/productions'); revalidatePath('/plans');
 }
-async function deleteWall_(f: FormData) { const me = await mgr(); await rows('delete from room_walls where wall_template_id in (select id from wall_templates where id=$1 and tenant_id=$2)', [Number(s(f,'id')), tid(me)]); revalidatePath('/tenant'); await rows('delete from wall_templates where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/walls'); }
+async function deleteWall_(f: FormData) { const me = await adm(); await rows('delete from room_walls where wall_template_id in (select id from wall_templates where id=$1 and tenant_id=$2)', [Number(s(f,'id')), tid(me)]); revalidatePath('/tenant'); await rows('delete from wall_templates where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/walls'); }
 
 // ---- MV Tiles (Tile Designer): the site admin makes Standard tiles for everyone; Admin/Manager make custom tiles for their own tenant ----
 const TILE_TYPES = ['umd', 'audio', 'tally', 'clock'];
 const TILE_PROPS: Record<string, string[]> = { umd: ['text'], audio: ['channels', 'orientation'], tally: ['state', 'style'], clock: ['format'] };
 async function saveTile_(p: { id: number | null; name: string; assets: any[]; asNew: boolean; flags?: Record<string, boolean> }): Promise<{ id?: number; error?: string }> {
-  const me = await mgr();
+  const me = await adm();
   if (!Array.isArray(p.assets) || p.assets.length > 500) return { error: 'A tile can hold up to 500 assets.' };
   const assets: any[] = [];
   for (const a of p.assets) {
@@ -408,28 +409,28 @@ async function saveTile_(p: { id: number | null; name: string; assets: any[]; as
   revalidatePath('/tiles'); return { id: r.id };
 }
 async function copyTile_(f: FormData) {
-  const me = await mgr(); const src = await one('select name,assets,tenant_id from mv_tiles where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
+  const me = await adm(); const src = await one('select name,assets,tenant_id from mv_tiles where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
   if (me.role !== 'webappdev' && ((await one('select count(*)::int c from mv_tiles where tenant_id=$1', [tid(me)]))!.c >= 200)) return;
   const r = await one('insert into mv_tiles(tenant_id,name,assets) values($1,$2,$3) returning id', [me.role === 'webappdev' && !src.tenant_id ? null : tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.assets)]);
   revalidatePath('/tiles'); redirect(`/tiles?id=${r!.id}`);
 }
 async function renameTile_(f: FormData) {
-  const me = await mgr(); const name = s(f, 'name').slice(0, 80); if (!name) return;
+  const me = await adm(); const name = s(f, 'name').slice(0, 80); if (!name) return;
   await rows(me.role === 'webappdev' ? 'update mv_tiles set name=$1 where id=$2 and (tenant_id=$3 or tenant_id is null)' : 'update mv_tiles set name=$1 where id=$2 and tenant_id=$3', [name, Number(s(f, 'id')), tid(me)]); revalidatePath('/tiles');
 }
 // Site admin only: make a tile Standard (visible to every tenant) or back into a tile private to the site admin's own tenant.
 async function setTileStandard_(f: FormData) {
-  const me = await mgr(); if (me.role !== 'webappdev') throw new Error('Site admin only');
+  const me = await adm(); if (me.role !== 'webappdev') throw new Error('Site admin only');
   await rows('update mv_tiles set tenant_id=$1 where id=$2 and (tenant_id=$3 or tenant_id is null)', [s(f, 'standard') === '1' ? null : tid(me), Number(s(f, 'id')), tid(me)]); revalidatePath('/tiles');
 }
 async function deleteTile_(f: FormData) {
-  const me = await mgr();
+  const me = await adm();
   await rows(me.role === 'webappdev' ? 'delete from mv_tiles where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'delete from mv_tiles where id=$1 and tenant_id=$2', [Number(s(f, 'id')), tid(me)]); revalidatePath('/tiles');
 }
 
 // ---- MV Layouts: only Admin/Manager create custom ones ----
 async function saveLayout_(_: FormState, f: FormData): Promise<FormState> {
-  const me = await mgr(); const n = Math.min(Math.max(Number(s(f,'count')) || 1, 1), 36);
+  const me = await adm(); const n = Math.min(Math.max(Number(s(f,'count')) || 1, 1), 36);
   // Every monitor is 16:9: pick the grid (columns x rows) with the biggest 16:9 cells that holds n, and centre it in the frame.
   let cols = 1, rws = n, cw = 0;
   for (let c = 1; c <= n; c++) { const r = Math.ceil(n / c), w = Math.min(1920 / c, (1080 / r) * 16 / 9); if (w > cw + 1e-9 || (Math.abs(w - cw) < 1e-9 && c * r <= cols * rws)) { cw = w; cols = c; rws = r; } }
@@ -456,7 +457,7 @@ async function cleanExtras(raw: any, tenant: number) {
   return { ...(mine.has(bg) ? { bg, ...(raw?.bgHasAlpha ? { bgHasAlpha: true } : {}), ...(raw?.bgHasAlpha && raw?.bgUseAlpha === false ? { bgUseAlpha: false } : {}) } : {}), items };
 }
 async function saveLayoutTiles_(p: { id: number; name: string; tiles: any[]; asNew: boolean; flags?: Record<string, boolean>; extras?: any }): Promise<{ id?: number; error?: string }> {
-  const me = await mgr(); const top = me.role === 'webappdev';
+  const me = await adm(); const top = me.role === 'webappdev';
   if (!Array.isArray(p.tiles) || p.tiles.length < 1 || p.tiles.length > 64) return { error: 'A layout needs 1 to 64 monitors.' };
   const src = await one('select tenant_id from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(p.id), tid(me)]); if (!src) return { error: 'Layout not found.' };
   // A tenant can't change a Standard layout: saving one makes the tenant's own copy and leaves the Standard one as it was.
@@ -502,19 +503,19 @@ export async function tidyStandardLayouts() {
   revalidatePath('/layouts'); redirect('/webappdev?tidied=' + n);
 }
 async function copyLayout_(f: FormData) {
-  const me = await mgr(); const src = await one('select name,tiles,extras,tenant_id from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
+  const me = await adm(); const src = await one('select name,tiles,extras,tenant_id from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
   const ex = JSON.stringify(src.tenant_id ? src.extras : await cleanExtras(src.extras, tid(me))); // a Standard layout's pictures belong to the site owner, so a copy keeps only ones this workspace has
   const r = (await one('insert into mv_layouts(tenant_id,name,tiles,extras) values($1,$2,$3,$4) returning id', [tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.tiles), ex]))!;
   revalidatePath('/layouts'); redirect('/layouts?id=' + r.id);
 }
 // Site admin: promote a layout to Standard (shared with every tenant) or move it back to the site admin's own tenant.
 async function setLayoutStandard_(f: FormData) {
-  const me = await mgr(); if (me.role !== 'webappdev') return;
+  const me = await adm(); if (me.role !== 'webappdev') return;
   const id = Number(s(f, 'id')), std = s(f, 'standard') === '1';
   await rows('update mv_layouts set tenant_id=$1 where id=$2', [std ? null : tid(me), id]);
   revalidatePath('/layouts');
 }
-async function deleteLayout_(f: FormData) { const me = await mgr(); await rows(me.role === 'webappdev' ? 'delete from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'delete from mv_layouts where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/layouts'); }
+async function deleteLayout_(f: FormData) { const me = await adm(); await rows(me.role === 'webappdev' ? 'delete from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'delete from mv_layouts where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/layouts'); }
 
 // ---- Productions: Broadcaster > Production > Job ----
 // Plan limits (demo default: 2 Broadcasters, 3 Productions each, 4 active Jobs each; the site admin can change them per tenant)

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getMe, canManage } from '@/lib/session';
+import { getMe, isAdmin } from '@/lib/session';
 import { rows, one } from '@/lib/db';
 import { sameOrigin, usage } from '@/lib/wallImages';
 import { record } from '@/lib/audit';
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 const MAX_BYTES = 3 * 1024 * 1024, MAX_IMAGES = 100;
 export async function GET() {
-  const me = await getMe(); if (!me || !me.tenant_id || !canManage(me)) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+  const me = await getMe(); if (!me || !me.tenant_id || !isAdmin(me)) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
   const imgs = await rows('select id,name,w,h,alpha from wall_images where tenant_id=$1 order by created_at desc, id desc', [me.tenant_id]);
   const use = await usage(me.tenant_id);
   return NextResponse.json({ images: imgs.map((i: any) => ({ ...i, usedIn: use.filter((u: any) => u.image === i.id).map((u: any) => ({ id: u.wall, name: u.name })) })) });
@@ -15,7 +15,7 @@ export async function GET() {
 
 // Upload: the browser has already scaled the picture down; PNG, JPEG or SVG only.
 export async function POST(req: Request) {
-  const me = await getMe(); if (!me || !me.tenant_id || !canManage(me) || !sameOrigin(req)) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+  const me = await getMe(); if (!me || !me.tenant_id || !isAdmin(me) || !sameOrigin(req)) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
   // Refuse oversized bodies before reading them (picture is capped at 3 MB; a little extra for the form fields).
   const len = Number(req.headers.get('content-length')); if (!len || len > MAX_BYTES + 65536) return NextResponse.json({ error: 'That image is too big (3 MB maximum after scaling).' }, { status: 413 });
   const f = await req.formData(); const file = f.get('file');

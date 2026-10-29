@@ -1,5 +1,5 @@
 import { rows } from '@/lib/db';
-import { requireMe, canManage } from '@/lib/session';
+import { requireMe, isAdmin } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { LayoutPreview } from './Preview';
 import { saveLayout, deleteLayout, copyLayout, setLayoutStandard } from '@/lib/actions';
@@ -10,7 +10,7 @@ import LayoutEditor from './LayoutEditor';
 export const dynamic = 'force-dynamic';
 
 export default async function Layouts({ searchParams }: { searchParams: Promise<{ id?: string; q?: string; sort?: string; f?: string; view?: string }> }) {
-  const me = await requireMe(); if (!canManage(me)) redirect('/');
+  const me = await requireMe(); if (!isAdmin(me)) redirect('/');
   const t = me.tenant_id ?? 0;
   const ls_p = rows('select * from mv_layouts where tenant_id=$1 or tenant_id is null order by tenant_id nulls first, id', [t]);
   const { id, q: q0, sort: so, f: fl, view: vw } = await searchParams, top = me.role === 'webappdev';

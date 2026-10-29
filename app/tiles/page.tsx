@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
-import { requireMe, canManage } from '@/lib/session';
+import { requireMe, isAdmin } from '@/lib/session';
 import { renameTile, copyTile, deleteTile, setTileStandard } from '@/lib/actions';
 import { TileArt } from '../designer/TileArt';
 import Menu from '../Menu';
@@ -9,7 +9,7 @@ import TileEditor from './TileEditor';
 export const dynamic = 'force-dynamic';
 
 export default async function Tiles({ searchParams }: { searchParams: Promise<{ id?: string; q?: string }> }) {
-  const me = await requireMe(); if (!canManage(me)) redirect('/');
+  const me = await requireMe(); if (!isAdmin(me)) redirect('/');
   const { id, q } = await searchParams; const t = me.tenant_id ?? 0, top = me.role === 'webappdev';
   const list = await rows('select * from mv_tiles where (tenant_id=$1 or tenant_id is null) and name ilike $2 order by tenant_id nulls first, name', [t, `%${(q ?? '').replace(/[%_\\]/g, '')}%`]);
 

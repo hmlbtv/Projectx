@@ -5,12 +5,12 @@ import { requireMe, canManage, isAdmin } from '@/lib/session';
 import { loadDemoData } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 const PLAN = ['Open the Monitor Plans for Jobs you are added to', 'View, and where permitted edit, those plans and switch layouts', 'Open the Archive and anything shared with you'];
-const MANAGE = ['Create and run Productions and Jobs', 'Design Walls, MV Layouts and Tiles; manage Source Sets and Contacts', 'Build and edit Monitor Plans for every Job on your site', 'Invite people to Jobs and manage your Team'];
+const MANAGE = ['Create and run Productions and Jobs', 'Manage Source Sets and Contacts', 'Build and edit Monitor Plans for every Job on your site', 'Invite people to Jobs and manage your Team'];
 const RIGHTS: Record<string, { title: string; items: string[] }> = {
   user: { title: 'User', items: PLAN },
   manager: { title: 'Manager', items: MANAGE },
-  admin: { title: 'Admin', items: [...MANAGE, 'Manage Sites, set Managers and Users, and review the audit log'] },
-  master_admin: { title: 'Master admin', items: [...MANAGE, 'Manage Sites, set Managers, Admins and other Master admins', 'Review and export the audit log'] },
+  admin: { title: 'Admin', items: [...MANAGE, 'Design Walls, MV Layouts and Tiles', 'Manage Sites, set Managers and Users, and review the audit log'] },
+  master_admin: { title: 'Master admin', items: [...MANAGE, 'Design Walls, MV Layouts and Tiles', 'Manage Sites, set Managers, Admins and other Master admins', 'Review and export the audit log'] },
   webappdev: { title: 'Site developer', items: ['Full access across all Sites', 'Use Site admin to manage Sites and accounts', 'Switch on Dev comments for people on the dev site'] },
 };
 export default async function Home() {

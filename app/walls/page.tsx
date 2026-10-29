@@ -1,5 +1,5 @@
 import { rows, one } from '@/lib/db';
-import { requireMe, canManage } from '@/lib/session';
+import { requireMe, isAdmin } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { deleteWall, setWallRooms, wallFromRoom } from '@/lib/actions';
 import WallEditor from './WallEditor';
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 
 export default async function Walls({ searchParams }: { searchParams: Promise<{ id?: string; q?: string; f?: string; site?: string; sort?: string; view?: string }> }) {
-  const me = await requireMe(); if (!canManage(me)) redirect('/');
+  const me = await requireMe(); if (!isAdmin(me)) redirect('/');
   const { id, q: q0, f: fl, site: st0, sort: so, view: vw } = await searchParams; const t = me.tenant_id ?? 0, q = (q0 ?? '').trim().slice(0, 80);
   const list_p = rows('select w.* from wall_templates w where w.tenant_id=$1 order by w.name', [t]);
   const lim_p = one('select max_walls_per_broadcaster m, plan, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [t]);

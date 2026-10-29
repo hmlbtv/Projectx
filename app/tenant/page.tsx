@@ -35,7 +35,7 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
     const l = locs.find((x: any) => x.id === r.location_id)!; const s = sites.find((x: any) => x.id === l.site_id)!; const mine = rw.filter((x: any) => x.room_id === r.id); const siteWalls = walls.filter((w: any) => !rw.some((m: any) => m.wall_template_id === w.id)); // a Wall Template can be in only one Room
     return (<><Bar back={`/tenant?l=${l.id}`} />
       <Head crumb={`${s.name} › ${l.name}`} title={r.name} sub={`Room · ${plural(mine.length, 'Wall Template')}`}><Edit table="rooms" id={r.id} name={r.name} what="Room" /></Head>
-      {walls.length === 0 ? <p className="mut">No Wall Templates built yet. <Link href="/walls">Build one in the Wall Designer</Link>, then add it here.</p> : siteWalls.length === 0 ? <p className="mut">Every Wall Template in your library is already in a Room (a Wall Template can be in only one Room).</p> :
+      {walls.length === 0 ? <p className="mut">No Wall Templates built yet. {isAdmin(me) ? <><Link href="/walls">Build one in the Wall Designer</Link>, then add it here.</> : 'Ask an Admin to build one in the Wall Designer.'}</p> : siteWalls.length === 0 ? <p className="mut">Every Wall Template in your library is already in a Room (a Wall Template can be in only one Room).</p> :
         <AddDialog action={addRoomWall} label="Add Wall Template" title="Choose a Wall Template from your library" noName><input type="hidden" name="room" value={r.id} />
           <select name="wall">{siteWalls.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></AddDialog>}
       {mine.length === 0 && <p className="mut">No Wall Template yet. The Room is saved and can be used now; add a wall whenever it is ready.</p>}

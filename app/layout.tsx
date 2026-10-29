@@ -22,7 +22,8 @@ export default async function Root({ children }: { children: React.ReactNode }) 
     {me && <nav><Link href="/" className="brand" style={devSite() ? { position: 'relative' } : undefined}><Logo size={24} />{devSite() && DevStamp && <DevStamp />}</Link>
       <NavMenu links={[
         ...(isAdmin(me) ? [{ href: '/tenant', label: 'Sites' }] : []),
-        ...(canManage(me) ? [{ href: '/team', label: 'Team' }, { label: 'Designers', children: [{ href: '/walls', label: 'Wall Designer' }, { href: '/layouts', label: 'MV Designer' }, { href: '/tiles', label: 'Tile Designer' }] }, { href: '/productions', label: 'Productions' }, { href: '/sources', label: 'Source Sets' }, { href: '/contacts', label: 'Contacts' }] : []),
+        ...(canManage(me) ? [{ href: '/team', label: 'Team' }, { href: '/productions', label: 'Productions' }, { href: '/sources', label: 'Source Sets' }, { href: '/contacts', label: 'Contacts' }] : []),
+        ...(isAdmin(me) ? [{ label: 'Designers', children: [{ href: '/walls', label: 'Wall Designer' }, { href: '/layouts', label: 'MV Designer' }, { href: '/tiles', label: 'Tile Designer' }] }] : []),
         ...(me.role === 'onetime' ? [] : [{ href: '/plans', label: 'Monitor Plans' }, { href: '/archive', label: 'Archive' }]),
         { href: '/shared', label: 'Shared with me' },
         ...(dev?.on ? [{ href: '/my-comments', label: 'My comments' }] : []),

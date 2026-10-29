@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getMe, canManage } from '@/lib/session';
+import { getMe, isAdmin } from '@/lib/session';
 import { rows, one } from '@/lib/db';
 import { sameOrigin, usage } from '@/lib/wallImages';
 import { record } from '@/lib/audit';
@@ -15,7 +15,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 }
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const me = await getMe(); const { id } = await params;
-  if (!me || !me.tenant_id || !canManage(me) || !sameOrigin(req)) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+  if (!me || !me.tenant_id || !isAdmin(me) || !sameOrigin(req)) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
   const name = String((await req.json().catch(() => ({}))).name ?? '').trim().slice(0, 60); if (!name) return NextResponse.json({ error: 'Give it a name.' }, { status: 400 });
   const old = await one('select name from wall_images where id=$1 and tenant_id=$2', [Number(id) || 0, me.tenant_id]);
   await rows('update wall_images set name=$1 where id=$2 and tenant_id=$3', [name, Number(id) || 0, me.tenant_id]);
@@ -24,7 +24,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const me = await getMe(); const { id } = await params;
-  if (!me || !me.tenant_id || !canManage(me) || !sameOrigin(req)) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+  if (!me || !me.tenant_id || !isAdmin(me) || !sameOrigin(req)) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
   const n = Number(id) || 0, used = (await usage(me.tenant_id)).filter((u: any) => u.image === n);
   const old = await one('select name from wall_images where id=$1 and tenant_id=$2', [n, me.tenant_id]);
   await rows('delete from wall_images where id=$1 and tenant_id=$2', [n, me.tenant_id]);
