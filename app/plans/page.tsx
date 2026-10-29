@@ -17,9 +17,9 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
     where (j.id in (select job_id from job_users where user_id=$1) or ($2 and b.tenant_id=$3)) order by j.job_date desc nulls last`, [me.id, canManage(me), me.tenant_id ?? 0]);
   const cur = jobs.find((j: any) => String(j.id) === job);
   if (!cur) { const unread = await unreadByJob(me.id);
-    const card = (j: any, old: boolean) => (<div key={j.id} className="card"><div className="row" style={{ justifyContent: 'space-between', gap: 8 }}><div><a href={`/plans?job=${j.id}`}><b>{j.name}</b></a> <span className="mut">{String(j.job_date ?? '').slice(0, 10)}</span>
+    const card = (j: any, old: boolean) => (<div key={j.id} className="card" style={!old && unread[j.id] > 0 ? { borderLeft: '6px solid #e5352b', boxShadow: '0 0 0 2px rgba(229,53,43,.35)' } : undefined}><div className="row" style={{ justifyContent: 'space-between', gap: 8 }}><div><a href={`/plans?job=${j.id}`}><b>{j.name}</b></a> <span className="mut">{String(j.job_date ?? '').slice(0, 10)}</span>
       <div className="mut" style={{ fontSize: '.85rem' }}>{j.broadcaster} \ {j.prod} \ {j.name}</div></div>
-      {!old && unread[j.id] > 0 && <a href={`/plans?job=${j.id}`} className="tag" style={{ background: '#e5352b', color: '#fff', fontWeight: 700, textDecoration: 'none' }}>💬 {unread[j.id]} new comment{unread[j.id] === 1 ? '' : 's'}</a>}</div></div>);
+      {!old && unread[j.id] > 0 && <a href={`/plans?job=${j.id}`} style={{ textDecoration: 'none', flex: '0 0 auto' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#e5352b', color: '#fff', fontWeight: 800, fontSize: '.95rem', padding: '8px 14px', borderRadius: 999, boxShadow: '0 0 0 4px rgba(229,53,43,.25)' }}>🔔 {unread[j.id]} new comment{unread[j.id] === 1 ? '' : 's'}</span></a>}</div></div>);
     const live = jobs.filter((j: any) => !j.expired), old = jobs.filter((j: any) => j.expired);
     return (<><h1>Monitor Plans</h1>{live.length === 0 && <p className="mut">No active Jobs assigned to you.</p>}{live.map((j: any) => card(j, false))}
       {old.length > 0 && <><h2 style={{ marginTop: 28 }}>Archive</h2><p className="mut">Expired Jobs, kept for reference (view only).</p>{old.map((j: any) => card(j, true))}</>}</>); }
