@@ -8,7 +8,7 @@ import { requireMe, canManage, isAdmin } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Menu from '../Menu';
-import { addBroadcaster, addProduction, addJob, removeJobUser, assignWall, unassignWall, assignWalls, unassignWalls, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob } from '@/lib/actions';
+import { addBroadcaster, addProduction, addJob, removeJobUser, assignWall, unassignWall, assignWalls, unassignWalls, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob, copyJobToNew } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
 export default async function Productions({ searchParams }: { searchParams: Promise<{ b?: string; p?: string; j?: string }> }) {
@@ -17,7 +17,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   const lim = (await rows('select max_broadcasters b, max_productions p, max_jobs_per_production j from tenants where id=$1', [t]))[0];
   const bs_p = rows('select * from broadcasters where tenant_id=$1 order by id', [t]);
   const ps_p = rows('select p.* from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 order by p.id', [t]);
-  const js_p = rows('select j.*, ss.name ss_name from jobs j left join source_sets ss on ss.id=j.source_set_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 and (j.expires_at is null or j.expires_at >= current_date) order by j.job_date', [t]);
+  const js_p = rows('select j.*, (j.expires_at < current_date) expired, ss.name ss_name from jobs j left join source_sets ss on ss.id=j.source_set_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 order by j.job_date desc nulls last', [t]);
   const rw_p = rows(`select jw.job_id, rw.id, rw.name wname, r.name rname from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join rooms r on r.id=rw.room_id
     join locations l on l.id=r.location_id join sites st on st.id=l.site_id where st.tenant_id=$1`, [t]);
   const wl_p = rows(`select wl.id, wl.job_id, wl.email, wl.access, wl.revoked, rw.name wname from wall_links wl join room_walls rw on rw.id=wl.room_wall_id
@@ -72,9 +72,9 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   // ---- Jobs of a Production ----
   if (prodId) {
     const p = ps.find((x: any) => x.id === prodId); if (!p) redirect('/productions');
-    const b = bs.find((x: any) => x.id === p.broadcaster_id)!; const mine = js.filter((x: any) => x.production_id === p.id);
+    const b = bs.find((x: any) => x.id === p.broadcaster_id)!; const all = js.filter((x: any) => x.production_id === p.id), mine = all.filter((x: any) => !x.expired), old = all.filter((x: any) => x.expired);
     return (<><Bar back={`/productions?b=${b.id}`} />
-      <div className="card tile head"><div><div className="mut">{b.name}</div><h1 style={{ margin: 0 }}>{p.name}</h1><div className="mut">Production · {plural(mine.length, 'Job')}</div></div>
+      <div className="card tile head"><div><div className="mut">{b.name}</div><h1 style={{ margin: 0 }}>{p.name}</h1><div className="mut">Production · {plural(mine.length, 'current Job')}</div></div>
         <Menu><b>Edit Production</b><form action={updateProduction} className="stack"><input type="hidden" name="id" value={p.id} /><input name="name" defaultValue={p.name} required /><button className="sec">Save</button></form><Del action={deleteProduction} id={p.id} what="Production" /></Menu></div>
       <AddDialog action={addJob} label="Add Job" title="New Job" placeholder="Job name"><input type="hidden" name="parent" value={p.id} />
         <label className="mut">Job date<input type="date" name="date" /></label><label className="mut">Final date<input type="date" name="final" /></label><label className="mut">Expires (optional)<input type="date" name="expires" /></label>
@@ -84,7 +84,10 @@ export default async function Productions({ searchParams }: { searchParams: Prom
         <Menu><b>Edit Job</b><form action={updateJob} className="stack"><input type="hidden" name="id" value={j.id} /><input name="name" defaultValue={j.name} required />
           <label className="mut">Job date<input type="date" name="date" defaultValue={d(j.job_date)} /></label><label className="mut">Final date<input type="date" name="final" defaultValue={d(j.final_date)} /></label><label className="mut">Expires<input type="date" name="expires" defaultValue={d(j.expires_at)} /></label>
           <select name="sourceSet" defaultValue={j.source_set_id ?? ''}><option value="">Source Set…</option>{sets.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}</select><button className="sec">Save</button></form>
-          <Del action={deleteJob} id={j.id} what="Job" /></Menu></div>))}</div></>);
+          <Del action={deleteJob} id={j.id} what="Job" /></Menu></div>))}</div>
+      {old.length > 0 && <><h2 style={{ marginTop: 28 }}>Archive</h2><p className="mut">Expired Jobs, kept for reference. “Copy to new” makes a new Job with the same walls and Monitor Plans, without the dates.</p>
+        <div className="tiles">{old.map((j: any) => (<div key={j.id} className="card tile"><Link href={`/productions?j=${j.id}`} className="tilelink"><b>{j.name}</b><span className="mut">{d(j.job_date)} · expired {d(j.expires_at)} · {j.ss_name ?? 'no Source Set'}</span></Link>
+          <form action={copyJobToNew}><input type="hidden" name="id" value={j.id} /><button className="sec small">Copy to new</button></form></div>))}</div></>}</>);
   }
 
   // ---- Productions of a Broadcaster ----
@@ -96,7 +99,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
         <Menu><b>Edit Broadcaster</b><form action={updateBroadcaster} className="stack"><input type="hidden" name="id" value={b.id} /><input name="name" defaultValue={b.name} required /><button className="sec">Save</button></form><Del action={deleteBroadcaster} id={b.id} what="Broadcaster" /></Menu></div>
       <AddDialog action={addProduction} label="Add Production" title="New Production" placeholder="Production name"><input type="hidden" name="parent" value={b.id} /></AddDialog>
       {mine.length === 0 && <p className="mut">No Productions yet.</p>}
-      <div className="tiles">{mine.map((p: any) => (<div key={p.id} className="card tile"><Link href={`/productions?p=${p.id}`} className="tilelink"><b>{p.name}</b><span className="mut">{plural(js.filter((j: any) => j.production_id === p.id).length, 'Job')}</span></Link>
+      <div className="tiles">{mine.map((p: any) => (<div key={p.id} className="card tile"><Link href={`/productions?p=${p.id}`} className="tilelink"><b>{p.name}</b><span className="mut">{plural(js.filter((j: any) => j.production_id === p.id && !j.expired).length, 'Job')}</span></Link>
         <Menu><b>Edit Production</b><form action={updateProduction} className="stack"><input type="hidden" name="id" value={p.id} /><input name="name" defaultValue={p.name} required /><button className="sec">Save</button></form><Del action={deleteProduction} id={p.id} what="Production" /></Menu></div>))}</div></>);
   }
 

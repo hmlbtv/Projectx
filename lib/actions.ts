@@ -603,6 +603,17 @@ async function deleteDestSet_(f: FormData) {
   const me = await mgr(); const id = Number(s(f, 'id')); await own('destSets', id, me);
   await rows('delete from destination_sets where id=$1', [id]); revalidatePath('/tenant'); revalidatePath('/walls');
 }
+// Archive: copy an old Job into a new one for the same Production, with its walls and Monitor Plans but no dates.
+async function copyJobToNew_(f: FormData) {
+  const me = await mgr(); const id = Number(s(f,'id')); await own('jobs', id, me); const l = await limits(me);
+  const src = await one('select * from jobs where id=$1', [id]); if (!src) throw new Error('Not found');
+  const c = (await one('select count(*)::int c from jobs where production_id=$1 and (expires_at is null or expires_at >= current_date)', [src.production_id]))!.c;
+  if (c >= l.j) throw new Error(`Your plan allows ${l.j} active Job${l.j === 1 ? '' : 's'} per Production.`);
+  const nj = (await one('insert into jobs(production_id,name,source_set_id) values($1,$2,$3) returning id', [src.production_id, `${src.name} (copy)`.slice(0, 120), src.source_set_id]))!.id;
+  await rows('insert into job_walls(job_id,room_wall_id) select $1, room_wall_id from job_walls where job_id=$2', [nj, id]);
+  await rows('insert into monitor_plans(job_id,user_id,name,data) select $1, user_id, name, data from monitor_plans where job_id=$2 and link_id is null', [nj, id]);
+  revalidatePath('/productions'); redirect(`/productions?j=${nj}`);
+}
 async function addJob_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const p = Number(s(f,'parent')); await own('productions', p, me); const l = await limits(me);
   const c = (await one('select count(*)::int c from jobs where production_id=$1 and (expires_at is null or expires_at >= current_date)', [p]))!.c;
@@ -811,5 +822,6 @@ export async function unassignWalls(...a: Parameters<typeof unassignWalls_>) { r
 export async function unassignWall(...a: Parameters<typeof unassignWall_>) { return audited('unassignWall', unassignWall_, a) as ReturnType<typeof unassignWall_>; }
 export async function copyPlan(...a: Parameters<typeof copyPlan_>) { return audited('copyPlan', copyPlan_, a) as ReturnType<typeof copyPlan_>; }
 export async function savePlan(...a: Parameters<typeof savePlan_>) { return audited('savePlan', savePlan_, a) as ReturnType<typeof savePlan_>; }
+export async function copyJobToNew(...a: Parameters<typeof copyJobToNew_>) { return audited('copyJobToNew', copyJobToNew_, a) as ReturnType<typeof copyJobToNew_>; }
 export async function addComment(...a: Parameters<typeof addComment_>) { return audited('addComment', addComment_, a) as ReturnType<typeof addComment_>; }
 export async function loadDemoData(...a: Parameters<typeof loadDemoData_>) { return audited('loadDemoData', loadDemoData_, a) as ReturnType<typeof loadDemoData_>; }
