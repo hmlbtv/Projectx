@@ -60,15 +60,6 @@ export default async function Productions({ searchParams }: { searchParams: Prom
                     {ws.map((w: any) => { const on = used.some((u: any) => u.id === w.id);
                       return (<form key={w.id} action={on ? unassignWall : assignWall} className="row" style={{ marginLeft: 16, margin: '2px 0 2px 16px' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="wall" value={w.id} />
                         <span>{w.name}</span>{on && <span className="tag">in use</span>}<button className={on ? 'del' : 'sec'} style={{ minHeight: 0, padding: '2px 10px' }}>{on ? 'Remove' : 'Use in this Job'}</button></form>); })}</details>); })}</details>); })}</details>); })}</div>
-      <div>Users: {ju.filter((x: any) => x.job_id === j.id).map((x: any) => <form key={x.email} action={removeJobUser} style={{ display: 'inline' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="user" value={x.user_id} /><span className="tag">{x.email} <button title="Remove from Job" style={{ background: 'none', color: 'inherit', padding: 0 }}>×</button></span></form>)}</div>
-      <InviteUser job={j.id} />
-      <div style={{ marginTop: 8 }}><b>Share a wall with a guest</b> <span className="mut">(they sign in with the contact's email and see everything shared with them in one place)</span>
-        <ShareWall job={j.id} production={p.id} assigned={contacts.filter((c: any) => pcs.some((x: any) => x.production_id === p.id && x.contact_id === c.id))} others={contacts.filter((c: any) => !pcs.some((x: any) => x.production_id === p.id && x.contact_id === c.id))} walls={rw.filter((x: any) => x.job_id === j.id).map((x: any) => ({ id: x.id, label: `${x.rname} / ${x.wname}` }))} />
-        {wl.filter((x: any) => x.job_id === j.id).map((x: any) => (<form key={x.id} action={revokeWallLink} className="row" style={{ margin: '2px 0' }}><input type="hidden" name="id" value={x.id} />
-          <span className="tag">{x.wname}</span><span className="tag">{x.email}</span><span className="tag">{x.access === 'edit' ? 'can edit' : 'view only'}</span>
-          {x.revoked ? <span className="tag">switched off</span> : <button className="del" style={{ minHeight: 0, padding: '2px 10px' }}>Switch off</button>}</form>))}
-        {wl.filter((x: any) => x.job_id === j.id && !x.revoked).map((x: any) => (<details key={'m' + x.id} style={{ margin: '2px 0' }}><summary className="mut" style={{ cursor: 'pointer' }}>Move or resend: {x.wname} → {x.email}</summary>
-          <ReassignLink id={x.id} current={x.email} contacts={contacts.filter((c: any) => pcs.some((y: any) => y.production_id === p.id && y.contact_id === c.id))} /></details>))}</div>
       </div></>);
   }
 
