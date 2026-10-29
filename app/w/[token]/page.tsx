@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { one } from '@/lib/db';
 import { sha256 } from '@/lib/password';
 import { myEmails } from '@/lib/emails';
-import { getMe } from '@/lib/session';
+import { getMe, destroySession } from '@/lib/session';
 import { Logo } from '@/app/Logo';
 import GuestSignUp from './GuestSignUp';
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,9 @@ export default async function Invitation({ params }: { params: Promise<{ token: 
   if (me) {
     const mine = await one(`select 1 where $1 in ${myEmails(2)}`, [link.email.toLowerCase(), me.id]);
     if (mine) redirect(`/shared/${link.id}`);
-    return (<div className="auth">{head}<div className="card"><h1>Sent to a different email</h1><p>This invitation was sent to <b>{link.email}</b>, which is not on your account. If it is your address, add it under <Link href="/account">Account → Other email addresses</Link> and confirm it, then open this link again. Otherwise sign out and use the invited email.</p></div></div>);
+    async function switchAccount() { 'use server'; await destroySession(); redirect(`/w/${token}`); }
+    return (<div className="auth">{head}<div className="card"><h1>Sent to a different email</h1><p>This invitation was sent to <b>{link.email}</b>, which is not the email you are signed in with. Sign out, then sign in or create your account with that email address to open it.</p>
+      <form action={switchAccount}><button>Sign out and continue</button></form></div></div>);
   }
   const exists = await one('select 1 from users where email=$1', [link.email]);
   if (exists) redirect(`/signin?next=${encodeURIComponent('/shared/' + link.id)}&email=${encodeURIComponent(link.email)}`);
