@@ -80,7 +80,7 @@ export async function savePlanLink(linkId: number, name: string, data: any) {
 export async function addCommentLink(f: FormData) {
   const me = await requireMe(); const l = await linkAccess(me, Number(s(f, 'link'))); if (!l || l.access !== 'edit') throw new Error('Not allowed');
   const body = s(f, 'body').slice(0, 2000); if (!body) return;
-  await rows('insert into comments(job_id,room_id,user_id,body) values($1,$2,$3,$4)', [l.job_id, l.room_id, me.id, body]);
+  await rows('insert into comments(job_id,room_id,room_wall_id,user_id,body) values($1,$2,$3,$4,$5)', [l.job_id, l.room_id, l.room_wall_id, me.id, body]);
   revalidatePath('/shared');
 }
 

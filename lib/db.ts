@@ -71,6 +71,8 @@ alter table users add column if not exists verify_hash text;
 alter table users add column if not exists verify_expires timestamptz;
 create table if not exists comments(id serial primary key, job_id int not null references jobs(id) on delete cascade, room_id int not null, user_id int not null, body text not null, created_at timestamptz default now());
 alter table comments add column if not exists guest_email text;
+alter table comments add column if not exists room_wall_id int;
+create table if not exists comment_seen(user_id int not null, job_id int not null, room_wall_id int not null, seen_at timestamptz not null default now(), primary key(user_id, job_id, room_wall_id));
 create table if not exists contacts(id serial primary key, tenant_id int not null references tenants(id) on delete cascade, name text not null, email text not null, company text not null default '', created_at timestamptz not null default now(), unique(tenant_id,email));
 create table if not exists production_contacts(production_id int not null references productions(id) on delete cascade, contact_id int not null references contacts(id) on delete cascade, primary key(production_id, contact_id));
 alter table wall_links add column if not exists contact_id int references contacts(id) on delete set null;

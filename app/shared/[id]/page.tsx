@@ -4,6 +4,8 @@ import { one, rows } from '@/lib/db';
 import { myEmails } from '@/lib/emails';
 import { requireMe } from '@/lib/session';
 import { savePlanLink, addCommentLink } from '@/lib/guestActions';
+import { wallComments, markSeen } from '@/lib/comments';
+import WallComments from '@/app/plans/WallComments';
 import Plan from '@/app/plans/Plan';
 import { planWalls } from '@/lib/planWalls';
 export const dynamic = 'force-dynamic';
@@ -23,11 +25,10 @@ export default async function SharedWall({ params }: { params: Promise<{ id: str
   // Editors see their own saved plans for this wall; view-only guests see the latest plan anyone saved for it.
   const saved = edit ? await rows('select name,data from monitor_plans where link_id=$1 and user_id=$2 order by id', [link.id, me.id])
     : await rows('select name,data from monitor_plans where job_id=$1 and jsonb_exists(data,$2) order by updated_at desc limit 1', [link.job_id, String(link.room_wall_id)]);
-  const comments = await rows(`select c.body, u.name who from comments c left join users u on u.id=c.user_id where c.job_id=$1 and c.room_id=$2 order by c.id`, [link.job_id, link.room_id]);
+  const comments = await wallComments(link.job_id, link.room_wall_id); await markSeen(me.id, link.job_id, [link.room_wall_id]);
   return (<><Link href="/shared">← Shared with me</Link><h1 style={{ marginTop: 8 }}>{link.wall}</h1>
     <p className="mut">{link.tenant} · {link.prod} / {link.job} · {link.room} <span className="tag">{edit ? 'You can edit this wall' : 'View only'}</span></p>
     {saved.length === 0 && !edit && <div className="card mut">No plan has been saved for this wall yet.</div>}
     <Plan walls={pw} layouts={layouts} sources={src?.sources ?? []} saved={saved} save={edit ? savePlanLink.bind(null, link.id) : undefined} readOnly={!edit} />
-    <div className="card"><b>Comments</b>{comments.map((c: any, i: number) => <div key={i}><b>{c.who}</b>: {c.body}</div>)}
-      {edit && <form action={addCommentLink} className="row"><input type="hidden" name="link" value={link.id} /><input name="body" placeholder="Add a comment" required style={{ flex: 1 }} /><button className="sec">Post</button></form>}</div></>);
+    <WallComments title={`${link.wall} · ${link.job}`} comments={comments as any} action={edit ? addCommentLink : undefined} hidden={{ link: link.id }} /></>);
 }

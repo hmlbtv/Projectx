@@ -706,9 +706,10 @@ async function copyPlan_(f: FormData) {
   revalidatePath('/plans'); redirect(`/plans?job=${job}&plan=${encodeURIComponent(name)}`);
 }
 async function addComment_(f: FormData) {
-  const me = await requireMe(); const job = Number(s(f,'job')), room = Number(s(f,'room'));
-  if (!(await canAccessJob(me, job)) || !(await one('select 1 from job_walls jw join room_walls rw on rw.id=jw.room_wall_id where jw.job_id=$1 and rw.room_id=$2', [job, room]))) throw new Error('Not found');
-  if (s(f,'body')) await rows('insert into comments(job_id,room_id,user_id,body) values($1,$2,$3,$4)', [job, room, me.id, s(f,'body').slice(0, 2000)]);
+  const me = await requireMe(); const job = Number(s(f,'job')), wall = Number(s(f,'wall'));
+  const w = await one('select rw.id, rw.room_id from job_walls jw join room_walls rw on rw.id=jw.room_wall_id where jw.job_id=$1 and rw.id=$2', [job, wall]);
+  if (!(await canAccessJob(me, job)) || !w) throw new Error('Not found');
+  if (s(f,'body')) await rows('insert into comments(job_id,room_id,room_wall_id,user_id,body) values($1,$2,$3,$4,$5)', [job, w.room_id, wall, me.id, s(f,'body').slice(0, 2000)]);
   revalidatePath('/plans');
 }
 

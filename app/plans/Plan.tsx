@@ -77,7 +77,7 @@ export function WallPlan({ wl, layouts, cur, setMon, readOnly, autoFull, onExit,
     {!full && <dialog ref={ref} className="dlg" onClose={() => setPick(null)} onClick={e => { if (e.target === ref.current) setPick(null); }} style={{ width: 'min(1100px, 96vw)', maxWidth: '96vw', height: '90vh', maxHeight: '90vh', display: pick ? 'block' : 'none', padding: 18 }}>{chooser}</dialog>}</div>);
 }
 
-export default function Plan({ walls, layouts, sources, saved, save, readOnly = false, start }: { start?: string; walls: Wall[]; layouts: Layout[]; sources: string[]; saved: { name: string; data: Data }[]; save?: (name: string, data: Data) => Promise<void>; readOnly?: boolean }) {
+export default function Plan({ walls, layouts, sources, saved, save, readOnly = false, start, below }: { below?: Record<number, React.ReactNode>; start?: string; walls: Wall[]; layouts: Layout[]; sources: string[]; saved: { name: string; data: Data }[]; save?: (name: string, data: Data) => Promise<void>; readOnly?: boolean }) {
   const [name, setName] = useState((saved.find(x => x.name === start) ?? saved[0])?.name ?? 'Room Layout 1');
   // A new plan starts from each Wall Template's chosen default MV configuration.
   const seed = () => Object.fromEntries(walls.filter(x => x.defaultMons).map(x => [x.id, { assign: {}, mons: x.defaultMons }])) as Data;
@@ -95,7 +95,7 @@ export default function Plan({ walls, layouts, sources, saved, save, readOnly = 
   const setSrc = (id: number, n: number, v: string) => setData({ ...data, [id]: { ...w(id), assign: { ...w(id).assign, [n]: v } } });
   return (<div>
     {!readOnly && msg && <div className="mut" style={{ textAlign: 'right', fontSize: '.8rem' }}>{msg}</div>}
-    {walls.map(wl => { if ((wl.assets ?? []).some(a => isScreen(a.type) && a.props?.mvs?.length)) return <WallPlan key={wl.id} wl={wl} layouts={layouts} cur={data[wl.id]} readOnly={readOnly} setMon={(a, l) => setMon(wl.id, a, l)} setAll={m => setMons(wl.id, m)} />;
+    {walls.map(wl => <div key={wl.id}>{((wl) => { if ((wl.assets ?? []).some(a => isScreen(a.type) && a.props?.mvs?.length)) return <WallPlan key={wl.id} wl={wl} layouts={layouts} cur={data[wl.id]} readOnly={readOnly} setMon={(a, l) => setMon(wl.id, a, l)} setAll={m => setMons(wl.id, m)} />;
       const cur = w(wl.id); const lay = layouts.find(l => l.id === cur.layoutId);
       return (<div key={wl.id} className="card"><b>{wl.name}</b>
         <div className="row"><select disabled={readOnly} value={cur.layoutId ?? ''} onChange={e => setLayout(wl.id, Number(e.target.value))}><option value="">Choose MV Layout…</option>{layouts.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
@@ -104,5 +104,5 @@ export default function Plan({ walls, layouts, sources, saved, save, readOnly = 
             <text x={t.x + 30} y={t.y + 70} fill="#e5352b" fontSize="64">{t.n}</text>
             <text x={t.x + t.w / 2} y={t.y + t.h / 2 + 20} fill="#fff" fontSize={Math.min(70, t.w / 9)} textAnchor="middle">{cur.assign[t.n] ?? ''}</text></g>))}</svg>}
         {lay && <table><tbody>{lay.tiles.map(t => (<tr key={t.n}><td>Tile {t.n}</td><td><select disabled={readOnly} value={cur.assign[t.n] ?? ''} onChange={e => setSrc(wl.id, t.n, e.target.value)}><option value="">—</option>{sources.map(s => <option key={s}>{s}</option>)}</select></td></tr>))}</tbody></table>}
-      </div>); })}</div>);
+      </div>); })(wl)}{below?.[wl.id]}</div>)}</div>);
 }
