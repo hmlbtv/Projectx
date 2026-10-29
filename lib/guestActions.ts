@@ -109,28 +109,10 @@ async function jobFor(me: Me, job: number) {
 }
 const wallsOf = async (job: number, ids: number[]) => ids.length ? (await rows('select jw.room_wall_id id from job_walls jw where jw.job_id=$1 and jw.room_wall_id = any($2::int[])', [job, ids])).map((r: any) => r.id as number) : [];
 const ids = (f: FormData) => Array.from(new Set(f.getAll('wall').map(x => Number(x)).filter(n => Number.isInteger(n) && n > 0)));
-async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
-  const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
-  const tenant = me.tenant_id ?? 0, job = Number(s(f, 'job')); if (!(await jobFor(me, job))) return { error: 'Job not found.' };
-  if (!(await allow('wall-link', String(me.id), 60, 60))) return { error: 'Too many requests. Please wait a while and try again.' };
-  const access = s(f, 'access') === 'view' ? 'view' : 'edit';
-  const walls = await wallsOf(job, ids(f)); if (walls.length === 0) return { error: 'Tick at least one wall.' };
-  let email = s(f, 'email').toLowerCase(), contactId: number | null = null;
-  if (!email) { const c = await one('select id, email from contacts where id=$1 and tenant_id=$2', [Number(s(f, 'contact')), tenant]); if (c) { email = String(c.email).toLowerCase(); contactId = c.id; } }
-  if (!EMAIL.test(email) || email.length > 200) return { error: 'Choose a contact or type a valid email address.' };
-  let first = '';
-  for (const w of walls) {
-    const ex = await one('select id from wall_links where job_id=$1 and room_wall_id=$2 and lower(email)=$3 and not revoked', [job, w, email]);
-    if (ex) { await rows('update wall_links set access=$1 where id=$2', [access, ex.id]); continue; }
-    const token = newToken(); if (!first) first = token;
-    await rows('insert into wall_links(job_id,room_wall_id,email,access,token_hash,created_by,contact_id) values($1,$2,$3,$4,$5,$6,$7)', [job, w, email, access, sha256(token), me.id, contactId]);
-  }
-  revalidatePath('/plans');
-  if (!first) return { ok: `${email} already had these walls. Their access is now ${access === 'edit' ? 'can edit' : 'view only'}.` };
-  const link = `${await baseUrl()}/w/${first}`;
-  const note = String(f.get('comment') ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 1000);
+// The invitation / update email: branded HTML with wall pictures, plus a plain-text version. Returns whether it was sent.
+async function sendInviteMail(me: Me, email: string, link: string, walls: number[], access: string, note: string, updated: boolean): Promise<boolean> {
   const who = access === 'edit' ? 'you can edit' : 'view only', many = walls.length === 1 ? '' : 's';
-  const text = `${me.name} shared ${walls.length} monitor wall${many} with you on TelePlanner.tv (${who}).\nOpen this link to sign in or create your account:\n${link}${note ? `\n\n${me.name} wrote:\n${note}` : ''}\n\nThe account is tied to this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.`;
+  const text = `${updated ? `${me.name} updated your access on TelePlanner.tv. You now have ${walls.length} monitor wall${many} (${access === 'edit' ? 'you can edit' : 'view only'}).` : `${me.name} shared ${walls.length} monitor wall${many} with you on TelePlanner.tv (${who}).`}\nOpen this link to sign in or create your account:\n${link}${note ? `\n\n${me.name} wrote:\n${note}` : ''}\n\nThe account is tied to this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.`;
   // Pictures of the walls they were invited to, shown under the button.
   const shown = await rows('select rw.id, rw.name, wt.data from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id where rw.id = any($1::int[]) order by rw.id limit 6', [walls]);
   const esc = (x: string) => x.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
@@ -145,14 +127,37 @@ async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
  <td style="color:#fff;font-size:24px;letter-spacing:-0.02em;line-height:1"><b>Tele</b>Planner</td></tr></table>
  <div style="color:#9aa4b2;font-size:11px;letter-spacing:.08em;margin-top:6px">TelePlanner.tv · Monitor plans for live production</div></td></tr>
 <tr><td style="background:#fff;padding:26px 22px;border-radius:0 0 12px 12px">
- <p style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111">${esc(me.name)} shared ${walls.length === 1 ? 'a monitor wall' : `${walls.length} monitor walls`} with you on <b>TelePlanner.tv</b></p>
+ <p style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111">${updated ? `${esc(me.name)} updated your access on <b>TelePlanner.tv</b></p><p style="margin:0;font-size:15px;color:#444">You now have ${walls.length === 1 ? 'a monitor wall' : `${walls.length} monitor walls`} · <b>${access === 'edit' ? 'you can edit' : 'view only'}</b></p>` : `${esc(me.name)} shared ${walls.length === 1 ? 'a monitor wall' : `${walls.length} monitor walls`} with you on <b>TelePlanner.tv</b></p>`}
  <div style="height:14px;line-height:14px">&nbsp;</div>
  ${note ? `<div style="margin:0 0 20px;padding:12px 14px;background:#f3f5f8;border-left:3px solid #e5352b;border-radius:4px;font-size:15px;color:#222;white-space:pre-wrap">${esc(note).replace(/\n/g, '<br>')}<div style="margin-top:8px;font-size:12px;color:#777">— ${esc(me.name)}</div></div>` : ''}
  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 8px"><tr><td style="background:#e5352b;border-radius:8px"><a href="${link}" style="display:inline-block;padding:13px 26px;color:#fff;font-size:16px;font-weight:700;text-decoration:none;${font}">Open my Monitor Plans</a></td></tr></table>
  <p style="margin:0 0 18px;color:#777;font-size:12px">Button not working? Copy this link into your browser:<br><a href="${link}" style="color:#777;word-break:break-all">${link}</a></p>
  ${shown.map((w: any) => `<p style="margin:16px 0 6px;font-size:15px"><b>${esc(String(w.name))}</b></p>${images.some(i => i.cid === `wall${w.id}`) ? `<img src="cid:wall${w.id}" alt="${esc(String(w.name))}" width="556" style="max-width:100%;height:auto;border-radius:8px;display:block">` : ''}`).join('')}
  <p style="margin:22px 0 0;color:#777;font-size:12px;border-top:1px solid #e5e7eb;padding-top:14px">You will sign in or create your account with this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.</p></td></tr></table></div>`;
-  const sent = await sendMail(email, 'Monitor plans have been shared with you on TelePlanner.tv', text, { html, images });
+  return await sendMail(email, updated ? 'Your monitor plan access has been updated on TelePlanner.tv' : 'Monitor plans have been shared with you on TelePlanner.tv', text, { html, images });
+}
+async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
+  const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
+  const tenant = me.tenant_id ?? 0, job = Number(s(f, 'job')); if (!(await jobFor(me, job))) return { error: 'Job not found.' };
+  if (!(await allow('wall-link', String(me.id), 60, 60))) return { error: 'Too many requests. Please wait a while and try again.' };
+  const access = s(f, 'access') === 'view' ? 'view' : 'edit';
+  const walls = await wallsOf(job, ids(f)); if (walls.length === 0) return { error: 'Tick at least one wall.' };
+  let email = s(f, 'email').toLowerCase(), contactId: number | null = null;
+  if (!email) { const c = await one('select id, email from contacts where id=$1 and tenant_id=$2', [Number(s(f, 'contact')), tenant]); if (c) { email = String(c.email).toLowerCase(); contactId = c.id; } }
+  if (!EMAIL.test(email) || email.length > 200) return { error: 'Choose a contact or type a valid email address.' };
+  if (!contactId) { const c = await one('select id from contacts where tenant_id=$1 and lower(email)=$2 limit 1', [tenant, email]); if (c) contactId = c.id; }
+  let first = '', accessChanged = false;
+  for (const w of walls) {
+    const ex = await one('select id, access from wall_links where job_id=$1 and room_wall_id=$2 and lower(email)=$3 and not revoked', [job, w, email]);
+    if (ex) { if (ex.access !== access) accessChanged = true; await rows('update wall_links set access=$1 where id=$2', [access, ex.id]); continue; }
+    const token = newToken(); if (!first) first = token;
+    await rows('insert into wall_links(job_id,room_wall_id,email,access,token_hash,created_by,contact_id) values($1,$2,$3,$4,$5,$6,$7)', [job, w, email, access, sha256(token), me.id, contactId]);
+  }
+  revalidatePath('/plans');
+  if (!first) { if (!accessChanged) return { ok: `${email} already had these walls. Nothing was changed.` }; const sent = await sendInviteMail(me, email, `${await baseUrl()}/shared`, walls, access, '', true); return { ok: `${email} already had these walls. Their access is now ${access === 'edit' ? 'can edit' : 'view only'}${sent ? ' and an update was emailed to them.' : '.'}` }; }
+  const link = `${await baseUrl()}/w/${first}`;
+  const note = String(f.get('comment') ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 1000);
+  const sent = await sendInviteMail(me, email, link, walls, access, note, false);
   return { ok: sent ? `Invitation emailed to ${email}.` : `Email sending is not set up. Send this link to ${email}:`, link: sent ? undefined : link };
 }
 // Change what an invited person can open: tick or untick walls, switch edit / view only. Unticked walls are switched off, ticked new ones are added.
@@ -160,14 +165,22 @@ async function updateInvite_(_: FormState, f: FormData): Promise<FormState> {
   const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
   const job = Number(s(f, 'job')); if (!(await jobFor(me, job))) return { error: 'Job not found.' };
   const email = s(f, 'email').toLowerCase(), access = s(f, 'access') === 'view' ? 'view' : 'edit', want = await wallsOf(job, ids(f));
-  const cur = await rows('select id, room_wall_id from wall_links where job_id=$1 and lower(email)=$2 and not revoked', [job, email]);
+  const cur = await rows('select id, room_wall_id, access from wall_links where job_id=$1 and lower(email)=$2 and not revoked', [job, email]);
   if (cur.length === 0) return { error: 'Invitation not found.' };
   const have = new Set(cur.map((c: any) => c.room_wall_id as number)), contact = (await one('select contact_id from wall_links where job_id=$1 and lower(email)=$2 and contact_id is not null limit 1', [job, email]))?.contact_id ?? null;
-  for (const c of cur) if (!want.includes(c.room_wall_id)) await rows('update wall_links set revoked=true where id=$1', [c.id]);
+  const removed = cur.filter((c: any) => !want.includes(c.room_wall_id)), added = want.filter(w => !have.has(w)), accessChanged = cur.some((c: any) => c.access !== access);
+  for (const c of removed) await rows('update wall_links set revoked=true where id=$1', [c.id]);
   await rows('update wall_links set access=$1 where job_id=$2 and lower(email)=$3 and not revoked', [access, job, email]);
-  for (const w of want) if (!have.has(w)) await rows('insert into wall_links(job_id,room_wall_id,email,access,token_hash,created_by,contact_id) values($1,$2,$3,$4,$5,$6,$7)', [job, w, email, access, sha256(newToken()), me.id, contact]);
+  let first = '';
+  for (const w of added) { const token = newToken(); if (!first) first = token; await rows('insert into wall_links(job_id,room_wall_id,email,access,token_hash,created_by,contact_id) values($1,$2,$3,$4,$5,$6,$7)', [job, w, email, access, sha256(token), me.id, contact]); }
   revalidatePath('/plans'); revalidatePath('/shared');
-  return { ok: want.length ? 'Saved.' : 'All walls removed, so this invitation is switched off.' };
+  if (!want.length) return { ok: 'All walls removed, so this invitation is switched off.' };
+  if (!removed.length && !added.length && !accessChanged) return { ok: 'Nothing changed.' };
+  // Something changed: tell the person. New walls come with a fresh sign-in link; otherwise the email opens their Shared with me page.
+  const link = first ? `${await baseUrl()}/w/${first}` : `${await baseUrl()}/shared`;
+  const note = String(f.get('comment') ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 1000);
+  const sent = await sendInviteMail(me, email, link, want, access, note, true);
+  return { ok: sent ? `Saved, and an update was emailed to ${email}.` : 'Saved. Email sending is not set up, so no update was sent.' };
 }
 async function removeInvite_(f: FormData) {
   const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
