@@ -6,7 +6,7 @@ import { one, rows } from './db';
 import { requireMe, canManage, createSession, type Me } from './session';
 import { myEmails } from './emails';
 import { allow, clientIp } from './security';
-import { wallPng } from './wallPng';
+import { wallPng, markPng } from './wallPng';
 import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, sendMail, baseUrl } from './mail';
 import { newToken, sha256, hashPassword, passwordProblem } from './password';
 import type { FormState } from './actions';
@@ -129,17 +129,28 @@ async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
   if (!first) return { ok: `${email} already had these walls. Their access is now ${access === 'edit' ? 'can edit' : 'view only'}.` };
   const link = `${await baseUrl()}/w/${first}`;
   const who = access === 'edit' ? 'you can edit' : 'view only', many = walls.length === 1 ? '' : 's';
-  const text = `${me.name} shared ${walls.length} monitor wall${many} with you on TelePlanner (${who}).\nOpen this link to sign in or create your account:\n${link}\n\nThe account is tied to this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.`;
-  // Pictures of the walls they were invited to, shown under the link.
+  const text = `${me.name} shared ${walls.length} monitor wall${many} with you on teleplanner.tv (${who}).\nOpen this link to sign in or create your account:\n${link}\n\nThe account is tied to this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.`;
+  // Pictures of the walls they were invited to, shown under the button.
   const shown = await rows('select rw.id, rw.name, wt.data from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id where rw.id = any($1::int[]) order by rw.id limit 6', [walls]);
   const esc = (x: string) => x.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
   const images: { cid: string; png: Buffer }[] = [];
+  const mark = await markPng(); if (mark) images.push({ cid: 'tpmark', png: mark });
   for (const w of shown) { const png = await wallPng(Array.isArray(w.data?.assets) ? w.data.assets : []); if (png) images.push({ cid: `wall${w.id}`, png }); }
-  const html = `<div style="font-family:system-ui,Segoe UI,Arial,sans-serif;color:#111;max-width:600px"><p>${esc(me.name)} shared ${walls.length} monitor wall${many} with you on TelePlanner (${who}).</p>
-<p>Open this link to sign in or create your account:<br><a href="${link}">${link}</a></p>
-${shown.map((w: any) => `<p style="margin:14px 0 4px"><b>${esc(String(w.name))}</b></p>${images.some(i => i.cid === `wall${w.id}`) ? `<img src="cid:wall${w.id}" alt="${esc(String(w.name))}" style="max-width:100%;border-radius:6px;display:block">` : ''}`).join('')}
-<p style="color:#555;font-size:13px">The account is tied to this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.</p></div>`;
-  const sent = await sendMail(email, 'Monitor plans have been shared with you', text, { html, images });
+  const font = "font-family:system-ui,-apple-system,'Segoe UI',Arial,sans-serif";
+  const html = `<div style="background:#f3f5f8;padding:24px 12px;${font};color:#111">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;border-collapse:collapse">
+<tr><td style="background:#0f1217;border-bottom:3px solid #e5352b;padding:16px 22px;border-radius:12px 12px 0 0">
+ <table role="presentation" cellpadding="0" cellspacing="0"><tr>${mark ? '<td style="padding-right:12px"><img src="cid:tpmark" width="40" height="33" alt="" style="display:block"></td>' : ''}
+ <td style="color:#fff;font-size:24px;letter-spacing:-0.02em;line-height:1"><b>Tele</b>Planner</td></tr></table>
+ <div style="color:#9aa4b2;font-size:11px;letter-spacing:.22em;text-transform:uppercase;margin-top:6px">teleplanner.tv · Monitor plans for live production</div></td></tr>
+<tr><td style="background:#fff;padding:26px 22px;border-radius:0 0 12px 12px">
+ <p style="margin:0 0 6px;font-size:20px;font-weight:700">${esc(me.name)} shared ${walls.length === 1 ? 'a monitor wall' : `${walls.length} monitor walls`} with you</p>
+ <p style="margin:0 0 20px;color:#555;font-size:15px">On teleplanner.tv · ${who}.</p>
+ <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 8px"><tr><td style="background:#e5352b;border-radius:8px"><a href="${link}" style="display:inline-block;padding:13px 26px;color:#fff;font-size:16px;font-weight:700;text-decoration:none;${font}">Open my Monitor Plans</a></td></tr></table>
+ <p style="margin:0 0 18px;color:#777;font-size:12px">Button not working? Copy this link into your browser:<br><a href="${link}" style="color:#777;word-break:break-all">${link}</a></p>
+ ${shown.map((w: any) => `<p style="margin:16px 0 6px;font-size:15px"><b>${esc(String(w.name))}</b></p>${images.some(i => i.cid === `wall${w.id}`) ? `<img src="cid:wall${w.id}" alt="${esc(String(w.name))}" width="556" style="max-width:100%;height:auto;border-radius:8px;display:block">` : ''}`).join('')}
+ <p style="margin:22px 0 0;color:#777;font-size:12px;border-top:1px solid #e5e7eb;padding-top:14px">You will sign in or create your account with this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.</p></td></tr></table></div>`;
+  const sent = await sendMail(email, 'Monitor plans have been shared with you on teleplanner.tv', text, { html, images });
   return { ok: sent ? `Invitation emailed to ${email}.` : `Email sending is not set up. Send this link to ${email}:`, link: sent ? undefined : link };
 }
 // Change what an invited person can open: tick or untick walls, switch edit / view only. Unticked walls are switched off, ticked new ones are added.
