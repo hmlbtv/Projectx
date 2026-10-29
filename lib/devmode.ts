@@ -1,7 +1,7 @@
 // The Dev comment tools exist only on the dev (preview) site: DEV_FEEDBACK=1 AND never when Vercel says this is production.
-export const devSite = () => process.env.DEV_FEEDBACK === '1' && process.env.VERCEL_ENV !== 'production';
+export const devSite = () => process.env.DEV_TOOLS_BUILD === '1' && process.env.DEV_FEEDBACK === '1' && process.env.VERCEL_ENV !== 'production';
 
-export const DEV_SCHEMA = `
+export const DEV_SCHEMA = process.env.DEV_TOOLS_BUILD !== '1' ? '' : `
 alter table users add column if not exists dev_comment boolean not null default false;
 create table if not exists dev_blocks(id serial primary key, name text not null, created_at timestamptz not null default now());
 create table if not exists dev_notes(id serial primary key, user_id int not null references users(id) on delete cascade, page text not null, kind text not null default 'note',
