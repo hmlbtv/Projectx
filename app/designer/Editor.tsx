@@ -8,7 +8,7 @@ export type SaveArgs = { id: number | null; name: string; assets: DAsset[]; asNe
 type Props = {
   kind: string; backHref: string; world: { w: number; h: number }; onWorld?: (w: { w: number; h: number }) => void; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
   id: number | null; initialName: string; initial: DAsset[]; onSave: (a: SaveArgs) => Promise<{ id?: number; error?: string }>;
-  canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; neaten?: (items: DAsset[]) => DAsset[] | null; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; viewOnly?: boolean; backQuery?: string; onTileClick?: (a: DAsset, items: DAsset[]) => boolean; /* return true to take the click (e.g. renumbering) instead of selecting/moving */ looseTypes?: string[]; /* item types that may sit over anything (text, pictures) */ zoomable?: boolean; onAction?: (pi: PaletteItem, add: (over: Partial<PaletteItem>) => void) => void; headerExtra?: React.ReactNode; extras?: (a: DAsset, setProps: (patch: Record<string, any>) => void) => React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
+  canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; neaten?: (items: DAsset[]) => DAsset[] | null; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; viewOnly?: boolean; backQuery?: string; touch?: { on: (a: DAsset) => Record<string, any> | null; off: () => void }; /* while set, clicking an item patches its props (on returns the patch, null to skip) and a click on empty canvas calls off */ onTileClick?: (a: DAsset, items: DAsset[]) => boolean; /* return true to take the click (e.g. renumbering) instead of selecting/moving */ looseTypes?: string[]; /* item types that may sit over anything (text, pictures) */ zoomable?: boolean; onAction?: (pi: PaletteItem, add: (over: Partial<PaletteItem>) => void) => void; headerExtra?: React.ReactNode; extras?: (a: DAsset, setProps: (patch: Record<string, any>) => void) => React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
 };
 const SNAP = 10, MIN = 20, HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
 const hit = (a: DAsset, b: DAsset) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -119,6 +119,7 @@ export default function Editor(p: Props) {
 
   // ---- pointer: move, and resize from a corner handle ----
   function startMove(e: React.PointerEvent, a: DAsset) {
+    if (p.touch) { e.stopPropagation(); const patch = p.touch.on(a); if (patch) { apply(items.map(i => i.id === a.id ? { ...i, props: { ...i.props, ...patch } } : i)); setSel([a.id]); } return; }
     if (viewOnly) { e.stopPropagation(); setSel([a.id]); return; }
     if (readOnly) return; e.stopPropagation();
     if (p.onTileClick?.(a, items)) { setDirty(true); return; }
@@ -376,6 +377,7 @@ export default function Editor(p: Props) {
         onPointerUp={() => { if (pan.current) { pan.current = null; return; } endDrag(); }} onPointerCancel={() => { if (pan.current) { pan.current = null; return; } endDrag(); }}
         onPointerDown={e => {
           if (!(e.target === e.currentTarget || (e.target as HTMLElement).dataset.bg)) return;
+          if (p.touch) { p.touch.off(); return; }
           if (ref) setRef(null);
           if (readOnly) { setSel([]); return; }
           if (z > 1 && wrap.current) { setSel([]); pan.current = { x: e.clientX, y: e.clientY, l: wrap.current.scrollLeft, t: wrap.current.scrollTop }; stage.current!.setPointerCapture(e.pointerId); return; }
