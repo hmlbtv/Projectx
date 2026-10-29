@@ -21,6 +21,18 @@ function LayoutPic({ lay, names, picks, big, pos }: { lay: Layout; names?: strin
         {nm && <text x={t.x + t.w / 2} y={picks?.[t.n] ? t.y + bs * 1.5 : t.y + t.h / 2 + bs * 0.3} opacity={picks?.[t.n] ? 0.7 : 1} fill="#fff" fontSize={Math.max(30, Math.min(96, (t.w - 40) / Math.max(5, nm.length * 0.6)))} fontWeight="700" textAnchor="middle" dominantBaseline="central" fontFamily="system-ui,sans-serif">{nm}</text>}</g>); })}</svg>);
 }
 // The wall as saved in its Wall Template, locked. "Layout" lets you tap a monitor and choose which of its MV layouts it shows; "View" shows the wall full screen (turned to landscape on a phone).
+// Phones can stay zoomed out / stuck at the old width after full screen ends or the phone is turned. Nudging the viewport makes the browser lay the page out again at the true width.
+function resetViewport() {
+  try { const m = document.querySelector('meta[name=viewport]') as HTMLMetaElement | null; if (!m) return; const orig = m.content;
+    m.content = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1'; window.dispatchEvent(new Event('resize'));
+    setTimeout(() => { m.content = orig; window.dispatchEvent(new Event('resize')); }, 350); } catch { /* ignore */ }
+}
+// After leaving full screen, keep re-fitting for a few seconds so turning the phone straight away still re-scales the page.
+function refitAfterFullScreen() {
+  resetViewport(); setTimeout(resetViewport, 700);
+  const on = () => setTimeout(resetViewport, 250); window.addEventListener('orientationchange', on); screen.orientation?.addEventListener?.('change', on);
+  setTimeout(() => { window.removeEventListener('orientationchange', on); screen.orientation?.removeEventListener?.('change', on); }, 10000);
+}
 export function WallPlan({ wl, layouts, cur, setMon, readOnly, autoFull, onExit, setAll, sources = [], srcs, setSrc }: { sources?: string[]; srcs?: Record<string, Record<string, string>>; setSrc?: (assetId: string, n: number, v: string) => void; setAll?: (mons: Record<string, number>, srcs: Record<string, Record<string, string>>) => void; wl: Wall; layouts: Layout[]; cur: Data[string] | undefined; setMon: (assetId: string, layoutId: number) => void; readOnly: boolean; autoFull?: boolean; onExit?: () => void }) {
   const [editing, setEditing] = useState(!!autoFull), [pick, setPick] = useState<string | null>(null), [full, setFull] = useState(!!autoFull), [turned, setTurned] = useState(false), [vp, setVp] = useState({ w: 0, h: 0 });
   const snap = useRef<{ mons: Record<string, number>; srcs: Record<string, Record<string, string>> } | null>(null), [mode, setMode] = useState<'layout' | 'source'>('layout'), [tilePick, setTilePick] = useState<{ a: string; n: number } | null>(null); // the layout choices when editing began, so Exit can put them back
@@ -41,7 +53,7 @@ export function WallPlan({ wl, layouts, cur, setMon, readOnly, autoFull, onExit,
   useEffect(() => { if (!full) return; let live = true; (async () => { const el = box.current;
     try { if (el?.requestFullscreen) { await el.requestFullscreen(); fsUsed.current = true; try { await (screen.orientation as any)?.lock?.('landscape'); } catch { /* not allowed here */ } } } catch { /* use the full-window view */ }
     setTimeout(() => { if (live) setTurned(portrait()); }, 300); })(); return () => { live = false; }; }, [full]); // eslint-disable-line react-hooks/exhaustive-deps
-  function leave() { onExit?.(); fsUsed.current = false; setEditing(false); setFull(false); setTurned(false); setPick(null); try { (screen.orientation as any)?.unlock?.(); } catch { /* ignore */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+  function leave() { onExit?.(); refitAfterFullScreen(); fsUsed.current = false; setEditing(false); setFull(false); setTurned(false); setPick(null); try { (screen.orientation as any)?.unlock?.(); } catch { /* ignore */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
   useEffect(() => {
     if (!full) return;
     const onFs = () => { if (!document.fullscreenElement && fsUsed.current) leave(); }, onSize = () => { setTurned(portrait()); const v = window.visualViewport; setVp({ w: Math.round(v?.width ?? window.innerWidth), h: Math.round(v?.height ?? window.innerHeight) }); }, onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !pick && !tilePick) leave(); };
