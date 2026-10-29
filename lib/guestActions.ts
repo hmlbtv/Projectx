@@ -6,6 +6,7 @@ import { one, rows } from './db';
 import { requireMe, canManage, createSession, type Me } from './session';
 import { myEmails } from './emails';
 import { allow, clientIp } from './security';
+import { wallPng } from './wallPng';
 import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, sendMail, baseUrl } from './mail';
 import { newToken, sha256, hashPassword, passwordProblem } from './password';
 import type { FormState } from './actions';
@@ -127,7 +128,18 @@ async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
   revalidatePath('/plans');
   if (!first) return { ok: `${email} already had these walls. Their access is now ${access === 'edit' ? 'can edit' : 'view only'}.` };
   const link = `${await baseUrl()}/w/${first}`;
-  const sent = await sendMail(email, 'Monitor plans have been shared with you', `${me.name} shared ${walls.length} monitor wall${walls.length === 1 ? '' : 's'} with you on TelePlanner (${access === 'edit' ? 'you can edit' : 'view only'}).\nOpen this link to sign in or create your account:\n${link}\n\nThe account is tied to this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.`);
+  const who = access === 'edit' ? 'you can edit' : 'view only', many = walls.length === 1 ? '' : 's';
+  const text = `${me.name} shared ${walls.length} monitor wall${many} with you on TelePlanner (${who}).\nOpen this link to sign in or create your account:\n${link}\n\nThe account is tied to this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.`;
+  // Pictures of the walls they were invited to, shown under the link.
+  const shown = await rows('select rw.id, rw.name, wt.data from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id where rw.id = any($1::int[]) order by rw.id limit 6', [walls]);
+  const esc = (x: string) => x.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+  const images: { cid: string; png: Buffer }[] = [];
+  for (const w of shown) { const png = await wallPng(Array.isArray(w.data?.assets) ? w.data.assets : []); if (png) images.push({ cid: `wall${w.id}`, png }); }
+  const html = `<div style="font-family:system-ui,Segoe UI,Arial,sans-serif;color:#111;max-width:600px"><p>${esc(me.name)} shared ${walls.length} monitor wall${many} with you on TelePlanner (${who}).</p>
+<p>Open this link to sign in or create your account:<br><a href="${link}">${link}</a></p>
+${shown.map((w: any) => `<p style="margin:14px 0 4px"><b>${esc(String(w.name))}</b></p>${images.some(i => i.cid === `wall${w.id}`) ? `<img src="cid:wall${w.id}" alt="${esc(String(w.name))}" style="max-width:100%;border-radius:6px;display:block">` : ''}`).join('')}
+<p style="color:#555;font-size:13px">The account is tied to this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.</p></div>`;
+  const sent = await sendMail(email, 'Monitor plans have been shared with you', text, { html, images });
   return { ok: sent ? `Invitation emailed to ${email}.` : `Email sending is not set up. Send this link to ${email}:`, link: sent ? undefined : link };
 }
 // Change what an invited person can open: tick or untick walls, switch edit / view only. Unticked walls are switched off, ticked new ones are added.

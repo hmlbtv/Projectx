@@ -6,7 +6,7 @@ const headers = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
 ];
 export default {
-  serverExternalPackages: ['@electric-sql/pglite'],
+  serverExternalPackages: ['@electric-sql/pglite', 'sharp'],
   poweredByHeader: false,
   // Dev comments are compiled OUT of a production build (Vercel sets VERCEL_ENV=production for the live site), not just switched off at run time.
   env: { DEV_TOOLS_BUILD: process.env.VERCEL_ENV === 'production' ? '0' : '1' },

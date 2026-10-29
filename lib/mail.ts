@@ -15,19 +15,21 @@ async function logMail(to: string, subject: string, r: { ok: boolean; error?: st
     if (Math.random() < 0.05) await rows("delete from email_log where at < now() - interval '30 days'");
   } catch { /* logging must never break sending */ }
 }
-export async function sendMailDetailed(to: string, subject: string, text: string) {
-  const r = await send(to, subject, text); await logMail(to, subject, r); return r;
+export type MailExtra = { html?: string; images?: { cid: string; png: Buffer }[] };
+export async function sendMailDetailed(to: string, subject: string, text: string, extra?: MailExtra) {
+  const r = await send(to, subject, text, extra); await logMail(to, subject, r); return r;
 }
-async function send(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string; id?: string }> {
+async function send(to: string, subject: string, text: string, extra?: MailExtra): Promise<{ ok: boolean; error?: string; id?: string }> {
   if (!emailOn()) return { ok: false, error: 'RESEND_API_KEY is not set on this deployment.' };
   try {
     const r = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: mailFrom(), to, subject, text }) });
+      body: JSON.stringify({ from: mailFrom(), to, subject, text, ...(extra?.html ? { html: extra.html } : {}),
+        ...(extra?.images?.length ? { attachments: extra.images.map(i => ({ filename: `${i.cid}.png`, content: i.png.toString('base64'), content_id: i.cid, content_type: 'image/png' })) } : {}) }) });
     const j: any = await r.json().catch(() => ({}));
     return r.ok ? { ok: true, id: j.id } : { ok: false, error: `Resend ${r.status}: ${String(j.message ?? j.error ?? 'request failed').slice(0, 300)}` };
   } catch { return { ok: false, error: 'Could not reach Resend.' }; }
 }
-export async function sendMail(to: string, subject: string, text: string) { return (await sendMailDetailed(to, subject, text)).ok; }
+export async function sendMail(to: string, subject: string, text: string, extra?: MailExtra) { return (await sendMailDetailed(to, subject, text, extra)).ok; }
 export async function baseUrl() {
   // Links in emails must not depend on the request's Host header (host-header poisoning).
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
