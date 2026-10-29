@@ -1,13 +1,14 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { addNote, pageNotes, replyNote, type DevNote } from '@/lib/devfeedback';
+import { addNote, pageNotes, replyNote, myNotes, type DevNote } from '@/lib/devfeedback';
 
 // Dev site only: a floating bar to leave notes, drawings and highlights on any page. Marks sit at page coordinates over the document.
 const COL = ['', '#2ea043', '#e3a008', '#e5352b']; // severity 1 minor, 2 medium, 3 serious
 type Draft = { kind: 'note' | 'draw' | 'highlight'; x: number; y: number; drawing?: any };
 export default function DevBar({ owner }: { owner: boolean }) {
   const path = usePathname();
+  const [mine, setMine] = useState<(DevNote & { replies: DevNote[] })[] | null>(null), [all, setAll] = useState(false);
   const [open, setOpen] = useState(true), [tool, setTool] = useState<null | 'note' | 'draw' | 'highlight'>(null), [sev, setSev] = useState(2), [list, setList] = useState(false);
   const [notes, setNotes] = useState<DevNote[]>([]), [draft, setDraft] = useState<Draft | null>(null), [text, setText] = useState(''), [msg, setMsg] = useState(''), [active, setActive] = useState<number | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 }), [live, setLive] = useState<{ x: number; y: number }[] | null>(null), [rect, setRect] = useState<null | { x: number; y: number; w: number; h: number }>(null);
@@ -33,6 +34,7 @@ export default function DevBar({ owner }: { owner: boolean }) {
   async function save() {
     if (!draft) return; const r = await addNote({ page: page(), kind: draft.kind, body: text, severity: sev, x: draft.x, y: draft.y, vw: window.innerWidth, device, drawing: draft.drawing });
     if (r.error) { setMsg(r.error); return; } setDraft(null); setText(''); setMsg(''); setTool(null); await load(); setList(true); }
+  const openAll = async () => { const next = !all; setAll(next); if (next) { setOpen(true); setList(false); setMine(await myNotes()); } };
   const idx = (id: number) => top.findIndex(n => n.id === id) + 1;
   const mark = (n: DevNote) => { const c = COL[n.severity] ?? COL[2], a = n.id === active;
     if (n.kind === 'draw' && n.drawing?.pts) return <polyline key={n.id} points={n.drawing.pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={c} strokeWidth={a ? 6 : 4} strokeLinecap="round" strokeLinejoin="round" />;
@@ -49,12 +51,13 @@ export default function DevBar({ owner }: { owner: boolean }) {
         {draft?.kind === 'draw' && <polyline points={draft.drawing.pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={COL[sev]} strokeWidth={4} strokeLinecap="round" />}
         {draft?.kind === 'note' && <circle cx={draft.x} cy={draft.y} r={12} fill={COL[sev]} stroke="#fff" strokeWidth={2} />}
       </svg></div>
-    <div role="region" aria-label="Dev comments" style={{ position: 'fixed', right: 12, bottom: 12, zIndex: 2147483600, width: open ? 'min(360px, calc(100vw - 24px))' : 'auto', background: '#161b22', color: '#e6edf3', border: '1px solid #3b82f6', borderRadius: 12, boxShadow: '0 6px 24px rgba(0,0,0,.5)', font: '14px system-ui, sans-serif' }}>
+    <div role="region" aria-label="Dev comments" style={{ position: 'fixed', right: 12, bottom: 12, zIndex: 2147483600, width: open ? (all ? 'min(620px, calc(100vw - 24px))' : 'min(360px, calc(100vw - 24px))') : 'auto', background: '#161b22', color: '#e6edf3', border: '1px solid #3b82f6', borderRadius: 12, boxShadow: '0 6px 24px rgba(0,0,0,.5)', font: '14px system-ui, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 8, flexWrap: 'wrap' }}>
         <b style={{ color: '#60a5fa', fontSize: 12, letterSpacing: '.05em' }}>DEV</b>
         {open && <>{(['note', 'draw', 'highlight'] as const).map(t => <button key={t} type="button" onClick={() => { setTool(tool === t ? null : t); setDraft(null); }} style={btn(tool === t)}>{t === 'note' ? '📌 Note' : t === 'draw' ? '✏️ Draw' : '🖍 Highlight'}</button>)}
           <span title="Severity" style={{ display: 'flex', gap: 3 }}>{[1, 2, 3].map(s => <button key={s} type="button" onClick={() => setSev(s)} aria-pressed={sev === s} title={['', 'Severity 1: minor', 'Severity 2: medium', 'Severity 3: serious'][s]} style={{ ...btn(sev === s), background: sev === s ? COL[s] : '#222a35', color: '#fff', minWidth: 28 }}>{s}</button>)}</span>
-          <button type="button" onClick={() => setList(!list)} style={btn(list)}>List ({top.length}{other ? `+${other}` : ''})</button>
+          <button type="button" onClick={openAll} style={btn(all)} title="Everything you have commented, on every page">⤢ All mine</button>
+          <button type="button" onClick={() => { setList(!list); setAll(false); }} style={btn(list)}>List ({top.length}{other ? `+${other}` : ''})</button>
           {owner && <a href="/webappdev/markup" style={{ ...btn(false), textDecoration: 'none' }}>Markup</a>}</>}
         <button type="button" onClick={() => setOpen(!open)} aria-label={open ? 'Collapse' : 'Expand'} style={{ ...btn(false), marginLeft: 'auto' }}>{open ? '–' : '＋'}</button>
       </div>
@@ -63,6 +66,14 @@ export default function DevBar({ owner }: { owner: boolean }) {
         <textarea autoFocus value={text} onChange={e => setText(e.target.value)} placeholder={draft.kind === 'note' ? 'What needs to change?' : 'Add a comment (optional)'} rows={3} style={{ width: '100%', boxSizing: 'border-box', background: '#0d1117', color: '#e6edf3', border: '1px solid #30363d', borderRadius: 8, padding: 8, font: 'inherit' }} />
         {msg && <span style={{ color: '#ff7b72' }}>{msg}</span>}
         <div style={{ display: 'flex', gap: 6 }}><button type="button" onClick={save} style={{ ...btn(true), background: '#2563eb' }}>Save (severity {sev})</button><button type="button" onClick={() => { setDraft(null); setMsg(''); }} style={btn(false)}>Cancel</button></div></div>}
+      {open && all && <div style={{ maxHeight: '65vh', overflow: 'auto', borderTop: '1px solid #30363d', padding: 8, display: 'grid', gap: 8 }}>
+        {mine === null && <span style={{ color: '#9aa7b5' }}>Loading…</span>}
+        {mine && mine.length === 0 && <span style={{ color: '#9aa7b5' }}>You haven’t left any comments yet.</span>}
+        {mine?.map(n => (<div key={n.id} style={{ border: '1px solid #30363d', borderLeft: `5px solid ${COL[n.severity]}`, borderRadius: 8, padding: 8 }}>
+          <div style={{ fontSize: 12, color: '#9aa7b5' }}>{n.device === 'mobile' ? '📱' : '🖥'} · {new Date(n.created_at).toLocaleString()} · {n.kind} · severity {n.severity} · <b style={{ color: n.status === 'done' ? '#2ea043' : '#e6edf3' }}>{n.status === 'done' ? 'done' : 'open'}</b></div>
+          {n.body && <div style={{ whiteSpace: 'pre-wrap', margin: '4px 0' }}>{n.body}</div>}
+          {n.replies.map(r => <div key={r.id} style={{ marginTop: 6, padding: '6px 8px', background: '#1f2a3a', borderRadius: 6 }}><div style={{ fontSize: 11, color: '#60a5fa' }}>{r.user_name} replied · {new Date(r.created_at).toLocaleString()}</div><div style={{ whiteSpace: 'pre-wrap' }}>{r.body}</div></div>)}
+          <a href={n.page + (n.page.includes('?') ? '&' : '?') + 'devnote=' + n.id} style={{ color: '#60a5fa', fontSize: 12, wordBreak: 'break-all' }}>{n.page}</a></div>))}</div>}
       {open && list && <div style={{ maxHeight: '45vh', overflow: 'auto', borderTop: '1px solid #30363d', padding: 8, display: 'grid', gap: 8 }}>
         {other > 0 && <span style={{ color: '#9aa7b5', fontSize: 12 }}>{other} more on the {device === 'mobile' ? 'desktop' : 'mobile'} view (marks are placed for that screen size).</span>}
         {top.length === 0 && <span style={{ color: '#9aa7b5' }}>No {device} comments on this page yet.</span>}
