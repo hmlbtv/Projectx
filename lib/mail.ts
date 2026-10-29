@@ -31,6 +31,7 @@ export async function sendMail(to: string, subject: string, text: string) { retu
 export async function baseUrl() {
   // Links in emails must not depend on the request's Host header (host-header poisoning).
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
+  if (process.env.VERCEL_ENV === 'preview' && process.env.VERCEL_BRANCH_URL) return `https://${process.env.VERCEL_BRANCH_URL}`; // the dev site's own links, never the live site's
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
   const h = await headers(); return `${h.get('x-forwarded-proto') ?? 'http'}://${h.get('host')}`;
 }
