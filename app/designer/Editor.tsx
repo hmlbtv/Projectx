@@ -6,7 +6,7 @@ import type { DAsset, PaletteItem } from './assets';
 export type Flag = { key: string; label: string; initial: boolean };
 export type SaveArgs = { id: number | null; name: string; assets: DAsset[]; asNew: boolean; flags: Record<string, boolean> };
 type Props = {
-  kind: string; backHref: string; world: { w: number; h: number }; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
+  kind: string; backHref: string; world: { w: number; h: number }; onWorld?: (w: { w: number; h: number }) => void; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
   id: number | null; initialName: string; initial: DAsset[]; onSave: (a: SaveArgs) => Promise<{ id?: number; error?: string }>;
   canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; neaten?: (items: DAsset[]) => DAsset[] | null; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; viewOnly?: boolean; backQuery?: string; onTileClick?: (a: DAsset, items: DAsset[]) => boolean; /* return true to take the click (e.g. renumbering) instead of selecting/moving */ looseTypes?: string[]; /* item types that may sit over anything (text, pictures) */ zoomable?: boolean; onAction?: (pi: PaletteItem, add: (over: Partial<PaletteItem>) => void) => void; headerExtra?: React.ReactNode; extras?: (a: DAsset, setProps: (patch: Record<string, any>) => void) => React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
 };
@@ -75,10 +75,16 @@ export default function Editor(p: Props) {
   const undo = () => { const h = hist.current; const prev = h.past.pop(); if (!prev) return; h.future.push(items); setItems(prev); setSel(s => s.filter(i => prev.some(a => a.id === i))); setDirty(true); bump(n => n + 1); };
   const redo = () => { const h = hist.current; const nx = h.future.pop(); if (!nx) return; h.past.push(items); setItems(nx); setDirty(true); bump(n => n + 1); };
 
+  // Make the canvas at least this wide and tall (rounded up to 100), when the page lets it grow.
+  const grow = (w: number, h: number) => { if (p.onWorld) p.onWorld({ w: Math.max(world.w, Math.ceil(w / 100) * 100), h: Math.max(world.h, Math.ceil(h / 100) * 100) }); };
   function add(pi: PaletteItem) {
     if (readOnly) return;
-    const w = Math.min(pi.w, world.w), h = Math.min(pi.h, world.h); let pos = { x: 0, y: 0 }, found = false;
-    for (let y = 0; y <= world.h - h && !found; y += SNAP * 2) for (let x = 0; x <= world.w - w && !found; x += SNAP * 2) {
+    const w = Math.min(pi.w, p.onWorld ? 20000 : world.w), h = Math.min(pi.h, p.onWorld ? 20000 : world.h); let pos = { x: 0, y: 0 }, found = false;
+    if (p.onWorld && items.length) { // new items carry on along the row of the right-most item, and the canvas widens to take them
+      const last = items.reduce((m, a) => (a.x + a.w > m.x + m.w ? a : m)), gap = snapOn ? grid : 10, x = last.x + last.w + gap;
+      pos = { x, y: last.y }; found = true; grow(x + w, last.y + h); }
+    else if (p.onWorld) { found = true; grow(w, h); }
+    for (let y = 0; !found && y <= world.h - h && !found; y += SNAP * 2) for (let x = 0; x <= world.w - w && !found; x += SNAP * 2) {
       const t: DAsset = { id: '', type: '', name: '', x, y, w, h }; if (!pi.type || !solid({ type: pi.type } as DAsset) ? true : !items.some(a => solid(a) && hit(t, a))) { pos = { x, y }; found = true; } }
     if (!found && !p.allowOverlap) { setMsg('No free space on the canvas.'); return; } // tiles may overlap, so fall back to the corner
     const a: DAsset = { id: rid(), type: pi.type, name: pi.label, ...pos, w, h, props: { ...pi.props } }; apply([...items, a]); setSel([a.id]);
@@ -91,6 +97,7 @@ export default function Editor(p: Props) {
       const copies = S.map(a => ({ ...a, id: rid(), x: a.x + dx, y: a.y + dy, props: { ...a.props } }));
       if (free([...items, ...copies], copies)) { apply([...items, ...copies]); setSel(copies.map(c => c.id)); return; }
     }
+    if (p.onWorld) { const copies = S.map(a => ({ ...a, id: rid(), x: a.x + bw + gap, props: { ...a.props } })); grow(Math.max(...copies.map(c => c.x + c.w)), Math.max(...copies.map(c => c.y + c.h))); apply([...items, ...copies]); setSel(copies.map(c => c.id)); return; }
     setMsg('No room for a copy next to it.'); };
 
   function copy(cut = false) { const S = items.filter(a => sel.includes(a.id)); if (!S.length) return; setClip(S.map(a => ({ ...a, props: { ...a.props } }))); pasteN = 0; setMsg(`${S.length} copied`); if (cut) remove(); }
@@ -410,6 +417,10 @@ export default function Editor(p: Props) {
           : (<>
             <div className="dz-grp">{p.kind}</div>
             <div className="dz-row"><span>Canvas</span><em>{world.w} × {world.h}</em></div>
+            {p.onWorld && !readOnly && <div className="dz-row" style={{ gap: 6, flexWrap: 'wrap' }}><span className="mut">Size</span>
+              <input type="number" min={Math.max(200, ...items.map(a => a.x + a.w))} max={20000} step={100} value={world.w} aria-label="Canvas width" style={{ width: 84 }} onChange={e => { const v = Number(e.target.value); if (v >= Math.max(200, ...items.map(a => a.x + a.w))) p.onWorld!({ w: Math.min(20000, v), h: world.h }); }} />
+              <input type="number" min={Math.max(200, ...items.map(a => a.y + a.h))} max={20000} step={100} value={world.h} aria-label="Canvas height" style={{ width: 84 }} onChange={e => { const v = Number(e.target.value); if (v >= Math.max(200, ...items.map(a => a.y + a.h))) p.onWorld!({ w: world.w, h: Math.min(20000, v) }); }} />
+              <button type="button" className="sec small" onClick={() => p.onWorld!({ w: Math.max(200, Math.ceil(Math.max(0, ...items.map(a => a.x + a.w)) / 100) * 100), h: Math.max(200, Math.ceil(Math.max(0, ...items.map(a => a.y + a.h)) / 100) * 100) })}>Fit to items</button></div>}
             <div className="dz-row"><span>Assets</span><em>{items.length}</em></div>
             <p className="mut dz-help">{readOnly ? 'Select an item to see its properties.' : 'Click an item to edit it. Drag on empty canvas to select several (left to right touches, right to left encloses). Shift-click adds. Drag a corner to resize; arrows nudge (Shift = fine). Ctrl+C / V / D copy, paste, duplicate; Ctrl+Z undoes.'}</p></>)}
         </Sec>

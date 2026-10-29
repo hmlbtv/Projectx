@@ -1,5 +1,5 @@
 'use client';
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { inviteToWalls, updateInvite, removeInvite } from '@/lib/guestActions';
 
 type W = { id: number; room: string; name: string };
@@ -19,13 +19,25 @@ function EditInvite({ job, inv, walls }: { job: number; inv: Inv; walls: W[] }) 
     <button className="sec" disabled={pending}>Save changes</button>
     {st?.error && <div role="alert" style={{ color: 'var(--bad)' }}>{st.error}</div>}{st?.ok && <div className="mut">{st.ok}</div>}</form>);
 }
+function ContactPick({ contacts }: { contacts: C[] }) {
+  const [q, setQ] = useState(''), [sel, setSel] = useState<C | null>(null), [open, setOpen] = useState(false);
+  const k = q.trim().toLowerCase();
+  const list = (k ? contacts.filter(c => `${c.name} ${c.email} ${c.company}`.toLowerCase().includes(k)) : contacts).slice(0, 50);
+  return (<div style={{ position: 'relative' }}><input type="hidden" name="contact" value={sel?.id ?? ''} />
+    {sel ? (<div className="row" style={{ gap: 8 }}><span className="tag">{sel.name} ({sel.email})</span><button type="button" className="sec small" onClick={() => { setSel(null); setQ(''); }}>Change</button></div>)
+      : (<><input type="search" placeholder="Search contacts by name, email or company…" value={q} onChange={e => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} autoComplete="off" />
+        {open && (<div className="card" style={{ position: 'absolute', zIndex: 20, left: 0, right: 0, maxHeight: 240, overflowY: 'auto', padding: 4 }}>
+          {list.length === 0 ? <div className="mut" style={{ padding: 6 }}>No matching contacts</div> : list.map(c => (
+            <button type="button" key={c.id} className="sec" style={{ display: 'block', width: '100%', textAlign: 'left', margin: '2px 0' }} onClick={() => { setSel(c); setOpen(false); }}>
+              <b>{c.name}</b> <span className="mut">{c.email}{c.company ? ` · ${c.company}` : ''}</span></button>))}</div>)}</>)}</div>);
+}
 export default function Invites({ job, walls, contacts, invited }: { job: number; walls: W[]; contacts: C[]; invited: Inv[] }) {
   const [st, act, pending] = useActionState(inviteToWalls, undefined);
   if (walls.length === 0) return null;
   return (<div className="card"><b>Invite people to these plans</b>
     <form action={act} className="stack" style={{ margin: '6px 0' }}><input type="hidden" name="job" value={job} />
       <div className="mut">Tick the walls they should open:</div><WallTicks walls={walls} on={new Set()} />
-      <select name="contact" defaultValue=""><option value="">Choose a contact…</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name} ({c.email})</option>)}</select>
+      <ContactPick contacts={contacts} />
       <input name="email" type="email" placeholder="…or type any email address" />
       <select name="access" defaultValue="edit"><option value="edit">Can edit</option><option value="view">View only</option></select>
       <button disabled={pending}>Send invitation</button></form>
