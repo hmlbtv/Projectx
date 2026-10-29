@@ -29,7 +29,7 @@ async function createWallLink_(_: FormState, f: FormData): Promise<FormState> {
   await rows('insert into wall_links(job_id,room_wall_id,email,access,token_hash,created_by,contact_id) values($1,$2,$3,$4,$5,$6,$7)', [job, wall, email, access, sha256(token), me.id, contact.id]);
   const link = `${await baseUrl()}/w/${token}`;
   revalidatePath('/productions');
-  const sent = await sendMail(email, 'A monitor wall has been shared with you', `${me.name} shared a monitor wall with you on TelePlanner (${access === 'edit' ? 'you can edit it' : 'view only'}).\nOpen this link to sign in or create your account:\n${link}${note ? `\n\n${me.name} wrote:\n${note}` : ''}\n\nThe account is tied to this email address. All walls shared with you appear in one place after you sign in. Access ends when the Job ends.`);
+  const sent = await sendMail(email, 'A monitor wall has been shared with you', `${me.name} shared a monitor wall with you on TelePlanner (${access === 'edit' ? 'you can edit it' : 'view only'}).\nOpen this link to sign in or create your account:\n${link}\n\nThe account is tied to this email address. All walls shared with you appear in one place after you sign in. Access ends when the Job ends.`);
   return { ok: sent ? `Invitation emailed to ${email}.` : `Email sending is not set up. Send this link to ${email}:`, link: sent ? undefined : link };
 }
 async function revokeWallLink_(f: FormData) {
@@ -130,7 +130,7 @@ async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
   const link = `${await baseUrl()}/w/${first}`;
   const note = String(f.get('comment') ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 1000);
   const who = access === 'edit' ? 'you can edit' : 'view only', many = walls.length === 1 ? '' : 's';
-  const text = `${me.name} shared ${walls.length} monitor wall${many} with you on TelePlanner.tv (${who}).\nOpen this link to sign in or create your account:\n${link}\n\nThe account is tied to this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.`;
+  const text = `${me.name} shared ${walls.length} monitor wall${many} with you on TelePlanner.tv (${who}).\nOpen this link to sign in or create your account:\n${link}${note ? `\n\n${me.name} wrote:\n${note}` : ''}\n\nThe account is tied to this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.`;
   // Pictures of the walls they were invited to, shown under the button.
   const shown = await rows('select rw.id, rw.name, wt.data from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id where rw.id = any($1::int[]) order by rw.id limit 6', [walls]);
   const esc = (x: string) => x.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
