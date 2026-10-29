@@ -78,16 +78,17 @@ export default function Plan({ walls, layouts, sources, saved, save, readOnly = 
   const [name, setName] = useState((saved.find(x => x.name === start) ?? saved[0])?.name ?? 'Room Layout 1');
   const [data, setData] = useState<Data>((saved.find(x => x.name === start) ?? saved[0])?.data ?? {});
   const [msg, setMsg] = useState('');
+  // No Save button: every change is saved automatically a moment after it is made.
+  const first = useRef(true);
+  useEffect(() => { if (first.current) { first.current = false; return; } if (readOnly || !save) return; setMsg('Saving…');
+    const t = setTimeout(async () => { try { await save(name, data); setMsg('Saved'); } catch { setMsg('Not saved, try again'); } }, 700); return () => clearTimeout(t); }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
   const w = (id: number) => data[id] ?? { layoutId: undefined, assign: {} };
   // Sources are stored per tile NUMBER, so they stay in the same numbered tile when the layout changes.
   const setLayout = (id: number, layoutId: number) => setData({ ...data, [id]: { ...w(id), layoutId } });
   const setMon = (id: number, assetId: string, layoutId: number) => setData({ ...data, [id]: { ...w(id), mons: { ...(w(id).mons ?? {}), [assetId]: layoutId } } });
   const setSrc = (id: number, n: number, v: string) => setData({ ...data, [id]: { ...w(id), assign: { ...w(id).assign, [n]: v } } });
   return (<div>
-    {!readOnly && <div className="row"><b>Room Layout</b>
-      <select value={name} onChange={e => { const s = saved.find(x => x.name === e.target.value); setName(e.target.value); if (s) setData(s.data); }}>
-        {[...new Set([name, ...saved.map(s => s.name)])].map(n => <option key={n}>{n}</option>)}</select>
-      <input value={name} onChange={e => setName(e.target.value)} /><button onClick={async () => { await save!(name, data); setMsg('Saved'); }}>Save</button><span className="mut">{msg}</span></div>}
+    {!readOnly && msg && <div className="mut" style={{ textAlign: 'right', fontSize: '.8rem' }}>{msg}</div>}
     {walls.map(wl => { if ((wl.assets ?? []).some(a => isScreen(a.type) && a.props?.mvs?.length)) return <WallPlan key={wl.id} wl={wl} layouts={layouts} cur={data[wl.id]} readOnly={readOnly} setMon={(a, l) => setMon(wl.id, a, l)} />;
       const cur = w(wl.id); const lay = layouts.find(l => l.id === cur.layoutId);
       return (<div key={wl.id} className="card"><b>{wl.name}</b>
