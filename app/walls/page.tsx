@@ -75,11 +75,12 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
     {view === 'cards' ? <div className="tiles">{shown.map((w: any) => { const mine = roomsOf(w.id);
       return (<div key={w.id} className="card tile" style={{ display: 'block' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><Link href={open(w.id)} className="tilelink"><b>{w.name}</b></Link>{menuOf(w, mine)}</div>
+        <div className="row" style={{ gap: 6, margin: '4px 0' }}><Link href={open(w.id)} className="btn sec small">Edit</Link><Link href={`/walls/defaults?id=${w.id}`} className="btn sec small">Default configuration</Link></div>
         <Link href={open(w.id)} style={{ display: 'block', margin: '6px 0' }}><WallThumb assets={w.data.assets} /></Link>
         <div className="mut" style={{ fontSize: 13 }}>{mine.length === 0 ? 'Not used in any Room' : <>Used in: {where(mine)}</>}</div></div>); })}</div>
     : <div className="card" style={{ padding: 0, overflowX: 'auto' }}><table className="lay-list"><thead><tr><th></th>{th('Name', 'name', 'namez')}{th('Monitors', 'fewest', 'most')}<th>Multiview</th>{th('Used in', 'rfewest', 'rmost')}<th></th></tr></thead><tbody>
       {shown.map((w: any) => { const mine = roomsOf(w.id); const n = (w.data.assets || []).filter((x: any) => isMon(x) && x.props?.mvs?.length).length;
         return (<tr key={w.id}><td style={{ width: 120 }}><Link href={open(w.id)}><div style={{ width: 110 }}><WallThumb assets={w.data.assets} /></div></Link></td>
-          <td><Link href={open(w.id)}><b>{w.name}</b></Link></td><td>{nMon(w)}</td><td>{n ? `${n} monitor${n === 1 ? '' : 's'}` : <span className="mut">none</span>}</td>
+          <td><Link href={open(w.id)}><b>{w.name}</b></Link><div className="row" style={{ gap: 6, margin: '4px 0' }}><Link href={open(w.id)} className="btn sec small">Edit</Link><Link href={`/walls/defaults?id=${w.id}`} className="btn sec small">Default configuration</Link></div></td><td>{nMon(w)}</td><td>{n ? `${n} monitor${n === 1 ? '' : 's'}` : <span className="mut">none</span>}</td>
           <td style={{ fontSize: 13 }}>{where(mine)}</td><td className="lay-act">{menuOf(w, mine)}</td></tr>); })}</tbody></table></div>}</>);
 }

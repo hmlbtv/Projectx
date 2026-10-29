@@ -18,8 +18,8 @@ export default async function SharedWall({ params }: { params: Promise<{ id: str
   const layouts = await rows('select id,name,tiles from mv_layouts where tenant_id is null or tenant_id=$1 order by tenant_id nulls first,id', [link.tenant_id]);
   const src = link.source_set_id ? await one('select sources from source_sets where id=$1', [link.source_set_id]) : null;
   const edit = link.access === 'edit';
-  const wtd = await one('select wt.data from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id where rw.id=$1', [link.room_wall_id]);
-  const pw = await planWalls([{ id: link.room_wall_id, name: link.wall, data: wtd?.data }], link.tenant_id);
+  const wtd = await one('select wt.data, wt.defaults from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id where rw.id=$1', [link.room_wall_id]);
+  const pw = await planWalls([{ id: link.room_wall_id, name: link.wall, data: wtd?.data, defaults: wtd?.defaults }], link.tenant_id);
   // Editors see their own saved plans for this wall; view-only guests see the latest plan anyone saved for it.
   const saved = edit ? await rows('select name,data from monitor_plans where link_id=$1 and user_id=$2 order by id', [link.id, me.id])
     : await rows('select name,data from monitor_plans where job_id=$1 and jsonb_exists(data,$2) order by updated_at desc limit 1', [link.job_id, String(link.room_wall_id)]);

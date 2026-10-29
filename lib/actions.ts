@@ -251,8 +251,8 @@ async function removeJobUser_(f: FormData) {
 export async function setTenantPlan(f: FormData) {
   const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
   const n = (k: string, d: number) => { const v = parseInt(s(f, k)); return Number.isFinite(v) ? Math.min(Math.max(v, 0), 100000) : d; };
-  await rows('update tenants set plan=$1, max_walls_per_broadcaster=$2, max_broadcasters=$3, max_productions=$4, max_jobs_per_production=$5 where id=$6',
-    [s(f, 'plan').slice(0, 40) || 'demo', n('max', 1), n('b', 2), n('p', 3), n('j', 4), Number(s(f, 'id'))]);
+  await rows('update tenants set plan=$1, max_walls_per_broadcaster=$2, max_broadcasters=$3, max_productions=$4, max_jobs_per_production=$5, max_wall_defaults=$7 where id=$6',
+    [s(f, 'plan').slice(0, 40) || 'demo', n('max', 1), n('b', 2), n('p', 3), n('j', 4), Number(s(f, 'id')), n('wd', 5)]);
   revalidatePath('/webappdev');
 }
 
@@ -263,6 +263,31 @@ async function saveSessionSettings_(f: FormData) {
   for (const [k, v] of [['idle_hours', idle], ['max_days', days]]) await rows('insert into settings(key,value) values($1,$2) on conflict (key) do update set value=excluded.value', [k, String(v)]);
   resetLimits(); revalidatePath('/webappdev');
 }
+// ---- Default MV configurations of a Wall Template (Admin): up to the workspace's limit, one of them is the starting point of every new Monitor Plan ----
+type WDef = { id: string; name: string; mons: Record<string, number>; active?: boolean };
+async function wallDefs(me: Me, wall: number) {
+  const w = await one('select id, defaults from wall_templates where id=$1 and tenant_id=$2', [wall, tid(me)]); if (!w) throw new Error('Not found');
+  const lim = (await one('select max_wall_defaults m from tenants where id=$1', [tid(me)]))?.m ?? 5;
+  return { list: (Array.isArray(w.defaults) ? w.defaults : []) as WDef[], lim: me.role === 'webappdev' && !me.tenant_id ? 100000 : lim as number };
+}
+const putDefs = async (wall: number, list: WDef[]) => { await rows('update wall_templates set defaults=$1::jsonb where id=$2', [JSON.stringify(list), wall]); revalidatePath('/walls'); revalidatePath('/plans'); };
+export async function saveWallDefault(wall: number, id: string | null, name: string, mons: Record<string, number>): Promise<{ id?: string; error?: string }> {
+  const me = await adm(); const { list, lim } = await wallDefs(me, Number(wall));
+  const clean: Record<string, number> = {}; for (const [k, v] of Object.entries(mons ?? {})) if (Number.isInteger(v)) clean[String(k).slice(0, 80)] = v;
+  const nm = String(name ?? '').trim().slice(0, 60) || `Default ${list.length + 1}`;
+  const at = id ? list.findIndex(x => x.id === id) : -1;
+  if (at >= 0) list[at] = { ...list[at], name: nm, mons: clean };
+  else { if (list.length >= lim) return { error: `This workspace can keep ${lim} default configuration${lim === 1 ? '' : 's'} per Wall Template.` }; id = Math.random().toString(36).slice(2, 10); list.push({ id, name: nm, mons: clean, active: list.length === 0 }); }
+  await putDefs(Number(wall), list); return { id: id! };
+}
+export async function deleteWallDefault(wall: number, id: string) {
+  const me = await adm(); const { list } = await wallDefs(me, Number(wall)); const next = list.filter(x => x.id !== id);
+  if (next.length && !next.some(x => x.active)) next[0].active = true; await putDefs(Number(wall), next);
+}
+export async function setActiveWallDefault(wall: number, id: string | null) {
+  const me = await adm(); const { list } = await wallDefs(me, Number(wall)); await putDefs(Number(wall), list.map(x => ({ ...x, active: x.id === id })));
+}
+
 export async function setTenantStatus(f: FormData) {
   const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
   const id = Number(s(f, 'id')), status = s(f, 'status');

@@ -5,7 +5,7 @@ import { WallArt } from '../walls/WallArt';
 type Tile = { n: number; x: number; y: number; w: number; h: number };
 type Layout = { id: number; name: string; tiles: Tile[] };
 type Asset = { id: string; type: string; name?: string; x: number; y: number; w: number; h: number; props?: any };
-type Wall = { id: number; name: string; assets?: Asset[]; dests?: Record<string, string[]> };
+type Wall = { id: number; name: string; assets?: Asset[]; dests?: Record<string, string[]>; defaultMons?: Record<string, number> };
 type Data = Record<string, { layoutId?: number; assign: Record<string, string>; mons?: Record<string, number> }>;
 
 
@@ -20,8 +20,8 @@ function LayoutPic({ lay, names, big, pos }: { lay: Layout; names?: string[]; bi
         {nm && <text x={t.x + t.w / 2} y={t.y + t.h / 2 + bs * 0.3} fill="#fff" fontSize={Math.max(30, Math.min(96, (t.w - 40) / Math.max(5, nm.length * 0.6)))} fontWeight="700" textAnchor="middle" dominantBaseline="central" fontFamily="system-ui,sans-serif">{nm}</text>}</g>); })}</svg>);
 }
 // The wall as saved in its Wall Template, locked. "Layout" lets you tap a monitor and choose which of its MV layouts it shows; "View" shows the wall full screen (turned to landscape on a phone).
-function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: Layout[]; cur: Data[string] | undefined; setMon: (assetId: string, layoutId: number) => void; readOnly: boolean }) {
-  const [editing, setEditing] = useState(false), [pick, setPick] = useState<string | null>(null), [full, setFull] = useState(false), [turned, setTurned] = useState(false), [vp, setVp] = useState({ w: 0, h: 0 });
+export function WallPlan({ wl, layouts, cur, setMon, readOnly, autoFull, onExit }: { wl: Wall; layouts: Layout[]; cur: Data[string] | undefined; setMon: (assetId: string, layoutId: number) => void; readOnly: boolean; autoFull?: boolean; onExit?: () => void }) {
+  const [editing, setEditing] = useState(!!autoFull), [pick, setPick] = useState<string | null>(null), [full, setFull] = useState(!!autoFull), [turned, setTurned] = useState(false), [vp, setVp] = useState({ w: 0, h: 0 });
   const ref = useRef<HTMLDialogElement>(null), box = useRef<HTMLDivElement>(null), fsUsed = useRef(false);
   const list = wl.assets ?? [], M = full ? 10 : 24; // full screen: crop tight so the wall is as big as it can be
   const x0 = Math.min(...list.map(a => a.x)), y0 = Math.min(...list.map(a => a.y)), x1 = Math.max(...list.map(a => a.x + a.w)), y1 = Math.max(...list.map(a => a.y + a.h));
@@ -37,7 +37,7 @@ function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: L
   useEffect(() => { if (!full) return; let live = true; (async () => { const el = box.current;
     try { if (el?.requestFullscreen) { await el.requestFullscreen(); fsUsed.current = true; try { await (screen.orientation as any)?.lock?.('landscape'); } catch { /* not allowed here */ } } } catch { /* use the full-window view */ }
     setTimeout(() => { if (live) setTurned(portrait()); }, 300); })(); return () => { live = false; }; }, [full]); // eslint-disable-line react-hooks/exhaustive-deps
-  function leave() { fsUsed.current = false; setEditing(false); setFull(false); setTurned(false); setPick(null); try { (screen.orientation as any)?.unlock?.(); } catch { /* ignore */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+  function leave() { onExit?.(); fsUsed.current = false; setEditing(false); setFull(false); setTurned(false); setPick(null); try { (screen.orientation as any)?.unlock?.(); } catch { /* ignore */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
   useEffect(() => {
     if (!full) return;
     const onFs = () => { if (!document.fullscreenElement && fsUsed.current) leave(); }, onSize = () => { setTurned(portrait()); const v = window.visualViewport; setVp({ w: Math.round(v?.width ?? window.innerWidth), h: Math.round(v?.height ?? window.innerHeight) }); }, onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !pick) leave(); };
@@ -76,7 +76,9 @@ function WallPlan({ wl, layouts, cur, setMon, readOnly }: { wl: Wall; layouts: L
 
 export default function Plan({ walls, layouts, sources, saved, save, readOnly = false, start }: { start?: string; walls: Wall[]; layouts: Layout[]; sources: string[]; saved: { name: string; data: Data }[]; save?: (name: string, data: Data) => Promise<void>; readOnly?: boolean }) {
   const [name, setName] = useState((saved.find(x => x.name === start) ?? saved[0])?.name ?? 'Room Layout 1');
-  const [data, setData] = useState<Data>((saved.find(x => x.name === start) ?? saved[0])?.data ?? {});
+  // A new plan starts from each Wall Template's chosen default MV configuration.
+  const seed = () => Object.fromEntries(walls.filter(x => x.defaultMons).map(x => [x.id, { assign: {}, mons: x.defaultMons }])) as Data;
+  const [data, setData] = useState<Data>((saved.find(x => x.name === start) ?? saved[0])?.data ?? seed());
   const [msg, setMsg] = useState('');
   // No Save button: every change is saved automatically a moment after it is made.
   const first = useRef(true);

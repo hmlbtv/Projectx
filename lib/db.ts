@@ -39,6 +39,8 @@ create table if not exists settings(key text primary key, value text not null);
 alter table sessions add column if not exists last_active timestamptz not null default now();
 alter table tenants add column if not exists plan text not null default 'demo';
 alter table tenants add column if not exists max_wall_templates int not null default 1;
+alter table tenants add column if not exists max_wall_defaults int not null default 5;
+alter table wall_templates add column if not exists defaults jsonb not null default '[]';
 alter table tenants add column if not exists max_walls_per_broadcaster int not null default 1;
 alter table wall_templates add column if not exists broadcaster_id int references broadcasters(id) on delete set null;
 alter table wall_templates add column if not exists site_id int references sites(id) on delete set null;

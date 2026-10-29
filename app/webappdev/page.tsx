@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export default async function SiteAdmin({ searchParams }: { searchParams: Promise<{ q?: string; s?: string; imported?: string; of?: string; tidied?: string }> }) {
   const { q: q0, s: sf, imported, of, tidied } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
   const me = await requireMe(); if (me.role !== 'webappdev') redirect('/');
-  const ts = await rows(`select t.id,t.name,t.plan,t.max_walls_per_broadcaster m, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j, t.status,
+  const ts = await rows(`select t.id,t.name,t.plan,t.max_walls_per_broadcaster m, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j, t.max_wall_defaults wd, t.status,
     (select count(*)::int from users u where u.tenant_id=t.id) members,
     (select count(*)::int from wall_templates w where w.tenant_id=t.id) walls,
     (select count(*)::int from contacts c where c.tenant_id=t.id) contacts,
@@ -96,6 +96,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
           <label>Broadcasters<input name="b" type="number" min="0" defaultValue={t.b} /></label>
           <label>Productions per Broadcaster<input name="p" type="number" min="0" defaultValue={t.p} /></label>
           <label>Jobs per Production<input name="j" type="number" min="0" defaultValue={t.j} /></label>
+          <label>Default configurations per Wall Template<input name="wd" type="number" min="0" defaultValue={t.wd} /></label>
           <button className="sec">Save limits</button></form>
         {own ? <p className="mut">This is your own workspace, so it cannot be suspended, archived or deleted.</p> : (
         <div className="acts">
