@@ -19,6 +19,7 @@ create table if not exists wall_templates(id serial primary key, tenant_id int, 
 create table if not exists mv_layouts(id serial primary key, tenant_id int, name text not null, tiles jsonb not null);
 create table if not exists room_walls(id serial primary key, room_id int not null references rooms(id) on delete cascade, wall_template_id int not null references wall_templates(id), name text not null);
 create table if not exists source_sets(id serial primary key, tenant_id int not null, name text not null, sources jsonb not null default '[]');
+alter table source_sets add column if not exists categories jsonb not null default '{}';
 create table if not exists broadcasters(id serial primary key, tenant_id int not null, name text not null);
 create table if not exists productions(id serial primary key, broadcaster_id int not null references broadcasters(id) on delete cascade, name text not null);
 create table if not exists jobs(id serial primary key, production_id int not null references productions(id) on delete cascade, name text not null, job_date date, final_date date, expires_at date, source_set_id int references source_sets(id));

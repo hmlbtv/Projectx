@@ -18,7 +18,7 @@ export default function ImportSources() {
     <dialog ref={ref} className="dlg" onClick={e => { if (e.target === ref.current) ref.current?.close(); }}>
       <form onSubmit={go} className="stack">
         <h2 style={{ margin: 0 }}>Import Source Sets</h2>
-        <p className="mut" style={{ margin: 0 }}>Upload an Excel (.xlsx) or CSV file with the columns <b>Source Set</b> and <b>Source</b>, one source per row. Rows with the same Source Set name go into one set. A set that already exists is added to, never emptied.</p>
+        <p className="mut" style={{ margin: 0 }}>Upload an Excel (.xlsx) or CSV file with the columns <b>Source Set</b>, <b>Category</b> and <b>Source</b> (in that order), one source per row. Rows with the same Source Set name go into one set. A set that already exists is added to, never emptied.</p>
         <a href="/api/sources/template" download className="btn sec small" style={{ justifySelf: 'start' }}>⬇ Download the template</a>
         <input ref={input} type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
         {res && 'error' in res && <div role="alert" style={{ color: 'var(--bad)' }}>{res.error}</div>}

@@ -2,6 +2,7 @@
 import { audited } from '@/lib/audit';
 import { redirect } from 'next/navigation';
 import { loadJobPlans, saveJobPlans } from './plans';
+import { parseSources } from './sourceText';
 import { cookies } from 'next/headers';
 import { unseal, checkCode } from './totp';
 import { revalidatePath } from 'next/cache';
@@ -563,13 +564,13 @@ async function addProduction_(_: FormState, f: FormData): Promise<FormState> {
   if (s(f,'name')) await rows('insert into productions(broadcaster_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/productions'); return { ok: 'Added.' };
 }
 async function addSourceSet_(_: FormState, f: FormData): Promise<FormState> {
-  const me = await mgr(); const list = s(f,'sources').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 500);
-  if (s(f,'name')) await rows('insert into source_sets(tenant_id,name,sources) values($1,$2,$3)', [tid(me), s(f,'name'), JSON.stringify(list)]); revalidatePath('/sources'); revalidatePath('/productions'); return { ok: 'Added.' };
+  const me = await mgr(); const { names: list, cats } = parseSources(s(f,'sources'));
+  if (s(f,'name')) await rows('insert into source_sets(tenant_id,name,sources,categories) values($1,$2,$3,$4)', [tid(me), s(f,'name'), JSON.stringify(list), JSON.stringify(cats)]); revalidatePath('/sources'); revalidatePath('/productions'); return { ok: 'Added.' };
 }
 async function updateSourceSet_(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id')); await own('sourceSets', id, me);
-  const list = s(f,'sources').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 500);
-  if (s(f,'name')) await rows('update source_sets set name=$1,sources=$2 where id=$3', [s(f,'name'), JSON.stringify(list), id]); revalidatePath('/sources');
+  const { names: list, cats } = parseSources(s(f,'sources'));
+  if (s(f,'name')) await rows('update source_sets set name=$1,sources=$2,categories=$3 where id=$4', [s(f,'name'), JSON.stringify(list), JSON.stringify(cats), id]); revalidatePath('/sources');
 }
 async function deleteSourceSet_(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id')); await own('sourceSets', id, me);
