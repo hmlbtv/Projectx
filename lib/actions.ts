@@ -572,6 +572,15 @@ async function updateSourceSet_(f: FormData) {
   const { names: list, cats } = parseSources(s(f,'sources'));
   if (s(f,'name')) await rows('update source_sets set name=$1,sources=$2,categories=$3 where id=$4', [s(f,'name'), JSON.stringify(list), JSON.stringify(cats), id]); revalidatePath('/sources');
 }
+async function saveSourceSetData_(id: number, name: string, names: string[], cats: Record<string, string>, catNames: string[]) {
+  const me = await mgr(); id = Number(id); await own('sourceSets', id, me);
+  const nm = String(name ?? '').trim().slice(0, 120); const list: string[] = [];
+  for (const n of (Array.isArray(names) ? names : []).map(x => String(x).trim().slice(0, 120))) if (n && !list.some(x => x.toLowerCase() === n.toLowerCase()) && list.length < 500) list.push(n);
+  const c: Record<string, string> = {}; for (const n of list) { const v = String(cats?.[n] ?? '').trim().slice(0, 60); if (v) c[n] = v; }
+  const cn = Array.from(new Set((Array.isArray(catNames) ? catNames : []).map(x => String(x).trim().slice(0, 60)).filter(Boolean))).slice(0, 100);
+  if (!nm) return { error: 'The Source Set needs a name.' };
+  await rows('update source_sets set name=$1,sources=$2,categories=$3,cat_names=$4 where id=$5', [nm, JSON.stringify(list), JSON.stringify(c), JSON.stringify(cn), id]); revalidatePath('/sources'); revalidatePath('/plans'); return { ok: 'Saved.' };
+}
 async function deleteSourceSet_(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id')); await own('sourceSets', id, me);
   await rows('update jobs set source_set_id=null where source_set_id=$1', [id]); await rows('delete from source_sets where id=$1', [id]); revalidatePath('/sources'); revalidatePath('/productions');
@@ -812,6 +821,7 @@ export async function updateDestSet(...a: Parameters<typeof updateDestSet_>) { r
 export async function deleteDestSet(...a: Parameters<typeof deleteDestSet_>) { return audited('deleteDestSet', deleteDestSet_, a) as ReturnType<typeof deleteDestSet_>; }
 export async function addSourceSet(...a: Parameters<typeof addSourceSet_>) { return audited('addSourceSet', addSourceSet_, a) as ReturnType<typeof addSourceSet_>; }
 export async function updateSourceSet(...a: Parameters<typeof updateSourceSet_>) { return audited('updateSourceSet', updateSourceSet_, a) as ReturnType<typeof updateSourceSet_>; }
+export async function saveSourceSetData(...a: Parameters<typeof saveSourceSetData_>) { return audited('saveSourceSetData', saveSourceSetData_, a) as ReturnType<typeof saveSourceSetData_>; }
 export async function deleteSourceSet(...a: Parameters<typeof deleteSourceSet_>) { return audited('deleteSourceSet', deleteSourceSet_, a) as ReturnType<typeof deleteSourceSet_>; }
 export async function addJob(...a: Parameters<typeof addJob_>) { return audited('addJob', addJob_, a) as ReturnType<typeof addJob_>; }
 export async function updateBroadcaster(...a: Parameters<typeof updateBroadcaster_>) { return audited('updateBroadcaster', updateBroadcaster_, a) as ReturnType<typeof updateBroadcaster_>; }
