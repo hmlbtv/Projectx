@@ -29,18 +29,18 @@ export default function SetEditor({ set }: { set: Set_ }) {
   function del(old: string) { setNames(names.filter(x => x !== old)); const n = { ...cats }; delete n[old]; setCats(n); touch(); }
   async function save() { setBusy(true); const r: any = await saveSourceSetData(set.id, name, names, cats, extra); setBusy(false); if (r?.error) { setMsg(r.error); return; } setDirty(false); setMsg('Saved.'); router.refresh(); }
   const bulk = Math.max(1, Math.min(200, Math.floor(count) || 1)), st = Math.floor(start) || 0, b = base.trim();
-  const catBtn = (c: string, label: string) => { const n = names.filter(x => (cats[x] ?? OTHER) === c).length; return (<button key={'c' + c} type="button" className={sel === c ? '' : 'sec'} onClick={() => { setSel(c); setRenCat(false); setConfirmDel(false); setEditing(null); }} style={{ textAlign: 'left', display: 'flex', justifyContent: 'space-between', gap: 8, width: '100%' }}><span>{label}</span><span style={{ opacity: .7 }}>{n}</span></button>); };
+  const catBtn = (c: string, label: string) => { const n = names.filter(x => (cats[x] ?? OTHER) === c).length; return (<button key={'c' + c} type="button" className={sel === c ? '' : 'sec'} onClick={() => { setSel(c); setRenCat(false); setConfirmDel(false); setEditing(null); }} style={{ textAlign: 'left', display: 'flex', justifyContent: 'space-between', gap: 8, width: '100%', whiteSpace: 'normal' }}><span>{label}</span><span style={{ opacity: .7 }}>{n}</span></button>); };
   return (<>
     <button type="button" className="tilelink" style={{ all: 'unset', cursor: 'pointer', display: 'grid', gap: 4, width: '100%' }} onClick={open} aria-label={`Open ${set.name}`}>
       <b>{set.name}</b><span className="mut">{set.sources.length} sources{catList.length ? ` in ${catList.length} categor${catList.length === 1 ? 'y' : 'ies'}` : ''} · used by {set.jobs} Job{set.jobs === 1 ? '' : 's'}</span>
       <span className="mut" style={{ fontSize: '.85rem' }}>{set.sources.slice(0, 4).join(', ')}{set.sources.length > 4 ? '…' : ''}</span></button>
-    <dialog ref={ref} className="dlg" style={{ width: 'min(900px, 96vw)' }} onClick={e => { if (e.target === ref.current) close(); }}>
-      <div className="stack">
+    <dialog ref={ref} className="dlg se-dlg" onClick={e => { if (e.target === ref.current) close(); }}>
+      <div className="stack se">
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input value={name} onChange={e => { setName(e.target.value); touch(); }} aria-label="Source Set name" style={{ flex: 1, fontWeight: 700, fontSize: '1.1rem' }} />
           <button disabled={busy || !dirty} onClick={save}>{busy ? 'Saving…' : 'Save'}</button><button type="button" className="sec" onClick={close}>Close</button></div>
         {msg && <div role="status" style={{ color: msg === 'Saved.' ? 'var(--ok, #1fb865)' : 'var(--bad)' }}>{msg}</div>}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(130px, 1fr) 2fr', gap: 14, alignItems: 'start' }}>
-          <div style={{ display: 'grid', gap: 6 }}>
+        <div className="se-grid">
+          <div className="se-cats">
             <b>Categories</b>
             {catList.map(c => catBtn(c, c))}{hasOther && catBtn(OTHER, 'Other')}{!hasOther && sel === OTHER && catBtn(OTHER, 'Other')}
             <div style={{ display: 'flex', gap: 6 }}><input value={newCat} onChange={e => setNewCat(e.target.value)} placeholder="New category" onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCat(); } }} style={{ minWidth: 0, flex: 1 }} /><button type="button" className="sec" onClick={addCat}>+</button></div>

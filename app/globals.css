@@ -228,3 +228,9 @@ main>div[style*="space-between"]+p{margin-top:10px}
 @media(max-width:1500px){.theme-btn span{display:none}.theme-btn{padding:7px 10px}}
 .dz-tg button.sec.on{background:var(--ink);color:var(--onink);border-color:var(--ink)}
 .dz-stage[data-pan="1"] [data-bg]{cursor:grab}.dz-stage[data-pan="1"]:active [data-bg]{cursor:grabbing}
+.se{box-sizing:border-box;max-width:100%;min-width:0}.se *{box-sizing:border-box}
+.se input:not([type=checkbox]){width:auto;min-width:0;padding:8px 10px;font-size:.95rem}.se button{flex:none;white-space:nowrap;padding:8px 12px;min-height:0;font-size:.9rem}.se button.small{padding:6px 10px;font-size:.8rem}
+.se-grid{display:grid;grid-template-columns:minmax(130px,1fr) 2fr;gap:14px;align-items:start}
+.se-cats{display:grid;gap:6px}
+@media(max-width:700px){.se-grid{grid-template-columns:1fr}.se-cats{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}.se-cats>b,.se-cats>div{grid-column:1/-1}}
+dialog.se-dlg{width:min(900px,94vw);max-width:94vw;padding:14px;overflow-x:hidden}
