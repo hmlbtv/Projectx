@@ -165,6 +165,7 @@ async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
 async function updateInvite_(_: FormState, f: FormData): Promise<FormState> {
   const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
   const job = Number(s(f, 'job')); if (!(await jobFor(me, job))) return { error: 'Job not found.' };
+  if (!(await allow('wall-link', String(me.id), 60, 60))) return { error: 'Too many requests. Please wait a while and try again.' };
   const email = s(f, 'email').toLowerCase(), access = s(f, 'access') === 'view' ? 'view' : 'edit', want = await wallsOf(job, ids(f));
   const cur = await rows('select id, room_wall_id, access from wall_links where job_id=$1 and lower(email)=$2 and not revoked', [job, email]);
   if (cur.length === 0) return { error: 'Invitation not found.' };

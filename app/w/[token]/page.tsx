@@ -20,7 +20,7 @@ export default async function Invitation({ params }: { params: Promise<{ token: 
   if (me) {
     const mine = await one(`select 1 where $1 in ${myEmails(2)}`, [link.email.toLowerCase(), me.id]);
     if (mine) redirect(`/shared/${link.id}`);
-    async function switchAccount() { 'use server'; await destroySession(); redirect(`/w/${token}`); }
+    async function switchAccount() { 'use server'; await destroySession(); redirect(`/w/${encodeURIComponent(token)}`); }
     return (<div className="auth">{head}<div className="card"><h1>Sent to a different email</h1><p>This invitation was sent to <b>{link.email}</b>, which is not the email you are signed in with. Sign out, then sign in or create your account with that email address to open it.</p>
       <form action={switchAccount}><button>Sign out and continue</button></form></div></div>);
   }

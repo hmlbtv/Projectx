@@ -14,6 +14,13 @@ export async function unreadByWall(userId: number): Promise<Record<string, numbe
   return Object.fromEntries(r.map((x: any) => [`${x.job_id}:${x.room_wall_id}`, x.n]));
 }
 export async function markSeen(userId: number, job: number, walls: number[]) {
-  for (const w of walls) await rows('insert into comment_seen(user_id,job_id,room_wall_id,seen_at) values($1,$2,$3,now()) on conflict (user_id,job_id,room_wall_id) do update set seen_at=now()', [userId, job, w]);
+  if (!walls.length) return;
+  await rows('insert into comment_seen(user_id,job_id,room_wall_id,seen_at) select $1, $2, w, now() from unnest($3::int[]) w on conflict (user_id,job_id,room_wall_id) do update set seen_at=now()', [userId, job, walls]);
 }
 export const wallComments = (job: number, wall: number) => rows(`select c.id, c.body, c.created_at, coalesce(u.name, u.email, c.guest_email, 'Guest') who from comments c left join users u on u.id=c.user_id where c.job_id=$1 and c.room_wall_id=$2 order by c.id`, [job, wall]);
+export async function wallCommentsFor(job: number, walls: number[]): Promise<Record<number, any[]>> {
+  const out: Record<number, any[]> = Object.fromEntries(walls.map(w => [w, []]));
+  if (!walls.length) return out;
+  for (const c of await rows(`select c.id, c.room_wall_id, c.body, c.created_at, coalesce(u.name, u.email, c.guest_email, 'Guest') who from comments c left join users u on u.id=c.user_id where c.job_id=$1 and c.room_wall_id = any($2::int[]) order by c.id`, [job, walls])) out[c.room_wall_id].push(c);
+  return out;
+}

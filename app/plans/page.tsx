@@ -3,7 +3,7 @@ import { rows } from '@/lib/db';
 import { requireMe, canManage } from '@/lib/session';
 import { addComment, copyPlan } from '@/lib/actions';
 import { loadJobPlans } from '@/lib/plans';
-import { unreadByJob, wallComments, markSeen } from '@/lib/comments';
+import { unreadByJob, wallCommentsFor, markSeen } from '@/lib/comments';
 import ArchiveFilter from '@/app/ArchiveFilter';
 import WallComments from './WallComments';
 import Plan from './Plan';
@@ -31,7 +31,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
   // MV Layouts come from the Job's own tenant (plus shared presets) - never from the viewer's tenant.
   const layouts = await rows('select l.id,l.name,l.tiles from mv_layouts l where l.tenant_id is null or l.tenant_id=(select b.tenant_id from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where j.id=$1) order by l.tenant_id nulls first,l.id', [cur.id]);
   const saved = [{ name: 'Monitor Plan', data: await loadJobPlans(cur.id) as any }]; // one plan per wall, shared by everyone on the Job
-  const wcom: Record<number, any[]> = {}; for (const r of rws) if (r.id) wcom[r.id] = await wallComments(cur.id, r.id);
+  const wcom = await wallCommentsFor(cur.id, rws.filter((r: any) => r.id).map((r: any) => r.id as number));
   const legacy = await rows(`select c.*, coalesce(u.name, c.guest_email || ' (guest)') uname from comments c left join users u on u.id=c.user_id where c.job_id=$1 and c.room_wall_id is null order by c.id`, [cur.id]);
   await markSeen(me.id, cur.id, rws.filter((r: any) => r.id).map((r: any) => r.id as number));
   const tenantId = (await rows('select b.tenant_id from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where j.id=$1', [cur.id]))[0].tenant_id;

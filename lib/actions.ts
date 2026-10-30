@@ -36,6 +36,8 @@ const OWN: Record<string, string> = {
 async function own(kind: keyof typeof OWN, id: number, me: Me) {
   if (!id || !(await one(OWN[kind], [id, tid(me)]))) throw new Error('Not found');
 }
+// A finished Job (past its expiry) is in the Archive: view only.
+async function jobOpen(jobId: number) { return !!(await one('select 1 from jobs where id=$1 and (expires_at is null or expires_at >= current_date)', [jobId])); }
 async function canAccessJob(me: Me, jobId: number) {
   if (await one('select 1 from job_users where job_id=$1 and user_id=$2', [jobId, me.id])) return true;
   return canManage(me) && !!(await one(OWN.jobs, [jobId, tid(me)]));
@@ -683,7 +685,7 @@ async function deleteJob_(f: FormData) {
 
 // ---- Monitor Plans ----
 async function savePlan_(jobId: number, _name: string, data: any) {
-  const me = await requireMe(); if (!(await canAccessJob(me, jobId))) throw new Error('Not found');
+  const me = await requireMe(); if (!(await canAccessJob(me, jobId)) || !(await jobOpen(jobId))) throw new Error('Not found');
   await saveJobPlans(jobId, data ?? {}, me.id); // the plan is shared: one per wall in the Job
   revalidatePath('/plans');
 }
@@ -696,7 +698,7 @@ export async function loadPlans(jobId: number): Promise<Record<string, any>> {
 // Only the monitors' chosen MV layouts and sources that still exist on the wall are kept.
 async function copyPlan_(f: FormData) {
   const me = await requireMe(); const job = Number(s(f, 'job')), planId = Number(s(f, 'plan'));
-  if (!(await canAccessJob(me, job))) throw new Error('Not found');
+  if (!(await canAccessJob(me, job)) || !(await jobOpen(job))) throw new Error('Not found');
   // planId is the Job whose plans are being copied (any Job in the same workspace that this person can open).
   if (!(await canAccessJob(me, planId)) || planId === job) throw new Error('Not found');
   const src = { job_id: planId, data: await loadJobPlans(planId) as Record<string, any> };
@@ -720,7 +722,7 @@ async function copyPlan_(f: FormData) {
 async function addComment_(f: FormData) {
   const me = await requireMe(); const job = Number(s(f,'job')), wall = Number(s(f,'wall'));
   const w = await one('select rw.id, rw.room_id from job_walls jw join room_walls rw on rw.id=jw.room_wall_id where jw.job_id=$1 and rw.id=$2', [job, wall]);
-  if (!(await canAccessJob(me, job)) || !w) throw new Error('Not found');
+  if (!(await canAccessJob(me, job)) || !w || !(await jobOpen(job))) throw new Error('Not found');
   if (s(f,'body')) await rows('insert into comments(job_id,room_id,room_wall_id,user_id,body) values($1,$2,$3,$4,$5)', [job, w.room_id, wall, me.id, s(f,'body').slice(0, 2000)]);
   revalidatePath('/plans');
 }
