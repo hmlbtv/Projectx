@@ -9,7 +9,7 @@ import ThemeToggle from './ThemeToggle';
 import { headers } from 'next/headers';
 import { devSite } from '@/lib/devmode';
 
-export const viewport = { width: 'device-width', initialScale: 1, themeColor: '#0f1217' };
+export const viewport = { width: 'device-width', initialScale: 1, minimumScale: 1, themeColor: '#0f1217' };
 export const metadata = { title: 'TelePlanner', description: 'Monitor plans for live production' };
 
 export default async function Root({ children }: { children: React.ReactNode }) {
