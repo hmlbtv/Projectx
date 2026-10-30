@@ -6,6 +6,7 @@ import { one, rows } from './db';
 import { requireMe, canManage, createSession, type Me } from './session';
 import { myEmails } from './emails';
 import { allow, clientIp } from './security';
+import { loadJobPlans, saveJobPlans } from './plans';
 import { wallPng, markPng } from './wallPng';
 import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, sendMail, baseUrl } from './mail';
 import { newToken, sha256, hashPassword, passwordProblem } from './password';
@@ -68,14 +69,14 @@ async function linkAccess(me: Me, linkId: number) {
   return one(`select wl.id, wl.job_id, wl.room_wall_id, wl.access, rw.room_id from wall_links wl join jobs j on j.id=wl.job_id join room_walls rw on rw.id=wl.room_wall_id
     where wl.id=$1 and lower(wl.email) in ${myEmails(2)} and not wl.revoked and (j.expires_at is null or j.expires_at >= current_date) and (select tn.status from tenants tn join broadcasters bb on bb.tenant_id=tn.id join productions pp on pp.broadcaster_id=bb.id where pp.id=j.production_id)='active'`, [linkId, me.id]);
 }
-export async function savePlanLink(linkId: number, name: string, data: any) {
+export async function savePlanLink(linkId: number, _name: string, data: any) {
   const me = await requireMe(); const l = await linkAccess(me, linkId); if (!l || l.access !== 'edit') throw new Error('Not allowed');
-  if (JSON.stringify(data ?? {}).length > 100_000) throw new Error('Too large');
-  name = String(name).slice(0, 80) || 'Room Layout';
-  const clean: any = {}; if (data?.[l.room_wall_id]) clean[l.room_wall_id] = data[l.room_wall_id]; // only this wall
-  const ex = await one('select id from monitor_plans where link_id=$1 and user_id=$2 and name=$3', [l.id, me.id, name]);
-  if (ex) await rows('update monitor_plans set data=$1, updated_at=now() where id=$2', [JSON.stringify(clean), ex.id]);
-  else await rows('insert into monitor_plans(job_id,user_id,name,data,link_id) values($1,$2,$3,$4,$5)', [l.job_id, me.id, name, JSON.stringify(clean), l.id]);
+  await saveJobPlans(l.job_id, data ?? {}, me.id, l.room_wall_id); // only this wall, into the plan everyone on the Job shares
+}
+// The latest shared plan for the invited wall (picks up other people's changes).
+export async function loadPlansLink(linkId: number): Promise<Record<string, any>> {
+  const me = await requireMe(); const l = await linkAccess(me, linkId); if (!l) throw new Error('Not allowed');
+  return loadJobPlans(l.job_id, [l.room_wall_id]);
 }
 export async function addCommentLink(f: FormData) {
   const me = await requireMe(); const l = await linkAccess(me, Number(s(f, 'link'))); if (!l || l.access !== 'edit') throw new Error('Not allowed');

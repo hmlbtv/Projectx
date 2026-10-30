@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation';
 import { one, rows } from '@/lib/db';
 import { myEmails } from '@/lib/emails';
 import { requireMe } from '@/lib/session';
-import { savePlanLink, addCommentLink } from '@/lib/guestActions';
+import { loadJobPlans } from '@/lib/plans';
+import { savePlanLink, addCommentLink, loadPlansLink } from '@/lib/guestActions';
 import { wallComments, markSeen } from '@/lib/comments';
 import WallComments from '@/app/plans/WallComments';
 import Plan from '@/app/plans/Plan';
@@ -22,13 +23,12 @@ export default async function SharedWall({ params }: { params: Promise<{ id: str
   const own = link.access === 'edit', edit = own && !link.expired; // an expired Job is in the Archive: view only
   const wtd = await one('select wt.data, wt.defaults from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id where rw.id=$1', [link.room_wall_id]);
   const pw = await planWalls([{ id: link.room_wall_id, name: link.wall, data: wtd?.data, defaults: wtd?.defaults }], link.tenant_id);
-  // Editors see their own saved plans for this wall; view-only guests see the latest plan anyone saved for it.
-  const saved = own ? await rows('select name,data from monitor_plans where link_id=$1 and user_id=$2 order by id', [link.id, me.id])
-    : await rows('select name,data from monitor_plans where job_id=$1 and jsonb_exists(data,$2) order by updated_at desc limit 1', [link.job_id, String(link.room_wall_id)]);
+  // One plan per wall in the Job, shared with everyone who can open it.
+  const saved = [{ name: 'Monitor Plan', data: await loadJobPlans(link.job_id, [link.room_wall_id]) as any }];
   const comments = await wallComments(link.job_id, link.room_wall_id); await markSeen(me.id, link.job_id, [link.room_wall_id]);
   return (<><Link href="/shared">← Shared with me</Link><h1 style={{ marginTop: 8 }}>{link.wall}</h1>
     <p className="mut">{link.tenant} · {link.prod} / {link.job} · {link.room} <span className="tag">{link.expired ? 'Archive: view only' : edit ? 'You can edit this wall' : 'View only'}</span></p>
-    {saved.length === 0 && !edit && <div className="card mut">No plan has been saved for this wall yet.</div>}
-    <Plan walls={pw} layouts={layouts} sources={src?.sources ?? []} saved={saved} save={edit ? savePlanLink.bind(null, link.id) : undefined} readOnly={!edit} />
+    {Object.keys(saved[0].data).length === 0 && !edit && <div className="card mut">No plan has been saved for this wall yet.</div>}
+    <Plan refresh={loadPlansLink.bind(null, link.id)} walls={pw} layouts={layouts} sources={src?.sources ?? []} saved={saved} save={edit ? savePlanLink.bind(null, link.id) : undefined} readOnly={!edit} />
     <WallComments title={`${link.wall} · ${link.job}`} comments={comments as any} action={edit ? addCommentLink : undefined} hidden={{ link: link.id }} /></>);
 }

@@ -27,6 +27,14 @@ create table if not exists job_users(job_id int not null references jobs(id) on 
 create table if not exists monitor_plans(id serial primary key, job_id int not null references jobs(id) on delete cascade, user_id int not null, name text not null, data jsonb not null default '{}', updated_at timestamptz default now());
 create table if not exists job_walls(job_id int not null references jobs(id) on delete cascade, room_wall_id int not null references room_walls(id) on delete cascade, primary key(job_id, room_wall_id));
 create table if not exists wall_links(id serial primary key, job_id int not null references jobs(id) on delete cascade, room_wall_id int not null references room_walls(id) on delete cascade, email text not null, access text not null default 'edit', token_hash text unique not null, revoked boolean not null default false, created_by int, created_at timestamptz not null default now());
+create table if not exists job_wall_plans(job_id int not null references jobs(id) on delete cascade, room_wall_id int not null references room_walls(id) on delete cascade, data jsonb not null default '{}', updated_at timestamptz not null default now(), updated_by int, primary key(job_id, room_wall_id));
+-- One shared plan per wall in a Job. Plans saved per person before this are folded in once (the most recent save of each wall wins).
+insert into job_wall_plans(job_id, room_wall_id, data, updated_at, updated_by)
+  select distinct on (mp.job_id, w.id) mp.job_id, w.id, k.value, mp.updated_at, mp.user_id
+  from monitor_plans mp cross join lateral jsonb_each(mp.data) k
+  join room_walls w on w.id = (case when k.key ~ '^[0-9]+$' then k.key::int end)
+  where not exists (select 1 from job_wall_plans) and exists (select 1 from job_walls jw where jw.job_id=mp.job_id and jw.room_wall_id=w.id)
+  order by mp.job_id, w.id, mp.updated_at desc nulls last;
 alter table monitor_plans add column if not exists link_id int references wall_links(id) on delete cascade;
 create table if not exists user_emails(email text primary key, user_id int not null references users(id) on delete cascade, verified boolean not null default false, token_hash text, expires_at timestamptz);
 create table if not exists attempts(key text not null, at timestamptz not null default now());

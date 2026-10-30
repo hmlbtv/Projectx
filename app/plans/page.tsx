@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
 import { requireMe, canManage } from '@/lib/session';
 import { addComment, copyPlan } from '@/lib/actions';
+import { loadJobPlans } from '@/lib/plans';
 import { unreadByJob, wallComments, markSeen } from '@/lib/comments';
 import ArchiveFilter from '@/app/ArchiveFilter';
 import WallComments from './WallComments';
@@ -9,7 +10,7 @@ import Plan from './Plan';
 import CopyPlan from './CopyPlan';
 import Invites from './Invites';
 import { planWalls } from '@/lib/planWalls';
-import { savePlan } from '@/lib/actions';
+import { savePlan, loadPlans } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
 export default async function Plans({ searchParams }: { searchParams: Promise<{ job?: string; plan?: string; copied?: string }> }) {
@@ -29,7 +30,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
   const rws = await rows(`select r.id room_id, r.name room, rw.id, rw.name, wt.data, wt.defaults from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join wall_templates wt on wt.id=rw.wall_template_id join rooms r on r.id=rw.room_id where jw.job_id=$1 order by r.id, rw.id`, [cur.id]);
   // MV Layouts come from the Job's own tenant (plus shared presets) - never from the viewer's tenant.
   const layouts = await rows('select l.id,l.name,l.tiles from mv_layouts l where l.tenant_id is null or l.tenant_id=(select b.tenant_id from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where j.id=$1) order by l.tenant_id nulls first,l.id', [cur.id]);
-  const saved = await rows('select name,data from monitor_plans where job_id=$1 and user_id=$2 order by id', [cur.id, me.id]);
+  const saved = [{ name: 'Monitor Plan', data: await loadJobPlans(cur.id) as any }]; // one plan per wall, shared by everyone on the Job
   const wcom: Record<number, any[]> = {}; for (const r of rws) if (r.id) wcom[r.id] = await wallComments(cur.id, r.id);
   const legacy = await rows(`select c.*, coalesce(u.name, c.guest_email || ' (guest)') uname from comments c left join users u on u.id=c.user_id where c.job_id=$1 and c.room_wall_id is null order by c.id`, [cur.id]);
   await markSeen(me.id, cur.id, rws.filter((r: any) => r.id).map((r: any) => r.id as number));
@@ -38,12 +39,12 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
   // Saved plans this person may copy into this Job: other Jobs (finished ones too) of the same workspace, and only plans for walls in a Location this Job also uses.
   // A person sees their own plans; Admin/Manager see all. Grouped by Production, then Job, in the dialog.
   const locIds = (await rows('select distinct r.location_id from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join rooms r on r.id=rw.room_id where jw.job_id=$1', [cur.id])).map((x: any) => x.location_id);
-  const cands = locIds.length === 0 ? [] : await rows(`select mp.id, mp.name, mp.updated_at, j.id job_id, j.name job, p.id prod_id, p.name prod, (j.expires_at < current_date) expired, coalesce(u.name, u.email) who, mp.user_id,
-      (select string_agg(distinct st.name || ' › ' || l.name, ', ') from jsonb_object_keys(mp.data) k join room_walls rw on rw.id=(case when k ~ '^[0-9]+$' then k::int end) join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites st on st.id=l.site_id where k ~ '^[0-9]+$' and l.id = any($5::int[])) place
-    from monitor_plans mp join jobs j on j.id=mp.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id left join users u on u.id=mp.user_id
-    where mp.job_id<>$1 and mp.link_id is null and b.tenant_id=$2 and ($3::boolean or (mp.user_id=$4 and j.id in (select job_id from job_users where user_id=$4)))
-      and exists (select 1 from jsonb_object_keys(mp.data) k join room_walls rw on rw.id=(case when k ~ '^[0-9]+$' then k::int end) join rooms r on r.id=rw.room_id where k ~ '^[0-9]+$' and r.location_id = any($5::int[]))
-    order by p.name, j.job_date desc nulls last, mp.updated_at desc limit 200`, [cur.id, tenantId, canManage(me), me.id, locIds]);
+  const cands = locIds.length === 0 ? [] : await rows(`select j.id, j.name, x.updated_at, j.id job_id, j.name job, p.id prod_id, p.name prod, (j.expires_at < current_date) expired, coalesce(u.name, u.email) who, 0 user_id,
+      (select string_agg(distinct st.name || ' › ' || l.name, ', ') from job_wall_plans q join room_walls rw on rw.id=q.room_wall_id join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites st on st.id=l.site_id where q.job_id=j.id and l.id = any($4::int[])) place
+    from (select q.job_id, max(q.updated_at) updated_at, (array_agg(q.updated_by order by q.updated_at desc))[1] ub from job_wall_plans q join room_walls rw on rw.id=q.room_wall_id join rooms r on r.id=rw.room_id where q.job_id<>$1 and r.location_id = any($4::int[]) group by q.job_id) x
+    join jobs j on j.id=x.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id left join users u on u.id=x.ub
+    where b.tenant_id=$2 and ($3::boolean or j.id in (select job_id from job_users where user_id=$5))
+    order by p.name, j.job_date desc nulls last limit 200`, [cur.id, tenantId, canManage(me), locIds, me.id]);
   const invRows = canManage(me) ? await rows('select lower(email) email, access, room_wall_id from wall_links where job_id=$1 and not revoked order by id', [cur.id]) : [];
   const invited = Array.from(new Set(invRows.map((x: any) => x.email))).map(e => ({ email: e as string, access: invRows.find((x: any) => x.email === e).access as string, walls: invRows.filter((x: any) => x.email === e).map((x: any) => x.room_wall_id as number) }));
   const contacts = canManage(me) ? await rows('select id,name,email,company from contacts where tenant_id=$1 order by name', [tenantId]) : [];
@@ -52,7 +53,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
     {copied === 'none' && <p role="alert" style={{ color: '#b45309' }}>Nothing was copied: that plan has no walls in common with this Job.</p>}
     {!arch && cands.length > 0 && <CopyPlan job={cur.id} action={copyPlan} plans={cands.map((c: any) => ({ id: c.id, name: c.name, prod: c.prod, prodId: c.prod_id, job: c.job, jobId: c.job_id, place: c.place ?? '', expired: !!c.expired, when: String(c.updated_at).slice(0, 10), who: c.user_id === me.id ? '' : c.who }))} />}
     {roomIds.map(rid => { const rs = rws.filter((r: any) => r.room_id === rid); return (<div key={rid}><h2>Room: {rs[0].room}</h2>
-      {rs.filter((r: any) => r.id).length === 0 ? <div className="card mut">No Wall Template has been added to this Room yet. Check back once it has been set up.</div> : <Plan readOnly={arch} save={arch ? undefined : savePlan.bind(null, cur.id)} walls={pw.filter(w => rs.some((r: any) => r.id === w.id))} layouts={layouts} sources={j.sources ?? []} saved={saved} start={planQ} below={Object.fromEntries(rs.filter((r: any) => r.id).map((r: any) => [r.id, <WallComments key={r.id} title={`${r.name} · ${cur.name}`} comments={wcom[r.id] ?? []} action={arch ? undefined : addComment} hidden={{ job: cur.id, wall: r.id }} />]))} />}
+      {rs.filter((r: any) => r.id).length === 0 ? <div className="card mut">No Wall Template has been added to this Room yet. Check back once it has been set up.</div> : <Plan refresh={loadPlans.bind(null, cur.id)} readOnly={arch} save={arch ? undefined : savePlan.bind(null, cur.id)} walls={pw.filter(w => rs.some((r: any) => r.id === w.id))} layouts={layouts} sources={j.sources ?? []} saved={saved} start={planQ} below={Object.fromEntries(rs.filter((r: any) => r.id).map((r: any) => [r.id, <WallComments key={r.id} title={`${r.name} · ${cur.name}`} comments={wcom[r.id] ?? []} action={arch ? undefined : addComment} hidden={{ job: cur.id, wall: r.id }} />]))} />}
       {legacy.filter((c: any) => c.room_id === rid).length > 0 && <div className="card"><b>Earlier room comments</b>{legacy.filter((c: any) => c.room_id === rid).map((c: any) => <div key={c.id}><b>{c.uname}</b>: {c.body}</div>)}</div>}</div>); })}
     {!arch && canManage(me) && <Invites job={cur.id} walls={rws.filter((r: any) => r.id).map((r: any) => ({ id: r.id, room: r.room, name: r.name }))} contacts={contacts as any} invited={invited} />}</>);
 }

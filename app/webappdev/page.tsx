@@ -28,7 +28,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
     (select count(*)::int from users u where u.tenant_id=t.id and u.login_count=0 and u.invite_hash is null) never,
     (select count(*)::int from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id) prods,
     (select count(*)::int from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id) jobs,
-    (select count(*)::int from monitor_plans m join jobs j on j.id=m.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id) plans,
+    (select count(*)::int from job_wall_plans m join jobs j on j.id=m.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id) plans,
     (select count(*)::int from wall_links l join jobs j on j.id=l.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id) links,
     (select count(*)::int from wall_links l join jobs j on j.id=l.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id
        and exists(select 1 from users g where g.role='onetime' and lower(g.email)=lower(l.email))) links_joined

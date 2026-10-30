@@ -1,6 +1,7 @@
 'use server';
 import { audited } from '@/lib/audit';
 import { redirect } from 'next/navigation';
+import { loadJobPlans, saveJobPlans } from './plans';
 import { cookies } from 'next/headers';
 import { unseal, checkCode } from './totp';
 import { revalidatePath } from 'next/cache';
@@ -611,7 +612,7 @@ async function copyJobToNew_(f: FormData) {
   if (c >= l.j) throw new Error(`Your plan allows ${l.j} active Job${l.j === 1 ? '' : 's'} per Production.`);
   const nj = (await one('insert into jobs(production_id,name,source_set_id) values($1,$2,$3) returning id', [src.production_id, `${src.name} (copy)`.slice(0, 120), src.source_set_id]))!.id;
   await rows('insert into job_walls(job_id,room_wall_id) select $1, room_wall_id from job_walls where job_id=$2', [nj, id]);
-  await rows('insert into monitor_plans(job_id,user_id,name,data) select $1, user_id, name, data from monitor_plans where job_id=$2 and link_id is null', [nj, id]);
+  await rows('insert into job_wall_plans(job_id,room_wall_id,data,updated_by) select $1, room_wall_id, data, $3 from job_wall_plans where job_id=$2', [nj, id, me.id]);
   revalidatePath('/productions'); redirect(`/productions?j=${nj}`);
 }
 async function addJob_(_: FormState, f: FormData): Promise<FormState> {
@@ -681,22 +682,24 @@ async function deleteJob_(f: FormData) {
 }
 
 // ---- Monitor Plans ----
-async function savePlan_(jobId: number, name: string, data: any) {
+async function savePlan_(jobId: number, _name: string, data: any) {
   const me = await requireMe(); if (!(await canAccessJob(me, jobId))) throw new Error('Not found');
-  if (JSON.stringify(data ?? {}).length > 100_000) throw new Error('Too large');
-  name = String(name).slice(0, 80) || 'Room Layout';
-  const ex = await one('select id from monitor_plans where job_id=$1 and user_id=$2 and name=$3', [jobId, me.id, name]);
-  if (ex) await rows('update monitor_plans set data=$1,updated_at=now() where id=$2', [JSON.stringify(data), ex.id]);
-  else await rows('insert into monitor_plans(job_id,user_id,name,data) values($1,$2,$3,$4)', [jobId, me.id, name, JSON.stringify(data)]);
+  await saveJobPlans(jobId, data ?? {}, me.id); // the plan is shared: one per wall in the Job
   revalidatePath('/plans');
+}
+// Latest shared plans for a Job (used to pick up other people's changes).
+export async function loadPlans(jobId: number): Promise<Record<string, any>> {
+  const me = await requireMe(); if (!(await canAccessJob(me, jobId))) throw new Error('Not found');
+  return loadJobPlans(jobId);
 }
 // Copy a saved Monitor Plan (from another Job, including one that has expired) into this Job. Each wall is matched by its place in a Room, or failing that by its Wall Template.
 // Only the monitors' chosen MV layouts and sources that still exist on the wall are kept.
 async function copyPlan_(f: FormData) {
   const me = await requireMe(); const job = Number(s(f, 'job')), planId = Number(s(f, 'plan'));
   if (!(await canAccessJob(me, job))) throw new Error('Not found');
-  const src = await one('select mp.id, mp.job_id, mp.user_id, mp.name, mp.data from monitor_plans mp where mp.id=$1 and mp.link_id is null', [planId]);
-  if (!src || !(await canAccessJob(me, src.job_id)) || (src.user_id !== me.id && !canManage(me))) throw new Error('Not found');
+  // planId is the Job whose plans are being copied (any Job in the same workspace that this person can open).
+  if (!(await canAccessJob(me, planId)) || planId === job) throw new Error('Not found');
+  const src = { job_id: planId, data: await loadJobPlans(planId) as Record<string, any> };
   const walls = await rows('select rw.id, rw.wall_template_id wt, r.location_id loc, w.data from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join rooms r on r.id=rw.room_id join wall_templates w on w.id=rw.wall_template_id where jw.job_id=$1', [job]);
   const old = await rows('select rw.id, rw.wall_template_id wt, r.location_id loc from room_walls rw join rooms r on r.id=rw.room_id where rw.id = any($1::int[])', [Object.keys(src.data ?? {}).map(Number).filter(Boolean)]);
   const wtOf = new Map<number, number>(old.map((o: any) => [o.id, o.wt])), locOf = new Map<number, number>(old.map((o: any) => [o.id, o.loc]));
@@ -711,10 +714,8 @@ async function copyPlan_(f: FormData) {
     out[w.id] = { ...(d.layoutId ? { layoutId: d.layoutId } : {}), assign: d.assign ?? {}, ...(Object.keys(mons).length ? { mons } : {}) };
   }
   if (!Object.keys(out).length) { redirect(`/plans?job=${job}&copied=none`); } // nothing in a shared Location
-  let name = String(src.name).slice(0, 70), n = 1;
-  while (await one('select 1 from monitor_plans where job_id=$1 and user_id=$2 and name=$3', [job, me.id, name])) name = `${String(src.name).slice(0, 60)} ${++n}`;
-  await rows('insert into monitor_plans(job_id,user_id,name,data) values($1,$2,$3,$4)', [job, me.id, name, JSON.stringify(out)]);
-  revalidatePath('/plans'); redirect(`/plans?job=${job}&plan=${encodeURIComponent(name)}`);
+  await saveJobPlans(job, out, me.id);
+  revalidatePath('/plans'); redirect(`/plans?job=${job}`);
 }
 async function addComment_(f: FormData) {
   const me = await requireMe(); const job = Number(s(f,'job')), wall = Number(s(f,'wall'));
@@ -748,7 +749,7 @@ async function loadDemoData_() {
   };
   const plan = async (job: number, name: string, lay: any, srcs: string[]) => {
     const assign: Record<number, string> = {}; (lay?.tiles ?? []).forEach((tl: any, i: number) => { assign[tl.n] = srcs[i % srcs.length]; });
-    await rows('insert into monitor_plans(job_id,user_id,name,data) values($1,$2,$3,$4)', [job, me.id, name, JSON.stringify({ [rw.id]: { layoutId: lay?.id, assign } })]);
+    await saveJobPlans(job, { [rw.id]: { layoutId: lay?.id, assign } }, me.id);
   };
   const j1 = await mk('Election Night Special', 2), j2 = await mk('Weekly Sports Show', 9);
   await plan(j1, 'Main plan', lays[0], ['Camera 1', 'Camera 2', 'Programme', 'Graphics', 'Preview']);

@@ -33,8 +33,9 @@ function refitAfterFullScreen() {
   const on = () => setTimeout(resetViewport, 250); window.addEventListener('orientationchange', on); screen.orientation?.addEventListener?.('change', on);
   setTimeout(() => { window.removeEventListener('orientationchange', on); screen.orientation?.removeEventListener?.('change', on); }, 10000);
 }
-export function WallPlan({ wl, layouts, cur, setMon, readOnly, autoFull, onExit, setAll, sources = [], srcs, setSrc }: { sources?: string[]; srcs?: Record<string, Record<string, string>>; setSrc?: (assetId: string, n: number, v: string) => void; setAll?: (mons: Record<string, number>, srcs: Record<string, Record<string, string>>) => void; wl: Wall; layouts: Layout[]; cur: Data[string] | undefined; setMon: (assetId: string, layoutId: number) => void; readOnly: boolean; autoFull?: boolean; onExit?: () => void }) {
+export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFull, onExit, setAll, sources = [], srcs, setSrc }: { sources?: string[]; srcs?: Record<string, Record<string, string>>; setSrc?: (assetId: string, n: number, v: string) => void; setAll?: (mons: Record<string, number>, srcs: Record<string, Record<string, string>>) => void; wl: Wall; layouts: Layout[]; cur: Data[string] | undefined; setMon: (assetId: string, layoutId: number) => void; readOnly: boolean; autoFull?: boolean; onExit?: () => void; onEditing?: (on: boolean) => void }) {
   const [editing, setEditing] = useState(!!autoFull), [pick, setPick] = useState<string | null>(null), [full, setFull] = useState(!!autoFull), [turned, setTurned] = useState(false), [vp, setVp] = useState({ w: 0, h: 0 });
+  useEffect(() => { if (!editing) return; onEditing?.(true); return () => onEditing?.(false); }, [editing]); // eslint-disable-line react-hooks/exhaustive-deps
   const snap = useRef<{ mons: Record<string, number>; srcs: Record<string, Record<string, string>> } | null>(null), [mode, setMode] = useState<'layout' | 'source'>('layout'), [tilePick, setTilePick] = useState<{ a: string; n: number } | null>(null); // the layout choices when editing began, so Exit can put them back
   useEffect(() => { if (editing && !snap.current) snap.current = { mons: { ...(cur?.mons ?? {}) }, srcs: JSON.parse(JSON.stringify(cur?.srcs ?? {})) }; if (!editing) { snap.current = null; setMode('layout'); setTilePick(null); } }, [editing]); // eslint-disable-line react-hooks/exhaustive-deps
   const exitNoSave = () => { if (snap.current && setAll) setAll(snap.current.mons, snap.current.srcs); snap.current = null; leave(); };
@@ -100,26 +101,37 @@ export function WallPlan({ wl, layouts, cur, setMon, readOnly, autoFull, onExit,
     {!full && <dialog ref={ref} className="dlg" onClose={() => { setPick(null); setTilePick(null); }} onClick={e => { if (e.target === ref.current) { setPick(null); setTilePick(null); } }} style={{ width: 'min(1100px, 96vw)', maxWidth: '96vw', height: '90vh', maxHeight: '90vh', display: pick || tilePick ? 'block' : 'none', padding: 18 }}>{pick ? chooser : srcChooser}</dialog>}</div>);
 }
 
-export default function Plan({ walls, layouts, sources, saved, save, readOnly = false, start, below }: { below?: Record<number, React.ReactNode>; start?: string; walls: Wall[]; layouts: Layout[]; sources: string[]; saved: { name: string; data: Data }[]; save?: (name: string, data: Data) => Promise<void>; readOnly?: boolean }) {
+export default function Plan({ walls, layouts, sources, saved, save, readOnly = false, start, below, refresh }: { refresh?: () => Promise<Data>; below?: Record<number, React.ReactNode>; start?: string; walls: Wall[]; layouts: Layout[]; sources: string[]; saved: { name: string; data: Data }[]; save?: (name: string, data: Data) => Promise<void>; readOnly?: boolean }) {
   const [name, setName] = useState((saved.find(x => x.name === start) ?? saved[0])?.name ?? 'Room Layout 1');
   // A new plan starts from each Wall Template's chosen default MV configuration.
   const seed = () => Object.fromEntries(walls.filter(x => x.defaultMons).map(x => [x.id, { assign: {}, mons: x.defaultMons }])) as Data;
   const [data, setData] = useState<Data>((saved.find(x => x.name === start) ?? saved[0])?.data ?? seed());
   const [msg, setMsg] = useState('');
   // No Save button: every change is saved automatically a moment after it is made.
-  const first = useRef(true);
-  useEffect(() => { if (first.current) { first.current = false; return; } if (readOnly || !save) return; setMsg('Saving…');
-    const t = setTimeout(async () => { try { await save(name, data); setMsg('Saved'); } catch { setMsg('Not saved, try again'); } }, 700); return () => clearTimeout(t); }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The plan is shared: only the walls this person changed are saved, so someone else's changes to other walls are never overwritten.
+  const first = useRef(true), touched = useRef(new Set<number>()), inflight = useRef(new Set<number>()), editingN = useRef(0), dataRef = useRef(data);
+  dataRef.current = data;
+  useEffect(() => { if (first.current) { first.current = false; return; } if (readOnly || !save || touched.current.size === 0) return; setMsg('Saving…');
+    const t = setTimeout(async () => { const ids = Array.from(touched.current); touched.current.clear(); ids.forEach(i => inflight.current.add(i));
+      const part: Data = {}; ids.forEach(i => { part[i] = dataRef.current[i]; });
+      try { await save(name, part); setMsg('Saved'); } catch { ids.forEach(i => touched.current.add(i)); setMsg('Not saved, try again'); } finally { ids.forEach(i => inflight.current.delete(i)); } }, 700); return () => clearTimeout(t); }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Pick up changes other people have made (not while this person is editing a wall, or has unsaved changes to it).
+  useEffect(() => { if (!refresh) return; let live = true;
+    const tick = async () => { if (!live || document.hidden || editingN.current > 0) return; try { const fresh = await refresh(); if (!live || editingN.current > 0) return;
+      setData(d => { let next: Data | null = null; for (const [k, v] of Object.entries(fresh)) { const id = Number(k); if (touched.current.has(id) || inflight.current.has(id)) continue; if (JSON.stringify(d[id]) !== JSON.stringify(v)) { next = next ?? { ...d }; next[id] = v as any; } } return next ?? d; }); } catch { /* try again next time */ } };
+    const iv = setInterval(tick, 8000); const vis = () => { if (!document.hidden) tick(); }; document.addEventListener('visibilitychange', vis);
+    return () => { live = false; clearInterval(iv); document.removeEventListener('visibilitychange', vis); }; }, [refresh]); // eslint-disable-line react-hooks/exhaustive-deps
   const w = (id: number) => data[id] ?? { layoutId: undefined, assign: {} };
   // Sources are stored per tile NUMBER, so they stay in the same numbered tile when the layout changes.
-  const setLayout = (id: number, layoutId: number) => setData({ ...data, [id]: { ...w(id), layoutId } });
-  const setMons = (id: number, mons: Record<string, number>, srcs: Record<string, Record<string, string>>) => setData({ ...data, [id]: { ...w(id), mons, srcs } });
-  const setMon = (id: number, assetId: string, layoutId: number) => setData({ ...data, [id]: { ...w(id), mons: { ...(w(id).mons ?? {}), [assetId]: layoutId } } });
-  const setMonSrc = (id: number, assetId: string, n: number, v: string) => { const all = { ...(w(id).srcs ?? {}) }, one = { ...(all[assetId] ?? {}) }; if (v) one[n] = v; else delete one[n]; all[assetId] = one; setData({ ...data, [id]: { ...w(id), srcs: all } }); };
-  const setSrc = (id: number, n: number, v: string) => setData({ ...data, [id]: { ...w(id), assign: { ...w(id).assign, [n]: v } } });
+  const upd = (id: number, next: Data) => { touched.current.add(id); setData(next); };
+  const setLayout = (id: number, layoutId: number) => upd(id, { ...data, [id]: { ...w(id), layoutId } });
+  const setMons = (id: number, mons: Record<string, number>, srcs: Record<string, Record<string, string>>) => upd(id, { ...data, [id]: { ...w(id), mons, srcs } });
+  const setMon = (id: number, assetId: string, layoutId: number) => upd(id, { ...data, [id]: { ...w(id), mons: { ...(w(id).mons ?? {}), [assetId]: layoutId } } });
+  const setMonSrc = (id: number, assetId: string, n: number, v: string) => { const all = { ...(w(id).srcs ?? {}) }, one = { ...(all[assetId] ?? {}) }; if (v) one[n] = v; else delete one[n]; all[assetId] = one; upd(id, { ...data, [id]: { ...w(id), srcs: all } }); };
+  const setSrc = (id: number, n: number, v: string) => upd(id, { ...data, [id]: { ...w(id), assign: { ...w(id).assign, [n]: v } } });
   return (<div>
     {!readOnly && msg && <div className="mut" style={{ textAlign: 'right', fontSize: '.8rem' }}>{msg}</div>}
-    {walls.map(wl => <div key={wl.id}>{((wl) => { if ((wl.assets ?? []).some(a => isScreen(a.type) && a.props?.mvs?.length)) return <WallPlan key={wl.id} wl={wl} layouts={layouts} cur={data[wl.id]} readOnly={readOnly} setMon={(a, l) => setMon(wl.id, a, l)} setAll={(m, sr) => setMons(wl.id, m, sr)} sources={sources} srcs={data[wl.id]?.srcs} setSrc={(a, n, v) => setMonSrc(wl.id, a, n, v)} />;
+    {walls.map(wl => <div key={wl.id}>{((wl) => { if ((wl.assets ?? []).some(a => isScreen(a.type) && a.props?.mvs?.length)) return <WallPlan key={wl.id} wl={wl} layouts={layouts} cur={data[wl.id]} readOnly={readOnly} setMon={(a, l) => setMon(wl.id, a, l)} setAll={(m, sr) => setMons(wl.id, m, sr)} onEditing={on => { editingN.current += on ? 1 : -1; }} sources={sources} srcs={data[wl.id]?.srcs} setSrc={(a, n, v) => setMonSrc(wl.id, a, n, v)} />;
       const cur = w(wl.id); const lay = layouts.find(l => l.id === cur.layoutId);
       return (<div key={wl.id} className="card"><b>{wl.name}</b>
         <div className="row"><select disabled={readOnly} value={cur.layoutId ?? ''} onChange={e => setLayout(wl.id, Number(e.target.value))}><option value="">Choose MV Layout…</option>{layouts.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>

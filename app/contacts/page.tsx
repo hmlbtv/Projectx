@@ -13,7 +13,7 @@ export default async function Contacts() {
   const t = me.tenant_id ?? 0;
   const contacts = await rows('select * from contacts where tenant_id=$1 order by name', [t]);
   const links = await rows(`select lower(wl.email) email, wl.id, wl.access, wl.revoked, j.id job_id, j.name job, p.name prod, rw.name wall, r.name room, (j.expires_at < current_date) expired,
-      (select count(*)::int from monitor_plans mp where mp.link_id=wl.id) saved, (select to_char(max(mp.updated_at), 'YYYY-MM-DD') from monitor_plans mp where mp.link_id=wl.id) last
+      (select count(*)::int from job_wall_plans mp where mp.job_id=wl.job_id and mp.room_wall_id=wl.room_wall_id) saved, (select to_char(max(mp.updated_at), 'YYYY-MM-DD') from job_wall_plans mp where mp.job_id=wl.job_id and mp.room_wall_id=wl.room_wall_id) last
     from wall_links wl join jobs j on j.id=wl.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id
       join room_walls rw on rw.id=wl.room_wall_id join rooms r on r.id=rw.room_id where b.tenant_id=$1 order by j.job_date desc nulls last, wl.id desc`, [t]);
   const itemsOf = (email: string) => links.filter((l: any) => l.email === String(email).toLowerCase()).map((l: any) => ({ id: l.id, jobId: l.job_id, prod: l.prod, job: l.job, room: l.room, wall: l.wall, access: l.access, status: l.revoked ? 'off' : l.expired ? 'archived' : 'current', saved: l.saved, last: l.last }));
