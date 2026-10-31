@@ -1,5 +1,6 @@
 import Calendar from './Calendar';
 import ImportJobs from './ImportJobs';
+import JobDates from './JobDates';
 import ArchiveFilter from '../ArchiveFilter';
 import AddDialog from '../AddDialog';
 import InviteUser from './InviteUser';
@@ -80,7 +81,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
       <div className="card tile head"><div><div className="mut">{b.name}</div><h1 style={{ margin: 0 }}>{p.name}</h1><div className="mut">Production · {plural(mine.length, 'current Job')}</div></div>
         <Menu><b>Edit Production</b><form action={updateProduction} className="stack"><input type="hidden" name="id" value={p.id} /><input name="name" defaultValue={p.name} required /><button className="sec">Save</button></form><Del action={deleteProduction} id={p.id} what="Production" /></Menu></div>
       <AddDialog action={addJob} label="Add Job" title="New Job" placeholder="Job name"><input type="hidden" name="parent" value={p.id} />
-        <label className="mut">Job date<input type="date" name="date" /></label><label className="mut">Final date<input type="date" name="final" /></label><label className="mut">Expires (optional)<input type="date" name="expires" /></label>
+        <JobDates />
         <select name="sourceSet"><option value="">Source Set…</option>{sets.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></AddDialog>
       {mine.length === 0 && <p className="mut">No current Jobs yet.</p>}
       <div className="tiles">{mine.map((j: any) => (<div key={j.id} className="card tile"><Link href={`/productions?j=${j.id}`} className="tilelink"><b>{j.name}</b><span className="mut">{d(j.job_date)} · expires {d(j.expires_at)} · {j.ss_name ?? 'no Source Set'}</span></Link>
