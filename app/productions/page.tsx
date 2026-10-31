@@ -1,4 +1,5 @@
 import Calendar from './Calendar';
+import ImportJobs from './ImportJobs';
 import ArchiveFilter from '../ArchiveFilter';
 import AddDialog from '../AddDialog';
 import InviteUser from './InviteUser';
@@ -107,7 +108,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
 
   const cal = q.v === 'cal'; const evs = js.filter((j: any) => j.job_date).map((j: any) => { const pr = ps.find((x: any) => x.id === j.production_id), b = bs.find((x: any) => x.id === pr?.broadcaster_id); const st = d(j.job_date), en = d(j.final_date); return { id: j.id, title: j.name, prod: pr?.name ?? '', bc: b?.id ?? 0, bcName: b?.name ?? '', start: st, end: en && en >= st ? en : st }; });
   // ---- Home: Broadcasters ----
-  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Productions</h1><AddDialog action={addBroadcaster} inline label="Add Broadcaster" title="New Broadcaster" placeholder="Broadcaster name" /></div>{note}
+  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Productions</h1><div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}><Link href="/integrations" className="btn sec">Scheduling integration</Link><ImportJobs /><AddDialog action={addBroadcaster} inline label="Add Broadcaster" title="New Broadcaster" placeholder="Broadcaster name" /></div></div>{note}
     <div style={{ display: 'inline-flex', margin: '4px 0 12px' }} role="group" aria-label="View"><Link href="/productions" className={cal ? 'btn sec small' : 'btn small'} style={{ borderRadius: '8px 0 0 8px', ...(cal ? {} : { background: '#e5352b', color: '#fff', borderColor: '#e5352b' }) }}>List</Link><Link href="/productions?v=cal" className={cal ? 'btn small' : 'btn sec small'} style={{ borderRadius: '0 8px 8px 0', ...(cal ? { background: '#e5352b', color: '#fff', borderColor: '#e5352b' } : {}) }}>Calendar</Link></div>
     {cal && <Calendar events={evs} initView={q.cv === 'day' || q.cv === 'week' ? q.cv : 'month'} initDate={q.cd} />}
     {!cal && bs.length === 0 && <p className="mut">No Broadcasters yet. Add one to get started.</p>}
