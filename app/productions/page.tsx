@@ -13,7 +13,7 @@ import Menu from '../Menu';
 import { addBroadcaster, addProduction, addJob, removeJobUser, assignWall, unassignWall, assignWalls, unassignWalls, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob, copyJobToNew } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
-export default async function Productions({ searchParams }: { searchParams: Promise<{ b?: string; p?: string; j?: string; v?: string }> }) {
+export default async function Productions({ searchParams }: { searchParams: Promise<{ b?: string; p?: string; j?: string; v?: string; from?: string; cd?: string; cv?: string }> }) {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
   const t = me.tenant_id ?? 0;
   const lim = (await rows('select max_broadcasters b, max_productions p, max_jobs_per_production j from tenants where id=$1', [t]))[0];
@@ -48,7 +48,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
       return (<form action={all ? unassignWalls : assignWalls} className="row" style={{ margin: '2px 0 4px 16px' }}><input type="hidden" name="job" value={j.id} />{ids.map(i => <input key={i} type="hidden" name="wall" value={i} />)}
         <button className={all ? 'del' : 'sec'} style={{ minHeight: 0, padding: '2px 10px' }}>{all ? `Remove all ${ids.length} from this Job` : `Add all ${todo.length === ids.length ? ids.length : todo.length + ' remaining'} in ${what}`}</button></form>); };
     const wallsIn = (f: (r: any) => boolean) => allWalls.filter((w: any) => tree.some((r: any) => f(r) && w.room === r.room && w.loc === r.loc && w.site === r.site)).map((w: any) => w.id as number);
-    return (<><Bar back={`/productions?p=${p.id}`} />
+    return (<><Bar back={q.from === 'cal' ? `/productions?v=cal&cd=${encodeURIComponent(q.cd ?? '')}&cv=${encodeURIComponent(q.cv ?? 'month')}` : `/productions?p=${p.id}`} />
       <div className="card tile head"><div><div className="mut">{b.name} › {p.name}</div><h1 style={{ margin: 0 }}>{j.name}</h1><div className="mut">Job · {d(j.job_date)} · expires {d(j.expires_at)} · {j.ss_name ?? 'no Source Set'}</div></div>
         <Menu><b>Edit Job</b><form action={updateJob} className="stack"><input type="hidden" name="id" value={j.id} /><input name="name" defaultValue={j.name} required />
           <label className="mut">Job date<input type="date" name="date" defaultValue={d(j.job_date)} /></label><label className="mut">Final date<input type="date" name="final" defaultValue={d(j.final_date)} /></label><label className="mut">Expires<input type="date" name="expires" defaultValue={d(j.expires_at)} /></label>
@@ -109,7 +109,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   // ---- Home: Broadcasters ----
   return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Productions</h1><AddDialog action={addBroadcaster} inline label="Add Broadcaster" title="New Broadcaster" placeholder="Broadcaster name" /></div>{note}
     <div style={{ display: 'inline-flex', margin: '4px 0 12px' }} role="group" aria-label="View"><Link href="/productions" className={cal ? 'btn sec small' : 'btn small'} style={{ borderRadius: '8px 0 0 8px', ...(cal ? {} : { background: '#e5352b', color: '#fff', borderColor: '#e5352b' }) }}>List</Link><Link href="/productions?v=cal" className={cal ? 'btn small' : 'btn sec small'} style={{ borderRadius: '0 8px 8px 0', ...(cal ? { background: '#e5352b', color: '#fff', borderColor: '#e5352b' } : {}) }}>Calendar</Link></div>
-    {cal && <Calendar events={evs} />}
+    {cal && <Calendar events={evs} initView={q.cv === 'day' || q.cv === 'week' ? q.cv : 'month'} initDate={q.cd} />}
     {!cal && bs.length === 0 && <p className="mut">No Broadcasters yet. Add one to get started.</p>}
     {!cal && <div className="tiles">{bs.map((b: any) => (<div key={b.id} className="card tile"><Link href={`/productions?b=${b.id}`} className="tilelink"><b>{b.name}</b><span className="mut">{plural(ps.filter((p: any) => p.broadcaster_id === b.id).length, 'Production')}</span></Link>
       <Menu><b>Edit Broadcaster</b><form action={updateBroadcaster} className="stack"><input type="hidden" name="id" value={b.id} /><input name="name" defaultValue={b.name} required /><button className="sec">Save</button></form><Del action={deleteBroadcaster} id={b.id} what="Broadcaster" /></Menu></div>))}</div>}</>);
