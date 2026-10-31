@@ -95,7 +95,7 @@ export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFu
     const fa = focus ? list.find(a => a.id === focus) : undefined; // monitor mode: one monitor shown full screen
   // Zoom (full screen): mouse wheel or two-finger pinch zooms, drag (when not editing) or two-finger move pans. It stays as set while moving between View, Layout and Assign source.
   const [zm, setZm] = useState({ z: 1, cx: NaN, cy: NaN }), zr = useRef(zm), svgRef = useRef<SVGSVGElement>(null), bx = useRef({ vx, vy, w, h }), live = useRef({ fa: false, editing: false });
-  bx.current = { vx, vy, w, h }; live.current = { fa: !!fa, editing };
+  const base = fa ? { vx: fa.x - 6, vy: fa.y - 6, w: fa.w + 12, h: fa.h + 12 } : { vx, vy, w, h }; bx.current = base; live.current = { fa: !!fa, editing };
   const zcl = (z: number, cx: number, cy: number) => { const B = bx.current; z = Math.min(6, Math.max(1, z)); const hw = B.w / (2 * z), hh = B.h / (2 * z); return { z, cx: Math.min(B.vx + B.w - hw, Math.max(B.vx + hw, cx)), cy: Math.min(B.vy + B.h - hh, Math.max(B.vy + hh, cy)) }; };
   const setZ = (n: { z: number; cx: number; cy: number }) => { zr.current = n; setZm(n); };
   useEffect(() => { if (!full) { zr.current = { z: 1, cx: NaN, cy: NaN }; setZm(zr.current); return; }
@@ -104,22 +104,24 @@ export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFu
     const cur = () => { const B = bx.current, c = zr.current; return { z: c.z, cx: isNaN(c.cx) ? B.vx + B.w / 2 : c.cx, cy: isNaN(c.cy) ? B.vy + B.h / 2 : c.cy }; };
     // zoom so the wall point under (px,py) stays under the same screen spot
     const zoomAt = (nz: number, sx: number, sy: number) => { const c = cur(), B = bx.current, p0 = pt(sx, sy); if (!p0) return; nz = Math.min(6, Math.max(1, nz)); const k = c.z / nz; setZ(zcl(nz, p0.x - (p0.x - c.cx) * k, p0.y - (p0.y - c.cy) * k)); };
-    const wheel = (e: WheelEvent) => { if (live.current.fa) return; e.preventDefault(); zoomAt(cur().z * Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY); };
-    let pinch: { d: number; mx: number; my: number } | null = null, drag: { x: number; y: number } | null = null;
+    const wheel = (e: WheelEvent) => { e.preventDefault(); zoomAt(cur().z * Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY); };
+    let moved = false, pinch: { d: number; mx: number; my: number } | null = null, drag: { x: number; y: number } | null = null;
     const dist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY), mid = (t: TouchList) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
-    const ts = (e: TouchEvent) => { if (live.current.fa) return; if (e.touches.length === 2) { const m = mid(e.touches); pinch = { d: dist(e.touches), mx: m.x, my: m.y }; drag = null; } else if (e.touches.length === 1) { drag = { x: e.touches[0].clientX, y: e.touches[0].clientY }; pinch = null; } };
+    const ts = (e: TouchEvent) => { if (e.touches.length === 2) { const m = mid(e.touches); pinch = { d: dist(e.touches), mx: m.x, my: m.y }; drag = null; } else if (e.touches.length === 1) { drag = { x: e.touches[0].clientX, y: e.touches[0].clientY }; pinch = null; } };
     const panBy = (dx: number, dy: number) => { const a = pt(0, 0), b = pt(dx, dy), c = cur(); if (a && b) setZ(zcl(c.z, c.cx - (b.x - a.x), c.cy - (b.y - a.y))); };
-    const tm = (e: TouchEvent) => { if (live.current.fa) return;
+    const tm = (e: TouchEvent) => {
       if (e.touches.length === 2 && pinch) { e.preventDefault(); const m = mid(e.touches), d = dist(e.touches); panBy(m.x - pinch.mx, m.y - pinch.my); zoomAt(cur().z * (d / pinch.d), m.x, m.y); pinch = { d, mx: m.x, my: m.y }; }
-      else if (e.touches.length === 1 && drag && zr.current.z > 1 && !live.current.editing) { e.preventDefault(); const t = e.touches[0]; panBy(t.clientX - drag.x, t.clientY - drag.y); drag = { x: t.clientX, y: t.clientY }; } };
-    const te = () => { pinch = null; drag = null; };
-    let md: { x: number; y: number } | null = null; const mdn = (e: MouseEvent) => { if (!live.current.editing && !live.current.fa && zr.current.z > 1) md = { x: e.clientX, y: e.clientY }; }, mmv = (e: MouseEvent) => { if (md && e.buttons) { panBy(e.clientX - md.x, e.clientY - md.y); md = { x: e.clientX, y: e.clientY }; } else md = null; }, mup = () => { md = null; };
+      else if (e.touches.length === 1 && drag && zr.current.z > 1) { const t = e.touches[0]; if (!moved && Math.hypot(t.clientX - drag.x, t.clientY - drag.y) < 10) return; moved = true; e.preventDefault(); panBy(t.clientX - drag.x, t.clientY - drag.y); drag = { x: t.clientX, y: t.clientY }; } };
+    const te = () => { pinch = null; drag = null; moved = false; };
+    let md: { x: number; y: number } | null = null; let mdx = 0, mdy = 0, mmoved = false; const mdn = (e: MouseEvent) => { mmoved = false; mdx = e.clientX; mdy = e.clientY; if (zr.current.z > 1) md = { x: e.clientX, y: e.clientY }; }, mmv = (e: MouseEvent) => { if (md && e.buttons) { if (!mmoved && Math.hypot(e.clientX - mdx, e.clientY - mdy) < 6) return; mmoved = true; panBy(e.clientX - md.x, e.clientY - md.y); md = { x: e.clientX, y: e.clientY }; } else md = null; }, mup = () => { md = null; }, clk = (e: MouseEvent) => { if (mmoved) { e.stopPropagation(); e.preventDefault(); mmoved = false; } };
     el.addEventListener('wheel', wheel, { passive: false }); el.addEventListener('touchstart', ts, { passive: true }); el.addEventListener('touchmove', tm, { passive: false }); el.addEventListener('touchend', te); el.addEventListener('touchcancel', te);
-    el.addEventListener('mousedown', mdn); window.addEventListener('mousemove', mmv); window.addEventListener('mouseup', mup);
-    return () => { el.removeEventListener('wheel', wheel); el.removeEventListener('touchstart', ts); el.removeEventListener('touchmove', tm); el.removeEventListener('touchend', te); el.removeEventListener('touchcancel', te); el.removeEventListener('mousedown', mdn); window.removeEventListener('mousemove', mmv); window.removeEventListener('mouseup', mup); };
+    el.addEventListener('click', clk, true); el.addEventListener('mousedown', mdn); window.addEventListener('mousemove', mmv); window.addEventListener('mouseup', mup);
+    return () => { el.removeEventListener('wheel', wheel); el.removeEventListener('touchstart', ts); el.removeEventListener('touchmove', tm); el.removeEventListener('touchend', te); el.removeEventListener('touchcancel', te); el.removeEventListener('click', clk, true); el.removeEventListener('mousedown', mdn); window.removeEventListener('mousemove', mmv); window.removeEventListener('mouseup', mup); };
   }, [full, fa?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const zc = { z: zm.z, cx: isNaN(zm.cx) ? vx + w / 2 : zm.cx, cy: isNaN(zm.cy) ? vy + h / 2 : zm.cy }, zbox = zc.z > 1 ? `${zc.cx - w / (2 * zc.z)} ${zc.cy - h / (2 * zc.z)} ${w / zc.z} ${h / zc.z}` : `${vx} ${vy} ${w} ${h}`;
-  const wall = (<svg ref={svgRef} viewBox={fa ? `${fa.x - 6} ${fa.y - 6} ${fa.w + 12} ${fa.h + 12}` : zbox} width="100%" height={full ? '100%' : undefined} style={{ display: 'block', touchAction: full ? 'none' : undefined, background: '#1b2027', borderRadius: full ? 0 : 8, maxHeight: full ? undefined : '70vh', flex: full ? 1 : undefined, minHeight: 0 }} preserveAspectRatio="xMidYMid meet">
+  const savedWall = useRef({ z: 1, cx: NaN, cy: NaN }), wasFa = useRef(false);
+  useEffect(() => { if (fa && !wasFa.current) { savedWall.current = zr.current; setZ({ z: 1, cx: NaN, cy: NaN }); } else if (!fa && wasFa.current) setZ(savedWall.current); else if (fa) setZ({ z: 1, cx: NaN, cy: NaN }); wasFa.current = !!fa; }, [fa?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const zc = { z: zm.z, cx: isNaN(zm.cx) ? base.vx + base.w / 2 : zm.cx, cy: isNaN(zm.cy) ? base.vy + base.h / 2 : zm.cy }, zbox = zc.z > 1 ? `${zc.cx - base.w / (2 * zc.z)} ${zc.cy - base.h / (2 * zc.z)} ${base.w / zc.z} ${base.h / zc.z}` : `${base.vx} ${base.vy} ${base.w} ${base.h}`;
+  const wall = (<svg ref={svgRef} viewBox={zbox} width="100%" height={full ? '100%' : undefined} style={{ display: 'block', touchAction: full ? 'none' : undefined, background: '#1b2027', borderRadius: full ? 0 : 8, maxHeight: full ? undefined : '70vh', flex: full ? 1 : undefined, minHeight: 0 }} preserveAspectRatio="xMidYMid meet">
     {(fa ? [fa] : list).map(a => { const lay = isScreen(a.type) ? chosen(a) : undefined, can = editing && !!lay && ((mode === 'layout' && mvsOf(a).length > 1) || (mode === 'source' && scope === 'monitor' && !fa && sources.length > 0));
       return (<g key={a.id}><svg x={a.x} y={a.y} width={a.w} height={a.h} viewBox={`0 0 ${a.w} ${a.h}`}><WallArt a={{ ...a, name: a.name ?? '' }} /></svg>
         {lay && <LayoutPic lay={lay} names={wl.dests?.[a.id]} picks={srcs?.[a.id]} pos={{ x: a.x + 4, y: a.y + 4, w: a.w - 8, h: a.h - 8 }} />}
