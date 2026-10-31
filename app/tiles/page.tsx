@@ -23,9 +23,9 @@ export default async function Tiles({ searchParams }: { searchParams: Promise<{ 
           <form action={copyTile}><input type="hidden" name="id" value={cur.id} /><button className="small">Copy to my tiles</button></form></div>) : undefined} /></>);
   }
 
-  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Tile Designer</h1><Link href="/tiles?id=new" className="btn small">+ New MV Tile</Link></div>
+  return (<><div className="pagehead"><h1 style={{ margin: 0 }}>Tile Designer</h1><Link href="/tiles?id=new" className="btn small">+ New MV Tile</Link></div>
     <p className="mut">An MV Tile is a 16:9 frame holding Tile Assets such as a UMD, audio meters, tally and a clock. {top ? 'As site admin you can make Standard tiles for every tenant.' : 'Standard tiles come from the TelePlanner team; custom tiles are private to your Tenant.'}</p>
-    <form className="row"><input name="q" placeholder="Search MV Tiles" defaultValue={q} /><button className="sec">Search</button></form>
+    <form className="row"><input name="q" placeholder="Search MV Tiles" defaultValue={q} /><button className="sec small">Search</button></form>
     {list.length === 0 && <p className="mut">No MV Tiles{q ? ' match your search' : ' yet. Press New MV Tile to make one'}.</p>}
     <div className="dgrid">{list.map((x: any) => { const std = !x.tenant_id, canEdit = !std || top;
       return (<div key={x.id} className="card dcard"><Link href={`/tiles?id=${x.id}`} className="tilelink"><TileArt assets={x.assets} width="100%" /><b>{x.name}</b>

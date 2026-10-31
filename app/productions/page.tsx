@@ -35,7 +35,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   const q = await searchParams; const adm = isAdmin(me); const d = (x: any) => x ? new Date(x).toISOString().slice(0, 10) : '';
   const Del = ({ action, id, what }: { action: any; id: number; what: string }) => adm ? (<form action={action} className="del-row"><input type="hidden" name="id" value={id} /><span className="mut">Delete this {what} and everything inside it? This cannot be undone.</span><button className="del">Yes, delete</button></form>) : null;
   const note = <p className="mut">{me.role === 'webappdev' ? 'No limits on this account.' : <>Limits: {lim.b} Broadcaster{lim.b === 1 ? '' : 's'}, {lim.p} Productions each, {lim.j} active Jobs each.</>} Jobs are archived when they expire.</p>;
-  const Bar = ({ back }: { back: string }) => (<div className="crumbs"><Link href={back} className="btn sec">← Back</Link><Link href="/productions" className="btn sec">Productions home</Link></div>);
+  const Bar = ({ back }: { back: string }) => (<div className="crumbs"><Link href={back} className="btn sec small">← Back</Link><Link href="/productions" className="btn sec small">Productions home</Link></div>);
   const jobId = Number(q.j) || 0, prodId = Number(q.p) || 0, bcId = Number(q.b) || 0;
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
@@ -108,7 +108,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
 
   const cal = q.v === 'cal'; const evs = js.filter((j: any) => j.job_date).map((j: any) => { const pr = ps.find((x: any) => x.id === j.production_id), b = bs.find((x: any) => x.id === pr?.broadcaster_id); const st = d(j.job_date), en = d(j.final_date); return { id: j.id, title: j.name, prod: pr?.name ?? '', bc: b?.id ?? 0, bcName: b?.name ?? '', start: st, end: en && en >= st ? en : st }; });
   // ---- Home: Broadcasters ----
-  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Productions</h1><div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}><Link href="/integrations" className="btn sec">Scheduling integration</Link><ImportJobs /><AddDialog action={addBroadcaster} inline label="Add Broadcaster" title="New Broadcaster" placeholder="Broadcaster name" /></div></div>{note}
+  return (<><div className="pagehead"><h1 style={{ margin: 0 }}>Productions</h1><div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}><Link href="/integrations" className="btn sec small">Scheduling integration</Link><ImportJobs /><AddDialog action={addBroadcaster} inline label="Add Broadcaster" title="New Broadcaster" placeholder="Broadcaster name" /></div></div>{note}
     <div style={{ display: 'inline-flex', margin: '4px 0 12px' }} role="group" aria-label="View"><Link href="/productions" className={cal ? 'btn sec small' : 'btn small'} style={{ borderRadius: '8px 0 0 8px', ...(cal ? {} : { background: '#e5352b', color: '#fff', borderColor: '#e5352b' }) }}>List</Link><Link href="/productions?v=cal" className={cal ? 'btn small' : 'btn sec small'} style={{ borderRadius: '0 8px 8px 0', ...(cal ? { background: '#e5352b', color: '#fff', borderColor: '#e5352b' } : {}) }}>Calendar</Link></div>
     {cal && <Calendar events={evs} initView={q.cv === 'day' || q.cv === 'week' ? q.cv : 'month'} initDate={q.cd} />}
     {!cal && bs.length === 0 && <p className="mut">No Broadcasters yet. Add one to get started.</p>}

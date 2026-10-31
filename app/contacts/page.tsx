@@ -17,7 +17,7 @@ export default async function Contacts() {
     from wall_links wl join jobs j on j.id=wl.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id
       join room_walls rw on rw.id=wl.room_wall_id join rooms r on r.id=rw.room_id where b.tenant_id=$1 order by j.job_date desc nulls last, wl.id desc`, [t]);
   const itemsOf = (email: string) => links.filter((l: any) => l.email === String(email).toLowerCase()).map((l: any) => ({ id: l.id, jobId: l.job_id, prod: l.prod, job: l.job, room: l.room, wall: l.wall, access: l.access, status: l.revoked ? 'off' : l.expired ? 'archived' : 'current', saved: l.saved, last: l.last }));
-  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Contacts</h1>
+  return (<><div className="pagehead"><h1 style={{ margin: 0 }}>Contacts</h1>
       <div className="row" style={{ gap: 8 }}><ImportContacts /><AddDialog inline action={addContact} label="Add Contact" title="New contact" placeholder="Name">
         <input name="email" type="email" placeholder="Email" required /><input name="company" placeholder="Company (optional)" /></AddDialog></div></div>
     <p className="mut">Your contact list. Pick a contact when you invite someone to a Monitor Plan.</p>

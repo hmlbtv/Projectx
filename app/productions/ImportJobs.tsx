@@ -21,7 +21,7 @@ export default function ImportJobs() {
     catch { setRes({ error: 'Import failed. Check your connection and try again.' }); } finally { setBusy(false); }
   }
   return (<>
-    <button type="button" className="sec" onClick={() => { setRes(null); ref.current?.showModal(); }}>Import from Excel</button>
+    <button type="button" className="sec small" onClick={() => { setRes(null); ref.current?.showModal(); }}>Import from Excel</button>
     <dialog ref={ref} className="dlg" onClick={e => { if (e.target === ref.current) ref.current?.close(); }}>
       <form onSubmit={go} className="stack">
         <h2 style={{ margin: 0 }}>Import Productions and Jobs</h2>

@@ -81,7 +81,7 @@ details.acc.card>summary{font-size:1.05rem}
 details.sub{margin:4px 0 4px 22px}details.sub>summary{cursor:pointer;font-size:.85rem}
 
 .crumbs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-a.btn{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:12px;text-decoration:none;border:1px solid var(--line);color:inherit;background:var(--panel)}
+a.btn{font-weight:600;display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:12px;text-decoration:none;border:1px solid var(--line);color:inherit;background:var(--panel)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
 .tiles .card{margin:0}
 .tile{position:relative;display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
@@ -234,3 +234,5 @@ main>div[style*="space-between"]+p{margin-top:10px}
 .se-cats{display:grid;gap:6px}
 @media(max-width:700px){.se-grid{grid-template-columns:1fr}.se-cats{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}.se-cats>b,.se-cats>div{grid-column:1/-1}}
 dialog.se-dlg{width:min(900px,94vw);max-width:94vw;padding:14px;overflow-x:hidden}
+/* Page title row: title on the left, action buttons on the right; on a phone the buttons drop under the title instead of squeezing it */
+.pagehead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 12px;margin-bottom:4px}.pagehead>h1{flex:0 0 auto;max-width:100%;overflow-wrap:normal;word-break:normal}.pagehead>div,.pagehead>form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}

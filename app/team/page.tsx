@@ -17,7 +17,7 @@ export default async function Team() {
   const [tenant, members] = await Promise.all([tenant_p, members_p]);
   const founderId = members.find((x: any) => x.role === 'master_admin')?.id;
   const mayManage = (m: any) => adm && m.id !== me.id && m.role !== 'webappdev' && (m.role === 'user' || m.role === 'manager' || (top && (m.role === 'admin' || (m.role === 'master_admin' && m.id !== founderId))));
-  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Team · {tenant.name}</h1>
+  return (<><div className="pagehead"><h1 style={{ margin: 0 }}>Team · {tenant.name}</h1>
       <AddDialog inline noName action={inviteTeam} label="Invite" title="Invite someone to your workspace"><p className="mut" style={{ margin: 0 }}>Everyone you invite can use your Wall Templates in their Monitor Plans. Each User can be on 5 active Jobs by default; change it per person from their menu.</p>
         <input name="email" type="email" placeholder="colleague@email" required autoFocus /><select name="role"><option value="user">User</option>{adm && <option value="manager">Manager</option>}{top && <option value="master_admin">Master Admin</option>}</select></AddDialog></div>
     {['master_admin', 'webappdev'].includes(me.role) && <p><Link href="/audit" className="btn small">Audit trail</Link></p>}

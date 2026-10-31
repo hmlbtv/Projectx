@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export default async function Sources() {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
   const sets = await rows(`select s.*, (select count(*)::int from jobs j where j.source_set_id=s.id) jobs from source_sets s where s.tenant_id=$1 order by s.name`, [me.tenant_id ?? 0]);
-  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Source Sets</h1>
+  return (<><div className="pagehead"><h1 style={{ margin: 0 }}>Source Sets</h1>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><ImportSources /><AddDialog inline action={addSourceSet} label="Add Source Set" title="New Source Set" placeholder="Source Set name"><textarea name="sources" placeholder={'One source per line. Add a category with |, e.g.\nCameras | Camera 1\nEVS | EVS 1'} rows={6} /></AddDialog></div></div>
     <p className="mut">A Source Set is the list of sources (cameras, graphics, feeds) that can be assigned to Monitor Wall tiles. Choose one for each Job when you create it in Productions.</p>
     {sets.length === 0 && <p className="mut">No Source Sets yet.</p>}

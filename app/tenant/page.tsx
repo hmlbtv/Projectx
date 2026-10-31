@@ -25,7 +25,7 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
   // Little previews of the walls in a Room, Location or Site (first three, then "+N more").
   const Strip = ({ list }: { list: any[] }) => list.length === 0 ? null : (<div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(list.length, 3)},1fr)`, gap: 6, marginTop: 8 }}>
     {list.slice(0, 3).map((x: any) => <div key={x.id} title={x.name}><WallThumb assets={x.wdata?.assets} /></div>)}{list.length > 3 && <span className="mut" style={{ gridColumn: '1 / -1', fontSize: '.78rem' }}>+{list.length - 3} more</span>}</div>);
-  const Bar = ({ back }: { back: string }) => (<div className="crumbs"><Link href={back} className="btn sec">← Back</Link><Link href="/tenant" className="btn sec">Sites home</Link></div>);
+  const Bar = ({ back }: { back: string }) => (<div className="crumbs"><Link href={back} className="btn sec small">← Back</Link><Link href="/tenant" className="btn sec small">Sites home</Link></div>);
   const Head = ({ crumb, title, sub, children }: any) => (<div className="card tile head"><div>{crumb && <div className="mut">{crumb}</div>}<h1 style={{ margin: 0 }}>{title}</h1><div className="mut">{sub}</div></div><Menu>{children}</Menu></div>);
 
   // ---- Room: walls ----
@@ -75,7 +75,7 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
           <form action={deleteDestSet} className="del-row"><input type="hidden" name="id" value={d.id} /><span className="mut">Delete this Destination Set? Monitors using it lose their destinations.</span><button className="del">Yes, delete</button></form></Menu></div>))}</div></>);
   }
   // ---- Home: sites ----
-  return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Sites</h1><AddDialog action={addSite} inline label="Add Site" title="New Site" placeholder="Site name" /></div>
+  return (<><div className="pagehead"><h1 style={{ margin: 0 }}>Sites</h1><AddDialog action={addSite} inline label="Add Site" title="New Site" placeholder="Site name" /></div>
     <p className="mut">Site → Location → Room. Wall Templates are placed in Rooms, each with its own name, and then assigned to Jobs.</p>
     {sites.length === 0 && <p className="mut">No Sites yet. Add one to get started.</p>}
     <div className="tiles">{sites.map((s: any) => (<div key={s.id} className="card tile"><Link href={`/tenant?s=${s.id}`} className="tilelink"><b>{s.name}</b><span className="mut">{plural(locs.filter((l: any) => l.site_id === s.id).length, 'Location')}</span><Strip list={rw.filter((x: any) => rms.some((r: any) => r.id === x.room_id && locs.some((l: any) => l.id === r.location_id && l.site_id === s.id)))} /></Link>
