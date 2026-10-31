@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export type Ev = { id: number; title: string; prod: string; bc: number; bcName: string; start: string; end: string };
 const COLORS = ['#4285f4', '#ea4335', '#34a853', '#fa7b17', '#a142f4', '#00acc1', '#e91e63', '#7cb342', '#795548', '#5c6bc0'];
@@ -41,7 +41,8 @@ export default function Calendar({ events, initView = 'month', initDate }: { eve
           <div style={{ position: 'absolute', left: 0, right: 0, top: 32, display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gridAutoRows: 22, rowGap: 2, padding: '0 3px', pointerEvents: 'none' }}>
             {placed.map(({ e, s, en, l }) => (<Link key={e.id} href={`/productions?j=${e.id}&from=cal&cd=${key(cur)}&cv=${view}`} title={`${e.bcName} › ${e.prod} › ${e.title} (${e.start}${e.end !== e.start ? ' to ' + e.end : ''})`} style={{ gridColumn: `${s + 1} / ${en + 2}`, gridRow: l + 1, pointerEvents: 'auto', background: col(e.bc), color: '#fff', textDecoration: 'none', fontSize: '.75rem', lineHeight: '22px', padding: '0 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderRadius: `${e.start < a ? 0 : 4}px ${e.end > z ? 0 : 4}px ${e.end > z ? 0 : 4}px ${e.start < a ? 0 : 4}px`, margin: '0 1px' }}><b>{e.title}</b>{full || en > s ? <span style={{ opacity: .85 }}> · {e.prod}</span> : null}</Link>))}</div></div>); })}</div>); };
   const month = () => { const a = mon(new Date(cur.getFullYear(), cur.getMonth(), 1)), end = add(mon(new Date(cur.getFullYear(), cur.getMonth() + 1, 0)), 6), n = Math.round((end.getTime() - a.getTime()) / DAY) + 1; return Array.from({ length: n }, (_, i) => add(a, i)); };
-  return (<div style={{ display: 'grid', gap: 10 }}>
+  const sw = useRef<{ x: number; y: number } | null>(null); // swipe left = next, swipe right = previous
+  return (<div style={{ display: 'grid', gap: 10, touchAction: 'pan-y' }} onTouchStart={e => { sw.current = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; }} onTouchEnd={e => { const s0 = sw.current; sw.current = null; if (!s0) return; const t = e.changedTouches[0], dx = t.clientX - s0.x, dy = t.clientY - s0.y; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.8) step(dx < 0 ? 1 : -1); }}>
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
       <button type="button" className="sec small" onClick={() => setCur(new Date())}>Today</button>
       <button type="button" className="sec small" aria-label="Previous" onClick={() => step(-1)}>‹</button><button type="button" className="sec small" aria-label="Next" onClick={() => step(1)}>›</button>
