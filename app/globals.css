@@ -236,3 +236,5 @@ main>div[style*="space-between"]+p{margin-top:10px}
 dialog.se-dlg{width:min(900px,94vw);max-width:94vw;padding:14px;overflow-x:hidden}
 /* Page title row: title on the left, action buttons on the right; on a phone the buttons drop under the title instead of squeezing it */
 .pagehead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 12px;margin-bottom:4px}.pagehead>h1{flex:0 0 auto;max-width:100%;overflow-wrap:normal;word-break:normal}.pagehead>div,.pagehead>form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+@keyframes calNext{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}@keyframes calPrev{from{transform:translateX(-40px);opacity:0}to{transform:none;opacity:1}}
+.cal-next{animation:calNext .28s ease-out}.cal-prev{animation:calPrev .28s ease-out}@media (prefers-reduced-motion:reduce){.cal-next,.cal-prev{animation:none}}

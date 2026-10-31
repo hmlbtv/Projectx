@@ -20,7 +20,8 @@ export default function Calendar({ events, initView = 'month', initDate }: { eve
   const vis = events.filter(e => !hide.includes(e.bc));
   const on = (d: Date) => vis.filter(e => key(d) >= e.start && key(d) <= e.end);
   const today = key(new Date());
-  const step = (n: number) => setCur(view === 'month' ? new Date(cur.getFullYear(), cur.getMonth() + n, 1) : add(cur, n * (view === 'week' ? 7 : 1)));
+  const [dir, setDir] = useState(0);
+  const step = (n: number) => { setDir(n); setCur(view === 'month' ? new Date(cur.getFullYear(), cur.getMonth() + n, 1) : add(cur, n * (view === 'week' ? 7 : 1))); };
   const title = view === 'month' ? `${MN[cur.getMonth()]} ${cur.getFullYear()}` : view === 'day' ? cur.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : (() => { const a = mon(cur), b = add(a, 6); return `${a.getDate()} ${MN[a.getMonth()].slice(0, 3)} – ${b.getDate()} ${MN[b.getMonth()].slice(0, 3)} ${b.getFullYear()}`; })();
   const chip = (e: Ev, d: Date, full = false) => { const first = key(d) === e.start || d.getDay() === 1; return (<Link key={e.id} href={`/productions?j=${e.id}&from=cal&cd=${key(cur)}&cv=${view}`} title={`${e.bcName} › ${e.prod} › ${e.title}`} style={{ display: 'block', background: col(e.bc), color: '#fff', borderRadius: 4, padding: full ? '4px 8px' : '1px 6px', fontSize: full ? '.9rem' : '.75rem', lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: full ? 'normal' : 'nowrap', textDecoration: 'none', marginBottom: 2 }}>{first || full ? <b>{e.title}</b> : ' '}{full && <div style={{ opacity: .9, fontSize: '.8rem' }}>{e.bcName} › {e.prod}</div>}</Link>); };
   const grid = (days: Date[], tall: boolean, full = false) => (<div style={{ display: 'grid', gridTemplateColumns: `repeat(${days.length === 1 ? 1 : 7}, minmax(0, 1fr))`, border: '1px solid var(--line)', borderRadius: 8, overflow: 'hidden' }}>
@@ -44,12 +45,12 @@ export default function Calendar({ events, initView = 'month', initDate }: { eve
   const sw = useRef<{ x: number; y: number } | null>(null); // swipe left = next, swipe right = previous
   return (<div style={{ display: 'grid', gap: 10, touchAction: 'pan-y' }} onTouchStart={e => { sw.current = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; }} onTouchEnd={e => { const s0 = sw.current; sw.current = null; if (!s0) return; const t = e.changedTouches[0], dx = t.clientX - s0.x, dy = t.clientY - s0.y; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.8) step(dx < 0 ? 1 : -1); }}>
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-      <button type="button" className="sec small" onClick={() => setCur(new Date())}>Today</button>
+      <button type="button" className="sec small" onClick={() => { setDir(0); setCur(new Date()); }}>Today</button>
       <button type="button" className="sec small" aria-label="Previous" onClick={() => step(-1)}>‹</button><button type="button" className="sec small" aria-label="Next" onClick={() => step(1)}>›</button>
       <b style={{ fontSize: '1.15rem', flex: 1, minWidth: 140 }}>{title}</b>
-      <div style={{ display: 'flex', gap: 0 }}>{(['day', 'week', 'month'] as const).map(v => <button key={v} type="button" className={view === v ? 'small' : 'sec small'} onClick={() => setView(v)} style={{ textTransform: 'capitalize', borderRadius: v === 'day' ? '8px 0 0 8px' : v === 'month' ? '0 8px 8px 0' : 0 }}>{v}</button>)}</div></div>
+      <div style={{ display: 'flex', gap: 0 }}>{(['day', 'week', 'month'] as const).map(v => <button key={v} type="button" className={view === v ? 'small' : 'sec small'} onClick={() => { setDir(0); setView(v); }} style={{ textTransform: 'capitalize', borderRadius: v === 'day' ? '8px 0 0 8px' : v === 'month' ? '0 8px 8px 0' : 0 }}>{v}</button>)}</div></div>
     {bcs.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{bcs.map(([id, name]) => { const off = hide.includes(id); return (<button key={id} type="button" className="sec small" aria-pressed={!off} onClick={() => setHide(off ? hide.filter(x => x !== id) : [...hide, id])} style={{ display: 'inline-flex', gap: 6, alignItems: 'center', opacity: off ? .5 : 1 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: col(id), display: 'inline-block' }} />{name}</button>); })}</div>}
     {events.length === 0 && <p className="mut">No Jobs with dates yet. Add a Job date to a Job and it appears here.</p>}
-    {view === 'month' ? weeks(month(), false) : view === 'week' ? weeks(Array.from({ length: 7 }, (_, i) => add(mon(cur), i)), true) : grid([cur], true, true)}
+    <div key={`${view}-${key(cur)}`} className={dir > 0 ? 'cal-next' : dir < 0 ? 'cal-prev' : undefined} onAnimationEnd={() => setDir(0)}>{view === 'month' ? weeks(month(), false) : view === 'week' ? weeks(Array.from({ length: 7 }, (_, i) => add(mon(cur), i)), true) : grid([cur], true, true)}</div>
   </div>);
 }
