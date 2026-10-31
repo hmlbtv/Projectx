@@ -11,7 +11,7 @@ type Draft = { x: number; y: number; marks: Mark[]; anchor?: Anchor; subject?: s
 export default function DevBar({ owner }: { owner: boolean }) {
   const path = usePathname();
   const [mine, setMine] = useState<(DevNote & { replies: DevNote[] })[] | null>(null), [all, setAll] = useState(false);
-  const [open, setOpen] = useState(true), [tool, setTool] = useState<null | 'note' | 'draw' | 'highlight'>(null), [sev, setSev] = useState(2), [list, setList] = useState(false);
+  const [open, setOpen] = useState(false), [tool, setTool] = useState<null | 'note' | 'draw' | 'highlight'>(null), [sev, setSev] = useState(2), [list, setList] = useState(false);
   const [notes, setNotes] = useState<DevNote[]>([]), [draft, setDraft] = useState<Draft | null>(null), [text, setText] = useState(''), [msg, setMsg] = useState(''), [active, setActive] = useState<number | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 }), [live, setLive] = useState<{ x: number; y: number }[] | null>(null), [rect, setRect] = useState<null | { x: number; y: number; w: number; h: number }>(null);
   const start = useRef<{ x: number; y: number } | null>(null), [reply, setReply] = useState<Record<number, string>>({});
