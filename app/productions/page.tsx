@@ -1,3 +1,4 @@
+import Calendar from './Calendar';
 import ArchiveFilter from '../ArchiveFilter';
 import AddDialog from '../AddDialog';
 import InviteUser from './InviteUser';
@@ -12,7 +13,7 @@ import Menu from '../Menu';
 import { addBroadcaster, addProduction, addJob, removeJobUser, assignWall, unassignWall, assignWalls, unassignWalls, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob, copyJobToNew } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
-export default async function Productions({ searchParams }: { searchParams: Promise<{ b?: string; p?: string; j?: string }> }) {
+export default async function Productions({ searchParams }: { searchParams: Promise<{ b?: string; p?: string; j?: string; v?: string }> }) {
   const me = await requireMe(); if (!canManage(me)) redirect('/');
   const t = me.tenant_id ?? 0;
   const lim = (await rows('select max_broadcasters b, max_productions p, max_jobs_per_production j from tenants where id=$1', [t]))[0];
@@ -104,9 +105,12 @@ export default async function Productions({ searchParams }: { searchParams: Prom
         <Menu><b>Edit Production</b><form action={updateProduction} className="stack"><input type="hidden" name="id" value={p.id} /><input name="name" defaultValue={p.name} required /><button className="sec">Save</button></form><Del action={deleteProduction} id={p.id} what="Production" /></Menu></div>))}</div></>);
   }
 
+  const cal = q.v === 'cal'; const evs = js.filter((j: any) => j.job_date).map((j: any) => { const pr = ps.find((x: any) => x.id === j.production_id), b = bs.find((x: any) => x.id === pr?.broadcaster_id); const st = d(j.job_date), en = d(j.final_date); return { id: j.id, title: j.name, prod: pr?.name ?? '', bc: b?.id ?? 0, bcName: b?.name ?? '', start: st, end: en && en >= st ? en : st }; });
   // ---- Home: Broadcasters ----
   return (<><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><h1 style={{ margin: 0 }}>Productions</h1><AddDialog action={addBroadcaster} inline label="Add Broadcaster" title="New Broadcaster" placeholder="Broadcaster name" /></div>{note}
-    {bs.length === 0 && <p className="mut">No Broadcasters yet. Add one to get started.</p>}
-    <div className="tiles">{bs.map((b: any) => (<div key={b.id} className="card tile"><Link href={`/productions?b=${b.id}`} className="tilelink"><b>{b.name}</b><span className="mut">{plural(ps.filter((p: any) => p.broadcaster_id === b.id).length, 'Production')}</span></Link>
-      <Menu><b>Edit Broadcaster</b><form action={updateBroadcaster} className="stack"><input type="hidden" name="id" value={b.id} /><input name="name" defaultValue={b.name} required /><button className="sec">Save</button></form><Del action={deleteBroadcaster} id={b.id} what="Broadcaster" /></Menu></div>))}</div></>);
+    <div style={{ display: 'inline-flex', margin: '4px 0 12px' }} role="group" aria-label="View"><Link href="/productions" className={cal ? 'btn sec small' : 'btn small'} style={{ borderRadius: '8px 0 0 8px', ...(cal ? {} : { background: '#e5352b', color: '#fff', borderColor: '#e5352b' }) }}>List</Link><Link href="/productions?v=cal" className={cal ? 'btn small' : 'btn sec small'} style={{ borderRadius: '0 8px 8px 0', ...(cal ? { background: '#e5352b', color: '#fff', borderColor: '#e5352b' } : {}) }}>Calendar</Link></div>
+    {cal && <Calendar events={evs} />}
+    {!cal && bs.length === 0 && <p className="mut">No Broadcasters yet. Add one to get started.</p>}
+    {!cal && <div className="tiles">{bs.map((b: any) => (<div key={b.id} className="card tile"><Link href={`/productions?b=${b.id}`} className="tilelink"><b>{b.name}</b><span className="mut">{plural(ps.filter((p: any) => p.broadcaster_id === b.id).length, 'Production')}</span></Link>
+      <Menu><b>Edit Broadcaster</b><form action={updateBroadcaster} className="stack"><input type="hidden" name="id" value={b.id} /><input name="name" defaultValue={b.name} required /><button className="sec">Save</button></form><Del action={deleteBroadcaster} id={b.id} what="Broadcaster" /></Menu></div>))}</div>}</>);
 }
