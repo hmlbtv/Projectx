@@ -33,7 +33,9 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
       const tm = <T,>(p: Promise<T>, ms: number) => new Promise<T>((res, rej) => { const t = setTimeout(() => rej(new Error('timeout')), ms); p.then(v => { clearTimeout(t); res(v); }, e => { clearTimeout(t); rej(e); }); });
       // Several attempts, because Safari often fails or returns a blank picture on the first try (a known quirk), and font embedding can stall.
       let png = '', last: any = null;
-      for (const [o2, ms] of [[{}, 8000], [{ skipFonts: true }, 12000], [{ skipFonts: true }, 12000], [{ skipFonts: true, pixelRatio: 1 }, 12000], [{ skipFonts: true, pixelRatio: 1, cacheBust: true }, 12000]] as [any, number][]) {
+      // Safari refuses to draw a page that has text boxes nested inside its pictures (foreignObject), so later attempts leave those out.
+      const noFO = (n: any) => !(n && n.tagName && String(n.tagName).toLowerCase() === 'foreignobject');
+      for (const [o2, ms] of [[{}, 8000], [{ skipFonts: true }, 12000], [{ skipFonts: true, filter: noFO }, 12000], [{ skipFonts: true, filter: noFO }, 12000], [{ skipFonts: true, filter: noFO, pixelRatio: 1 }, 12000]] as [any, number][]) {
         try { const r = await tm(toPng(el, { ...opt, ...o2 }), ms); if (r.length > 5000) { png = r; break; } last = new Error('blank render'); } catch (e) { last = e; }
         await new Promise(r => setTimeout(r, 250)); }
       if (!png) throw last ?? new Error('render failed');
@@ -70,7 +72,7 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
       <div className="pv-wrap" style={{ width: 794 * scale, height: 1123 * scale, flex: '0 0 auto', position: 'relative' }}>
         <div ref={page} className="pv-page" style={{ position: 'absolute', top: 0, left: 0, width: 1123, height: 794, transform: `scale(${scale}) translateX(794px) rotate(90deg)`, transformOrigin: 'top left', background: '#fff', color: ink, boxShadow: '0 10px 40px rgba(0,0,0,.5)', boxSizing: 'border-box', padding: '26px 30px 20px', display: 'flex', flexDirection: 'column', gap: 10, fontFamily: "'Space Grotesk Variable', system-ui, sans-serif", overflow: 'hidden' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, borderBottom: '3px solid #e5352b', paddingBottom: 8 }}>
-            <div><div style={{ fontSize: 12, color: mut }}>{job.bc} \ {job.prod}</div><div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.15 }}>{job.name} · {wl.name}</div>
+            <div><div style={{ fontSize: 12, color: mut }}>{job.bc} \ {job.prod}</div><div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 760 }}>{job.name} · {wl.name}</div>
               {!!job.dates?.length && <div style={{ fontSize: 11.5, color: mut, marginTop: 3, display: 'flex', gap: 14, flexWrap: 'wrap' }}>{job.dates.map(([k, v]) => <span key={k}><b style={{ color: ink }}>{k}</b> {v}</span>)}</div>}</div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', color: ink }}><Logo size={26} /><div style={{ fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: mut, marginTop: 4 }}>Monitor plans for live production</div><div style={{ fontSize: 9.5, color: mut, marginTop: 1 }}>teleplanner.tv</div></div></div>
           <div style={{ flex: '1 1 0', minHeight: 300, position: 'relative', border: '1px solid #d5dae1', borderRadius: 6, overflow: 'hidden' }}>
