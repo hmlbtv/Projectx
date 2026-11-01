@@ -71,6 +71,7 @@ alter table tenants add column if not exists created_at timestamptz not null def
 alter table tenants add column if not exists status text not null default 'active';
 create table if not exists mv_tiles(id serial primary key, tenant_id int, name text not null, assets jsonb not null default '[]', created_at timestamptz not null default now());
 alter table users add column if not exists suspended boolean not null default false;
+create table if not exists interest(id serial primary key, name text not null, company text not null default '', email text not null, comment text not null default '', created_at timestamptz not null default now());
 create table if not exists email_log(id serial primary key, at timestamptz not null default now(), to_email text not null, subject text not null, ok boolean not null, error text, resend_id text);
 create index if not exists email_log_at on email_log(at);
 alter table users add column if not exists created_at timestamptz not null default now();

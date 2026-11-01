@@ -27,7 +27,7 @@ export default async function Root({ children }: { children: React.ReactNode }) 
         ...(me.role === 'onetime' ? [] : [{ href: '/plans', label: 'Monitor Plans' }, { href: '/archive', label: 'Archive' }]),
         { href: '/shared', label: 'Shared with me' },
         ...(dev?.on ? [{ href: '/my-comments', label: 'My comments' }] : []),
-        ...(me.role === 'webappdev' ? [{ href: '/webappdev', label: 'Site admin' }, ...(devSite() ? [{ href: '/webappdev/markup', label: 'Markup' }] : [])] : []),
+        ...(me.role === 'webappdev' ? [{ href: '/webappdev', label: 'Site admin' }, ...(devSite() ? [{ href: '/webappdev/markup', label: 'Markup' }, { href: '/interest', label: 'Interest' }] : [])] : []),
       ]}>
         <Link href="/account" className="who">{me.name} <span className="tag">{me.role}</span></Link>
         <ThemeToggle />
