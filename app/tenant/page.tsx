@@ -66,18 +66,19 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
       {mine.length === 0 && <p className="mut">No Locations yet.</p>}
       <div className="tiles">{mine.map((l: any) => (<div key={l.id} className="card tile"><Link href={`/tenant?l=${l.id}`} className="tilelink"><b>{l.name}</b><span className="mut">{plural(rms.filter((r: any) => r.location_id === l.id).length, 'Room')}</span><Strip list={rw.filter((x: any) => rms.some((r: any) => r.id === x.room_id && r.location_id === l.id))} /></Link>
         <Menu><Edit table="locations" id={l.id} name={l.name} what="Location" /></Menu></div>))}</div>
+      {adm && <>
       <h2 style={{ margin: '22px 0 4px' }}>Destination Sets</h2>
       <p className="mut" style={{ margin: '0 0 8px' }}>The named outputs of this Site (for example “UHD 5”). A monitor in a Wall Template is given some of them, and the multiview windows take those names.</p>
       <AddDialog action={addDestSet} label="Add Destination Set" title="New Destination Set" placeholder="Destination Set name (e.g. UHD 5)"><input type="hidden" name="site" value={s.id} /><textarea name="dests" placeholder="One destination per line" rows={8} /></AddDialog>
       {dsets.filter((d: any) => d.site_id === s.id).length === 0 && <p className="mut">No Destination Sets yet.</p>}
       <div className="tiles">{dsets.filter((d: any) => d.site_id === s.id).map((d: any) => (<div key={d.id} className="card tile"><div className="tilelink"><b>{d.name}</b><span className="mut">{plural(d.dests.length, 'destination')}</span><span className="mut" style={{ fontSize: '.85rem' }}>{d.dests.slice(0, 5).join(' · ')}{d.dests.length > 5 ? ` · +${d.dests.length - 5} more` : ''}</span></div>
         <Menu><b>Edit Destination Set</b><form action={updateDestSet} className="stack"><input type="hidden" name="id" value={d.id} /><input name="name" defaultValue={d.name} required /><textarea name="dests" rows={Math.min(12, Math.max(4, d.dests.length + 1))} defaultValue={d.dests.join('\n')} /><button className="sec">Save</button></form>
-          <form action={deleteDestSet} className="del-row"><input type="hidden" name="id" value={d.id} /><span className="mut">Delete this Destination Set? Monitors using it lose their destinations.</span><button className="del">Yes, delete</button></form></Menu></div>))}</div></>);
+          <form action={deleteDestSet} className="del-row"><input type="hidden" name="id" value={d.id} /><span className="mut">Delete this Destination Set? Monitors using it lose their destinations.</span><button className="del">Yes, delete</button></form></Menu></div>))}</div></>}</>);
   }
   // ---- Home: sites ----
   return (<><div className="pagehead"><h1 style={{ margin: 0 }}>Sites</h1><AddDialog action={addSite} inline label="Add Site" title="New Site" placeholder="Site name" /></div>
     <p className="mut">Site → Location → Room. Wall Templates are placed in Rooms, each with its own name, and then assigned to Jobs.</p>
     {sites.length === 0 && <p className="mut">No Sites yet. Add one to get started.</p>}
-    <div className="tiles">{sites.map((s: any) => (<div key={s.id} className="card tile"><Link href={`/tenant?s=${s.id}`} className="tilelink"><b>{s.name}</b><span className="mut">{plural(locs.filter((l: any) => l.site_id === s.id).length, 'Location')}</span><Strip list={rw.filter((x: any) => rms.some((r: any) => r.id === x.room_id && locs.some((l: any) => l.id === r.location_id && l.site_id === s.id)))} /></Link>
+    <div className="tiles">{sites.map((s: any) => (<div key={s.id} className="card tile"><Link href={`/tenant?s=${s.id}`} className="tilelink"><b>{s.name}</b><span className="mut">{plural(locs.filter((l: any) => l.site_id === s.id).length, 'Location')}</span><ul className="locgrid" aria-label={`Locations in ${s.name}`}>{locs.filter((l: any) => l.site_id === s.id).slice(0, 12).map((l: any) => <li key={l.id}>{l.name}</li>)}{locs.filter((l: any) => l.site_id === s.id).length > 12 && <li className="mut">+{locs.filter((l: any) => l.site_id === s.id).length - 12} more</li>}</ul></Link>
       <Menu><Edit table="sites" id={s.id} name={s.name} what="Site" /></Menu></div>))}</div></>);
 }

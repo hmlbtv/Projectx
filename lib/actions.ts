@@ -601,19 +601,19 @@ async function syncDests(setId: number, names: string[]) {
   for (const o of old) if (!used.has(o.id)) await rows('delete from destinations where id=$1', [o.id]);
 }
 async function addDestSet_(_: FormState, f: FormData): Promise<FormState> {
-  const me = await mgr(); const site = Number(s(f, 'site')); await own('sites', site, me); const name = s(f, 'name');
+  const me = await adm(); const site = Number(s(f, 'site')); await own('sites', site, me); const name = s(f, 'name');
   if (!name) return { error: 'Give the Destination Set a name.' };
   if (((await one('select count(*)::int c from destination_sets where tenant_id=$1', [tid(me)]))!).c >= 200) return { error: 'Destination Set limit reached.' };
   const r = (await one('insert into destination_sets(tenant_id,site_id,name) values($1,$2,$3) returning id', [tid(me), site, name.slice(0, 80)]))!;
   await syncDests(r.id, destNames(String(f.get('dests') ?? ''))); revalidatePath('/tenant'); revalidatePath('/walls'); return { ok: 'Added.' };
 }
 async function updateDestSet_(f: FormData) {
-  const me = await mgr(); const id = Number(s(f, 'id')); await own('destSets', id, me); const name = s(f, 'name').slice(0, 80);
+  const me = await adm(); const id = Number(s(f, 'id')); await own('destSets', id, me); const name = s(f, 'name').slice(0, 80);
   if (name) await rows('update destination_sets set name=$1 where id=$2', [name, id]);
   await syncDests(id, destNames(String(f.get('dests') ?? ''))); revalidatePath('/tenant'); revalidatePath('/walls');
 }
 async function deleteDestSet_(f: FormData) {
-  const me = await mgr(); const id = Number(s(f, 'id')); await own('destSets', id, me);
+  const me = await adm(); const id = Number(s(f, 'id')); await own('destSets', id, me);
   await rows('delete from destination_sets where id=$1', [id]); revalidatePath('/tenant'); revalidatePath('/walls');
 }
 // Archive: copy an old Job into a new one for the same Production, with its walls and Monitor Plans but no dates.
