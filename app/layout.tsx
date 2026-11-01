@@ -20,7 +20,7 @@ export default async function Root({ children }: { children: React.ReactNode }) 
   const me = await getMe(); const dev = me && devSite() && devAccess ? await devAccess() : null; const nonce = (await headers()).get('x-nonce') ?? undefined; // the page's CSP only runs scripts that carry this
   return (<html lang="en" suppressHydrationWarning><head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('tp-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}" }} /></head><body>
     {me && <nav><Link href="/" className="brand" style={devSite() ? { position: 'relative' } : undefined}><Logo size={24} />{devSite() && DevStamp && <DevStamp />}</Link>
-      <NavMenu links={[
+      <NavMenu account={<><div style={{ color: '#9aa4b2', fontSize: 13, padding: '2px 14px' }}>Signed in as {me.name} <span className="tag">{me.role}</span></div><Link href="/account" className="nl">Account settings</Link><form action={signOut}><button className="signout">Sign out</button></form></>} links={[
         ...(isAdmin(me) ? [{ href: '/tenant', label: 'Sites' }] : []),
         ...(canManage(me) ? [{ href: '/team', label: 'Team' }, { href: '/productions', label: 'Productions' }, { href: '/sources', label: 'Source Sets' }, { href: '/contacts', label: 'Contacts' }] : []),
         ...(isAdmin(me) ? [{ label: 'Designers', children: [{ href: '/walls', label: 'Wall Designer' }, { href: '/layouts', label: 'MV Designer' }, { href: '/tiles', label: 'Tile Designer' }] }] : []),
