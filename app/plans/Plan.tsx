@@ -137,8 +137,8 @@ export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFu
   // Second row, only while editing: what the selected mode needs, with Done at the right end, directly under Exit (Exit leaves without saving). The top row never changes; the selected mode's button stays highlighted.
   const sub = full && !readOnly && editing ? (<div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: '0 0 auto', flexWrap: 'wrap', margin: 0 }}>
     {fa && <button type="button" style={sm} onClick={() => { setFocus(null); setTilePick(null); }}>← Back to wall</button>}
-    {mode === 'source' && !fa && (['wall', 'monitor'] as const).map(m => <button key={m} type="button" style={sm} className={scope === m ? '' : 'sec'} aria-pressed={scope === m} title={m === 'wall' ? 'Tap any window on the wall' : 'Pick a monitor, then its windows'} onClick={() => setScope(m)}>{m === 'wall' ? '▦ Wall' : '▭ Monitor'}</button>)}
     <span style={{ flex: 1 }} />
+    {mode === 'source' && !fa && (['wall', 'monitor'] as const).map(m => <button key={m} type="button" style={sm} className={scope === m ? '' : 'sec'} aria-pressed={scope === m} title={m === 'wall' ? 'Tap any window on the wall' : 'Pick a monitor, then its windows'} onClick={() => setScope(m)}>{m === 'wall' ? '▦ Wall' : '▭ Monitor'}</button>)}
     <button type="button" style={smEq} onClick={() => { snap.current = null; leave(); }} title="Save the changes and close full screen">✓ Done</button></div>) : null;
   const body = (<>{bar}{sub}{editing && !full && <p className="mut" style={{ margin: '4px 0' }}>{mode === 'source' ? 'Tap a window to choose its source.' : 'Tap a monitor to choose its MV layout.'}</p>}{wall}</>);
   return (<div className="card" style={full ? { padding: 0, border: 0 } : undefined}>
