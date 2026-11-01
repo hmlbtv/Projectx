@@ -10,9 +10,9 @@ const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-GB',
 const isScreen = (t: string) => /^(mon|monitor|bvm|pvm)/.test(t);
 
 // Full-screen print preview of one wall's Monitor Plan on A4 landscape, with a source list, colour key and footer.
-export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wall: any; wl: any; layouts: any[]; cur: any; job: { id: number; bc: string; prod: string; name: string; dates?: [string, string][] }; onClose: () => void }) {
+export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wall: any; wl: any; layouts: any[]; cur: any; job: { id: number; bc: string; prod: string; name: string; dates?: [string, string][]; load?: (wallId: number) => Promise<any> }; onClose: () => void }) {
   const [meta, setMeta] = useState<Meta | null>(null), [err, setErr] = useState(''), [busy, setBusy] = useState(''), [scale, setScale] = useState(0.5), page = useRef<HTMLDivElement>(null), [canShare, setCanShare] = useState(false), [ready, setReady] = useState<{ url: string; name: string; file: File } | null>(null);
-  useEffect(() => { loadPlanMeta(job.id, wl.id).then(setMeta).catch(() => setErr('Could not load the plan details.')); }, [job.id, wl.id]);
+  useEffect(() => { (job.load ?? ((w: number) => loadPlanMeta(job.id, w)))(wl.id).then(setMeta).catch(() => setErr('Could not load the plan details.')); }, [job.id, wl.id]);
   useEffect(() => { const f = () => setScale(Math.max(0.2, Math.min((window.innerWidth - 16) / 794, (window.innerHeight - 70) / 1123))); f(); window.addEventListener('resize', f); const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => { window.removeEventListener('resize', f); window.removeEventListener('keydown', k); }; }, [onClose]);
   useEffect(() => { try { setCanShare(!!navigator.canShare && navigator.canShare({ files: [new File([''], 'a.pdf', { type: 'application/pdf' })] })); } catch { setCanShare(false); } }, []);
   useEffect(() => { const b = document.body, o = b.style.overflow; b.style.overflow = 'hidden'; return () => { b.style.overflow = o; }; }, []);

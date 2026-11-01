@@ -4,7 +4,7 @@ import { one, rows } from '@/lib/db';
 import { myEmails } from '@/lib/emails';
 import { requireMe } from '@/lib/session';
 import { loadJobPlans } from '@/lib/plans';
-import { savePlanLink, addCommentLink, loadPlansLink } from '@/lib/guestActions';
+import { savePlanLink, addCommentLink, loadPlansLink, loadPlanMetaLink } from '@/lib/guestActions';
 import { wallComments, markSeen } from '@/lib/comments';
 import WallComments from '@/app/plans/WallComments';
 import Plan from '@/app/plans/Plan';
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function SharedWall({ params }: { params: Promise<{ id: string }> }) {
   const me = await requireMe(); const { id } = await params;
-  const link = await one(`select wl.id, wl.job_id, wl.room_wall_id, wl.access, (j.expires_at < current_date) expired, j.name job, j.source_set_id, p.name prod, t.name tenant, t.id tenant_id, rw.name wall, r.id room_id, r.name room
+  const link = await one(`select wl.id, wl.job_id, wl.room_wall_id, wl.access, (j.expires_at < current_date) expired, j.name job, j.source_set_id, p.name prod, b.name bc, j.job_date, j.final_date, j.expires_at, t.name tenant, t.id tenant_id, rw.name wall, r.id room_id, r.name room
     from wall_links wl join jobs j on j.id=wl.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id join tenants t on t.id=b.tenant_id
     join room_walls rw on rw.id=wl.room_wall_id join rooms r on r.id=rw.room_id
     where wl.id=$1 and lower(wl.email) in ${myEmails(2)} and not wl.revoked and (select tn.status from tenants tn join broadcasters bb on bb.tenant_id=tn.id join productions pp on pp.broadcaster_id=bb.id where pp.id=j.production_id)='active'`, [Number(id) || 0, me.id]);
@@ -29,6 +29,6 @@ export default async function SharedWall({ params }: { params: Promise<{ id: str
   return (<><Link href="/shared">← Shared with me</Link><h1 style={{ marginTop: 8 }}>{link.wall}</h1>
     <p className="mut">{link.tenant} · {link.prod} / {link.job} · {link.room} <span className="tag">{link.expired ? 'Archive: view only' : edit ? 'You can edit this wall' : 'View only'}</span></p>
     {Object.keys(saved[0].data).length === 0 && !edit && <div className="card mut">No plan has been saved for this wall yet.</div>}
-    <Plan refresh={loadPlansLink.bind(null, link.id)} walls={pw} layouts={layouts} sources={src?.sources ?? []} sourceCats={src?.categories ?? {}} saved={saved} save={edit ? savePlanLink.bind(null, link.id) : undefined} readOnly={!edit} />
+    <Plan refresh={loadPlansLink.bind(null, link.id)} walls={pw} layouts={layouts} sources={src?.sources ?? []} sourceCats={src?.categories ?? {}} saved={saved} save={edit ? savePlanLink.bind(null, link.id) : undefined} readOnly={!edit} printInfo={{ id: link.job_id, bc: link.bc, prod: link.prod, name: link.job, load: loadPlanMetaLink.bind(null, link.id), dates: [['Job date', link.job_date], ['Final date', link.final_date], ['Expires', link.expires_at]].filter(x => x[1]).map(x => [x[0], new Date(x[1] as any).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })]) as [string, string][] }} />
     <WallComments title={`${link.wall} · ${link.job}`} comments={comments as any} action={edit ? addCommentLink : undefined} hidden={{ link: link.id }} /></>);
 }

@@ -6,7 +6,7 @@ import { one, rows } from './db';
 import { requireMe, canManage, createSession, type Me } from './session';
 import { myEmails } from './emails';
 import { allow, clientIp } from './security';
-import { loadJobPlans, saveJobPlans } from './plans';
+import { loadJobPlans, saveJobPlans, planMeta } from './plans';
 import { wallPng, markPng } from './wallPng';
 import { brandedMail, escMail } from './brandMail';
 import { mailTemplates as T } from './mailTemplates';
@@ -76,6 +76,13 @@ export async function savePlanLink(linkId: number, _name: string, data: any) {
   await saveJobPlans(l.job_id, data ?? {}, me.id, l.room_wall_id); // only this wall, into the plan everyone on the Job shares
 }
 // The latest shared plan for the invited wall (picks up other people's changes).
+// Details for the printed sheet (version, who changed what, last saved) for an invited person. Works for archived Jobs too, which are view only.
+export async function loadPlanMetaLink(linkId: number, _wallId?: number) {
+  const me = await requireMe();
+  const l = await one(`select wl.job_id, wl.room_wall_id from wall_links wl where wl.id=$1 and lower(wl.email) in ${myEmails(2)} and not wl.revoked and (select tn.status from tenants tn join broadcasters bb on bb.tenant_id=tn.id join productions pp on pp.broadcaster_id=bb.id join jobs jj on jj.production_id=pp.id where jj.id=wl.job_id)='active'`, [linkId, me.id]);
+  if (!l) throw new Error('Not allowed');
+  return { ...(await planMeta(l.job_id, l.room_wall_id)), printedBy: me.name || me.email, now: new Date().toISOString() };
+}
 export async function loadPlansLink(linkId: number): Promise<Record<string, any>> {
   const me = await requireMe(); const l = await linkAccess(me, linkId); if (!l) throw new Error('Not allowed');
   return loadJobPlans(l.job_id, [l.room_wall_id]);

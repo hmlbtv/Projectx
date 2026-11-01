@@ -166,14 +166,14 @@ export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFu
     {!full && <dialog ref={ref} className="dlg" onClose={() => { setPick(null); setTilePick(null); }} onClick={e => { if (e.target === ref.current) { setPick(null); setTilePick(null); } }} style={{ width: 'min(1100px, 96vw)', maxWidth: '96vw', height: '90vh', maxHeight: '90vh', display: pick || tilePick ? 'block' : 'none', padding: 18 }}>{pick ? chooser : srcChooser}</dialog>}</div>);
 }
 
-export default function Plan({ walls, layouts, sources, sourceCats = {}, saved, save, readOnly = false, start, below, refresh, printInfo }: { printInfo?: { id: number; bc: string; prod: string; name: string; dates?: [string, string][] }; refresh?: () => Promise<Data>; below?: Record<number, React.ReactNode>; start?: string; walls: Wall[]; layouts: Layout[]; sources: string[]; sourceCats?: Record<string, string>; saved: { name: string; data: Data }[]; save?: (name: string, data: Data) => Promise<void>; readOnly?: boolean }) {
+export default function Plan({ walls, layouts, sources, sourceCats = {}, saved, save, readOnly = false, start, below, refresh, printInfo }: { printInfo?: { id: number; bc: string; prod: string; name: string; dates?: [string, string][]; load?: (wallId: number) => Promise<any> }; refresh?: () => Promise<Data>; below?: Record<number, React.ReactNode>; start?: string; walls: Wall[]; layouts: Layout[]; sources: string[]; sourceCats?: Record<string, string>; saved: { name: string; data: Data }[]; save?: (name: string, data: Data) => Promise<void>; readOnly?: boolean }) {
   const [name, setName] = useState((saved.find(x => x.name === start) ?? saved[0])?.name ?? 'Room Layout 1');
   // A new plan starts from each Wall Template's chosen default MV configuration.
   const seed = () => Object.fromEntries(walls.filter(x => x.defaultMons).map(x => [x.id, { assign: {}, mons: x.defaultMons }])) as Data;
   const [data, setData] = useState<Data>((saved.find(x => x.name === start) ?? saved[0])?.data ?? seed());
   const [msg, setMsg] = useState(''), [printId, setPrintId] = useState<number | null>(null), [whoBy, setWhoBy] = useState<Record<number, Record<string, string>>>({});
   // Who changed what, so each person's tiles get their own coloured outline.
-  useEffect(() => { if (!printInfo) return; let live = true; const ld = async () => { const o: Record<number, Record<string, string>> = {}; for (const wl of walls) { try { o[wl.id] = (await loadPlanMeta(printInfo.id, wl.id)).who ?? {}; } catch { /* ignore */ } } if (live) setWhoBy(o); };
+  useEffect(() => { if (!printInfo) return; let live = true; const ld = async () => { const o: Record<number, Record<string, string>> = {}; for (const wl of walls) { try { o[wl.id] = (await (printInfo.load ?? ((w: number) => loadPlanMeta(printInfo.id, w)))(wl.id)).who ?? {}; } catch { /* ignore */ } } if (live) setWhoBy(o); };
     ld(); const iv = setInterval(() => { if (!document.hidden) ld(); }, 10000); return () => { live = false; clearInterval(iv); }; }, [printInfo?.id, msg === 'Saved']); // eslint-disable-line react-hooks/exhaustive-deps
   const people = Array.from(new Set(Object.values(whoBy).flatMap(m => Object.values(m)))).sort(), colorOf = Object.fromEntries(people.map((n, i) => [n, PALETTE[i % PALETTE.length]]));
   // No Save button: every change is saved automatically a moment after it is made.
