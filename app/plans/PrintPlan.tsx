@@ -31,8 +31,12 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
       const el = page.current, opt = { pixelRatio: 2, width: 1123, height: 794, style: { transform: 'none', margin: '0' } };
       // Embedding web fonts can stall on phones, so give it a few seconds and then fall back to a render without it. Never hang.
       const tm = <T,>(p: Promise<T>, ms: number) => new Promise<T>((res, rej) => { const t = setTimeout(() => rej(new Error('timeout')), ms); p.then(v => { clearTimeout(t); res(v); }, e => { clearTimeout(t); rej(e); }); });
-      let png = ''; try { png = await tm(toPng(el, opt), 8000); } catch { png = await tm(toPng(el, { ...opt, skipFonts: true, pixelRatio: 1.5 }), 15000); }
-      if (png.length < 5000) png = await tm(toPng(el, { ...opt, skipFonts: true, pixelRatio: 1.5 }), 15000); // Safari sometimes returns a blank first render
+      // Several attempts, because Safari often fails or returns a blank picture on the first try (a known quirk), and font embedding can stall.
+      let png = '', last: any = null;
+      for (const [o2, ms] of [[{}, 8000], [{ skipFonts: true }, 12000], [{ skipFonts: true }, 12000], [{ skipFonts: true, pixelRatio: 1 }, 12000], [{ skipFonts: true, pixelRatio: 1, cacheBust: true }, 12000]] as [any, number][]) {
+        try { const r = await tm(toPng(el, { ...opt, ...o2 }), ms); if (r.length > 5000) { png = r; break; } last = new Error('blank render'); } catch (e) { last = e; }
+        await new Promise(r => setTimeout(r, 250)); }
+      if (!png) throw last ?? new Error('render failed');
       let doc: any;
       if (portrait) { // turn the landscape sheet a quarter turn so it fills an upright A4 page
         const img = await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = png; });
@@ -43,7 +47,7 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
       if (portrait) { setReady(r => { if (r) URL.revokeObjectURL(r.url); return { url: URL.createObjectURL(blob), name, file }; }); }
       else if (share && navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); } catch { /* cancelled */ } }
       else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
-    } catch { setErr('Could not make the PDF. Please try again.'); } finally { setBusy(''); }
+    } catch (e: any) { setErr(`Could not make the PDF. Please try again. (${String(e?.message ?? e?.type ?? e).slice(0, 120)})`); } finally { setBusy(''); }
   }
   const ink = '#111827', mut = '#5b6472';
   const view = (<div className="pv-host" style={{ position: 'fixed', inset: 0, zIndex: 5000, background: '#2b3039', display: 'flex', flexDirection: 'column' }}>
