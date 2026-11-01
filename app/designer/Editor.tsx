@@ -96,6 +96,13 @@ export default function Editor(p: Props) {
     if (!found && !p.allowOverlap) { setMsg('No free space on the canvas.'); return; } // tiles may overlap, so fall back to the corner
     const a: DAsset = { id: rid(), type: pi.type, name: pi.label, ...pos, w, h, props: { ...pi.props } }; apply([...items, a]); setSel([a.id]);
   }
+  // Right-click, or touch and hold, on an asset opens a small menu (Duplicate / Delete)
+  const [ctx, setCtx] = useState<{ x: number; y: number; id: string } | null>(null), hold = useRef<{ t: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
+  const cancelHold = () => { if (hold.current) { clearTimeout(hold.current.t); hold.current = null; } };
+  const openCtx = (id: string, x: number, y: number) => { cancelHold(); if (readOnly) return; if (!sel.includes(id)) setSel([id]); drag.current = null; setCtx({ x: Math.min(x, window.innerWidth - 170), y: Math.min(y, window.innerHeight - 110), id }); };
+  useEffect(() => { if (!ctx) return; const close = (e?: Event) => { if (e && (e.target as HTMLElement)?.closest?.('.dz-ctx')) return; setCtx(null); }, esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtx(null); };
+    document.addEventListener('pointerdown', close, true); document.addEventListener('keydown', esc); window.addEventListener('scroll', () => setCtx(null), true);
+    return () => { document.removeEventListener('pointerdown', close, true); document.removeEventListener('keydown', esc); }; }, [ctx]);
   const remove = () => { if (!sel.length) return; apply(items.filter(a => !sel.includes(a.id))); setSel([]); };
   // Duplicates sit beside the original (to the right); duplicating again carries on in the same line, wrapping below if the row is full.
   const duplicate = () => { const S = items.filter(a => sel.includes(a.id)); if (!S.length) return;
@@ -381,9 +388,13 @@ export default function Editor(p: Props) {
             <button type="button" className="sec small" title="Back to fit the whole canvas" aria-label="Zoom fit" style={{ whiteSpace: "nowrap" }} onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</button>
             <button type="button" className="sec small" title="Zoom in" aria-label="Zoom in" disabled={zoom >= 4} onClick={() => setZoom(Math.min(4, +(zoom + 0.5).toFixed(2)))}>+</button></div></>}
         </div>}
+      {ctx && <div className="dz-ctx" role="menu" style={{ position: 'fixed', left: ctx.x, top: ctx.y, zIndex: 2000 }}>
+        <button type="button" role="menuitem" className="sec" onClick={() => { setCtx(null); duplicate(); }}>⧉ Duplicate</button>
+        <button type="button" role="menuitem" className="del" onClick={() => { const ids = sel.includes(ctx.id) ? sel : [ctx.id]; setCtx(null); apply(items.filter(a => !ids.includes(a.id))); setSel([]); }}>🗑 Delete{sel.length > 1 && sel.includes(ctx.id) ? ` ${sel.length} items` : ''}</button></div>}
       <div className="dz-zoomwrap" ref={wrap} style={z > 1 ? { overflow: 'auto', maxHeight: '78vh', borderRadius: 14 } : undefined}><div style={{ width: `${z * 100}%` }}>
-      <div ref={stage} className={'canvas dz-stage' + (brush ? ' stamping' : '')} data-pan={z > 1 ? '1' : undefined} tabIndex={0} onKeyDown={onKey}         onPointerMove={e => { if (pan.current && wrap.current) { wrap.current.scrollLeft = pan.current.l - (e.clientX - pan.current.x); wrap.current.scrollTop = pan.current.t - (e.clientY - pan.current.y); return; } onMove(e); }}
-        onPointerUp={() => { if (pan.current) { pan.current = null; return; } endDrag(); }} onPointerCancel={() => { if (pan.current) { pan.current = null; return; } endDrag(); }}
+      <div ref={stage} className={'canvas dz-stage' + (brush ? ' stamping' : '')} data-pan={z > 1 ? '1' : undefined} tabIndex={0} onKeyDown={onKey}         onContextMenu={e => { const t = (document.elementsFromPoint(e.clientX, e.clientY).map(x => (x as HTMLElement).closest?.('[data-aid]')).find(Boolean) ?? null) as HTMLElement | null; if (t && !readOnly) { e.preventDefault(); openCtx(t.dataset.aid!, e.clientX, e.clientY); } }}
+        onPointerMove={e => { if (hold.current && Math.hypot(e.clientX - hold.current.x, e.clientY - hold.current.y) > 8) cancelHold(); if (pan.current && wrap.current) { wrap.current.scrollLeft = pan.current.l - (e.clientX - pan.current.x); wrap.current.scrollTop = pan.current.t - (e.clientY - pan.current.y); return; } onMove(e); }}
+        onPointerUp={() => { cancelHold(); if (pan.current) { pan.current = null; return; } endDrag(); }} onPointerCancel={() => { cancelHold(); if (pan.current) { pan.current = null; return; } endDrag(); }}
         onPointerDown={e => {
           if (!(e.target === e.currentTarget || (e.target as HTMLElement).dataset.bg)) return;
           if (p.touch) { p.touch.off(); return; }
@@ -396,7 +407,7 @@ export default function Editor(p: Props) {
         <div data-bg="1" style={viewOnly ? { position: 'absolute', left: -crop.x * px, top: -crop.y * px, width: world.w * px, height: world.h * px } : { position: 'absolute', inset: 0 }}>{p.backdrop}</div>
         {!viewOnly && showGrid && grid * px >= 4 && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'linear-gradient(to right,#ffffff1c 1px,transparent 1px),linear-gradient(to bottom,#ffffff1c 1px,transparent 1px)', backgroundSize: `${grid * px}px ${grid * px}px` }} />}
         {marq && <div className={'dz-marq' + (marq.x1 >= marq.x0 ? '' : ' win')} style={{ left: Math.min(marq.x0, marq.x1) * px, top: Math.min(marq.y0, marq.y1) * px, width: Math.abs(marq.x1 - marq.x0) * px, height: Math.abs(marq.y1 - marq.y0) * px }} />}
-        {items.map(a => (<div key={a.id} className={'dzi' + (drag.current?.pushed && !p.allowOverlap && !free(items, [a]) ? ' bad' : '') + (a.type === 'tally' && a.props?.style === 'border' ? ' ring' : '') + (sel.includes(a.id) ? ' sel' : '')} onPointerDown={e => startMove(e, a)} title={a.name}
+        {items.map(a => (<div key={a.id} className={'dzi' + (drag.current?.pushed && !p.allowOverlap && !free(items, [a]) ? ' bad' : '') + (a.type === 'tally' && a.props?.style === 'border' ? ' ring' : '') + (sel.includes(a.id) ? ' sel' : '')} onPointerDown={e => { startMove(e, a); if (!readOnly && e.pointerType !== 'mouse') { cancelHold(); const x = e.clientX, y = e.clientY; hold.current = { x, y, t: setTimeout(() => openCtx(a.id, x, y), 550) }; } }} data-aid={a.id} title={a.name}
           style={{ left: (a.x - crop.x) * px, top: (a.y - crop.y) * px, width: a.w * px, height: a.h * px }}>{p.renderAsset(a)}
           {sel.length > 1 && sel.includes(a.id) && <span className="dz-ord">{sel.indexOf(a.id) + 1}</span>}
           {!readOnly && sel.length === 1 && sel[0] === a.id && HANDLES.map(h => <span key={h} className={'hdl ' + h} onPointerDown={e => startResize(e, a, h)} />)}</div>))}
