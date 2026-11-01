@@ -5,7 +5,8 @@ import { rows, one } from './db';
 import { requireMe } from './session';
 import { brandedMail } from './brandMail';
 import { mailTemplates as T } from './mailTemplates';
-import { loadInterest } from './interestList';
+import { loadInterest, loadOptouts } from './interestList';
+import { unsubUrl } from './unsub';
 
 import { ROLES, TEST_ADDRESS } from './mailConst';
 const ROLE_LABEL: Record<string, string> = { user: 'All User accounts', manager: 'All Manager accounts', admin: 'All Admin accounts', master_admin: 'All Master admin accounts', webappdev: 'All Site developer accounts', onetime: 'All guest (invited) accounts' };
@@ -41,14 +42,16 @@ export async function mailAction(_: any, f: FormData): Promise<{ msg?: string; e
   if (m.status === 'sent') return { error: 'This email has already been sent. Duplicate it to send again.' };
   const act = String(f.get('act'));
   const subject = String(f.get('subject') ?? '').trim().slice(0, 150), body = String(f.get('body') ?? '').trim().slice(0, 8000);
+  const cat = f.get('category') === 'important' ? 'important' : 'marketing';
   const bl = String(f.get('btn_label') ?? '').trim().slice(0, 60), bu = String(f.get('btn_url') ?? '').trim().slice(0, 500);
   if (bu && !/^https?:\/\//i.test(bu)) return { error: 'The button link must start with https://' };
-  const changed = subject !== m.subject || body !== m.body || bl !== m.btn_label || bu !== m.btn_url;
-  if (changed) await rows("update mail_messages set subject=$2,body=$3,btn_label=$4,btn_url=$5,updated_at=now(),status='draft',tested_at=null,signed_off_at=null,signed_off_by=null where id=$1", [id, subject, body, bl, bu]);
+  const changed = subject !== m.subject || body !== m.body || bl !== m.btn_label || bu !== m.btn_url || cat !== m.category;
+  if (changed) await rows("update mail_messages set subject=$2,body=$3,btn_label=$4,btn_url=$5,category=$6,updated_at=now(),status='draft',tested_at=null,signed_off_at=null,signed_off_by=null where id=$1", [id, subject, body, bl, bu, cat]);
   const cur = changed ? 'draft' : m.status;
   if (act === 'save') { return { msg: changed ? 'Saved. Any earlier test or sign-off was cleared because the email changed.' : 'Saved.' }; }
   if (!subject || !body) return { error: 'Please enter a subject and a message first.' };
-  const t = T.announcement(subject, body, bl && bu ? { label: bl, url: bu } : undefined);
+  const btn = bl && bu ? { label: bl, url: bu } : undefined; const mk = (to: string) => T.announcement(subject, body, btn, cat, unsubUrl(to, cat));
+  const t = mk(TEST_ADDRESS);
   if (act === 'test') {
     const sent = await brandedMail(TEST_ADDRESS, `[Test] ${t.subject}`, t.text, t.b);
     if (!sent) return { error: 'Could not send the test email.' };
@@ -63,13 +66,15 @@ export async function mailAction(_: any, f: FormData): Promise<{ msg?: string; e
     if (cur !== 'signed_off') return { error: 'Sign the email off before sending.' };
     if (f.get('confirm') !== 'yes') return { error: 'Tick the box to confirm.' };
     const to = f.getAll('to').map(String), extra = String(f.get('extra') ?? '');
-    const list = recipients(to, extra); if (!list.length) return { error: 'Choose at least one person or address.' };
+    const all = recipients(to, extra); const outs = new Set((await loadOptouts().catch(() => [])).filter(o => o.category === cat).map(o => String(o.email).toLowerCase()));
+    const list = all.filter(e => !outs.has(e)), skipped = all.length - list.length;
+    if (!list.length) return { error: skipped ? 'Everyone chosen has unsubscribed from this kind of email.' : 'Choose at least one person or address.' };
     // claim the email first so a double click cannot send it twice
     const claim = await one("update mail_messages set status='sending' where id=$1 and status='signed_off' returning id", [id]); if (!claim) return { error: 'Already sending.' };
     const chosen = new Set(list); const labels = (await audienceOptions()).map(o => ({ o, k: o.emails.filter(e => chosen.has(e)).length })).filter(x => x.k).map(x => `${x.o.label} (${x.k === x.o.n ? 'all ' + x.k : x.k + ' of ' + x.o.n})`); if (mails(extra).length) labels.push(`${mails(extra).length} individual address${mails(extra).length === 1 ? '' : 'es'}`);
     let n = 0;
-    for (let i = 0; i < list.length; i += 8) await Promise.all(list.slice(i, i + 8).map(async e => { const s = await brandedMail(e, t.subject, t.text, t.b); if (s) n++; await rows('insert into mail_sends(message_id,email,ok) values($1,$2,$3)', [id, e, s]); }));
-    await rows("update mail_messages set status='sent',sent_at=now(),sent_by=$2,audience=$3,sent_count=$4 where id=$1", [id, me.id, labels.join(', '), n]);
+    for (let i = 0; i < list.length; i += 8) await Promise.all(list.slice(i, i + 8).map(async e => { const tt = mk(e); const s = await brandedMail(e, tt.subject, tt.text, tt.b); if (s) n++; await rows('insert into mail_sends(message_id,email,ok) values($1,$2,$3)', [id, e, s]); }));
+    await rows("update mail_messages set status='sent',sent_at=now(),sent_by=$2,audience=$3,sent_count=$4,skipped=$5 where id=$1", [id, me.id, labels.join(', '), n, skipped]);
     revalidatePath('/mail'); redirect('/mail/' + id);
   }
   return undefined;

@@ -6,9 +6,12 @@ export const mailTemplates = {
   interestThanks: (name: string): Tpl => ({ subject: 'Thank you for your interest in TelePlanner',
     text: `Hi ${name},\n\nThank you for your interest in TelePlanner. We will email you when the site is ready.\n\nTelePlanner.tv`,
     b: { heading: 'Thank you for your interest', lines: [`Hi ${e(name)},`, 'Thank you for your interest in <b>TelePlanner</b>. We will email you when the site is ready.'], small: 'You are receiving this because you registered your interest at teleplanner.tv.' } }),
-  announcement: (subject: string, body: string, btn?: { label: string; url: string }): Tpl => ({ subject,
-    text: `${body}${btn ? `\n\n${btn.label}: ${btn.url}` : ''}\n\nYou are receiving this email from TelePlanner.tv.`,
-    b: { heading: e(subject), lines: body.split(/\n\s*\n/).map(x => e(x.trim()).replace(/\n/g, '<br>')).filter(Boolean), ...(btn ? { button: btn } : {}), small: 'You are receiving this email from TelePlanner.tv.' } }),
+  announcement: (subject: string, body: string, btn: { label: string; url: string } | undefined, cat: 'marketing' | 'important', unsub: string): Tpl => {
+    const noun = cat === 'marketing' ? 'marketing emails' : 'important update emails';
+    return { subject, text: `${body}${btn ? `\n\n${btn.label}: ${btn.url}` : ''}\n\nYou are receiving this ${cat === 'marketing' ? 'marketing' : 'important update'} email from TelePlanner.tv.\nUnsubscribe from ${noun}: ${unsub}`,
+      b: { heading: e(subject), lines: body.split(/\n\s*\n/).map(x => e(x.trim()).replace(/\n/g, '<br>')).filter(Boolean), ...(btn ? { button: btn } : {}),
+        small: `You are receiving this ${cat === 'marketing' ? 'marketing' : 'important update'} email from TelePlanner.tv. <a href="${unsub}" style="color:#777">Unsubscribe from ${noun}</a>` } };
+  },
   signupExists: (url: string): Tpl => ({ subject: 'Someone tried to create a TelePlanner account with your email',
     text: `Someone tried to sign up for TelePlanner with this email address, but you already have an account.\nSign in here: ${url}\nForgot your password? Use "Forgot password" on that page.\n\nIf this was not you, you can ignore this email.`,
     b: { heading: 'You already have a TelePlanner account', lines: ['Someone tried to sign up for TelePlanner with this email address, but you already have an account.', 'Forgot your password? Use <b>Forgot password</b> on the sign-in page.'], button: { label: 'Sign in', url }, small: 'If this was not you, you can ignore this email.' } }),

@@ -1,11 +1,11 @@
 'use client';
 import { useActionState, useRef, useState } from 'react';
 import { mailAction } from '@/lib/mailLib';
-type M = { id: number; subject: string; body: string; btn_label: string; btn_url: string; status: string };
+type M = { id: number; subject: string; body: string; btn_label: string; btn_url: string; status: string; category: string };
 export default function Editor({ m, opts, test }: { m: M; opts: { tok: string; label: string; n: number; emails: string[] }[]; test: string }) {
   const [st, act, pending] = useActionState(mailAction, undefined);
   // controlled fields: React resets uncontrolled forms after an action, which would blank them
-  const [v, setV] = useState({ subject: m.subject, body: m.body, btn_label: m.btn_label, btn_url: m.btn_url });
+  const [v, setV] = useState({ subject: m.subject, body: m.body, btn_label: m.btn_label, btn_url: m.btn_url, category: m.category });
   const bind = (k: keyof typeof v) => ({ name: k, value: v[k], onChange: (e: any) => setV(x => ({ ...x, [k]: e.target.value })) });
   const actRef = useRef<HTMLInputElement>(null); // which button was pressed (the button's own value is not passed to the action)
   const pick = (a: string) => () => { if (actRef.current) actRef.current.value = a; };
@@ -15,6 +15,10 @@ export default function Editor({ m, opts, test }: { m: M; opts: { tok: string; l
   const signed = m.status === 'signed_off';
   return (<form action={act} className="card" style={{ display: 'grid', gap: 10 }}>
     <input type="hidden" name="id" value={m.id} /><input type="hidden" name="act" defaultValue="save" ref={actRef} />
+    <fieldset style={{ border: 0, padding: 0, margin: 0, display: 'grid', gap: 6 }}><legend style={{ padding: 0, marginBottom: 4 }}>This email is</legend>
+      {([['marketing', 'Marketing', 'news, press releases, promotions'], ['important', 'Important update', 'changes people need to know about']] as const).map(([k, l, d]) =>
+        <label key={k} style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="radio" name="category" value={k} checked={v.category === k} onChange={() => setV(x => ({ ...x, category: k }))} style={{ width: 'auto' }} /><span><b>{l}</b> <span className="mut">· {d}</span></span></label>)}
+      <span className="mut">Every email has an unsubscribe link for its kind. People who have unsubscribed from that kind are skipped.</span></fieldset>
     <label>Subject<input {...bind('subject')} maxLength={150} style={{ width: '100%' }} /></label>
     <label>Message (a blank line starts a new paragraph)<textarea {...bind('body')} rows={10} maxLength={8000} style={{ width: '100%' }} /></label>
     <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))' }}>

@@ -4,6 +4,8 @@ import { requireMe, sessionLimits } from '@/lib/session';
 import { setTenantPlan, setTenantStatus, deleteTenant, setUserSuspended, saveSessionSettings, importKaleidoLayouts, tidyStandardLayouts } from '@/lib/actions';
 import { emailOn, mailFrom, baseUrl } from '@/lib/mail';
 import TestEmail from './TestEmail';
+import Link from 'next/link';
+import { loadOptouts } from '@/lib/interestList';
 export const dynamic = 'force-dynamic';
 export default async function SiteAdmin({ searchParams }: { searchParams: Promise<{ q?: string; s?: string; imported?: string; of?: string; tidied?: string }> }) {
   const { q: q0, s: sf, imported, of, tidied } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
@@ -15,6 +17,9 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
     (select min(u.email) from users u where u.tenant_id=t.id and u.role='master_admin') owner from tenants t where ($1='' or t.name ilike '%'||$1||'%' or exists(select 1 from users u where u.tenant_id=t.id and (u.email ilike '%'||$1||'%' or u.name ilike '%'||$1||'%')))
     and ($2='' or t.status=$2) order by t.id desc`, [q.replace(/[%_\\]/g, ''), ['active', 'suspended', 'archived'].includes(sf ?? '') ? sf : '']);
   const found = await rows(`select u.id,u.tenant_id,u.name,u.email,u.role,u.suspended from users u where u.tenant_id is not null and ($1='' or u.email ilike '%'||$1||'%' or u.name ilike '%'||$1||'%') order by u.name limit 500`, [q.replace(/[%_\\]/g, '')]);
+  const emailAddrs = found.map((u: any) => String(u.email).toLowerCase());
+  const sentBy = new Map((await rows('select lower(email) e,count(*)::int n from mail_sends where lower(email)=any($1) group by 1', [emailAddrs])).map((r: any) => [r.e, r.n]));
+  const optBy = new Map<string, string[]>(); try { for (const o of await loadOptouts()) { const k = String(o.email).toLowerCase(); optBy.set(k, [...(optBy.get(k) ?? []), o.category === 'important' ? 'important updates' : 'marketing']); } } catch { /* none */ }
   const ms = await rows(`select t.id,t.name,t.created_at,
     (select max(e.started_at) from login_events e where e.tenant_id=t.id) last_login,
     (select max(e.last_seen_at) from login_events e where e.tenant_id=t.id) last_seen,
@@ -83,7 +88,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
         <summary><b>{t.name}</b> {t.status !== 'active' && <span className={'badge ' + t.status}>{t.status}</span>}
           <span className="mut">{t.owner || 'No owner'} · {t.members} member{t.members === 1 ? '' : 's'} · last login {ago(m.last_login)}</span></summary>
         <div className="mut" style={{ margin: '4px 0 12px' }}>Signed up {day(m.created_at)}</div>
-        {mine.length > 0 && <div className="matches"><b>{q ? 'Matching users' : 'Users'}</b>{mine.map((u: any) => <div key={u.email} className="urow"><span className="mut">{u.name} · {u.email} · {u.role}{u.suspended ? ' · suspended' : ''}</span>
+        {mine.length > 0 && <div className="matches"><b>{q ? 'Matching users' : 'Users'}</b>{mine.map((u: any) => <div key={u.email} className="urow"><span className="mut">{u.name} · {u.email} · {u.role}{u.suspended ? ' · suspended' : ''}</span> <span className="mut">· <Link href={`/mail?q=${encodeURIComponent(String(u.email).toLowerCase())}`}>{sentBy.get(String(u.email).toLowerCase()) ?? 0} email{(sentBy.get(String(u.email).toLowerCase()) ?? 0) === 1 ? '' : 's'}</Link>{optBy.get(String(u.email).toLowerCase()) ? ` · unsubscribed: ${optBy.get(String(u.email).toLowerCase())!.join(', ')}` : ''}</span>
           {u.id !== me.id && u.role !== 'webappdev' && <form action={setUserSuspended}><input type="hidden" name="id" value={u.id} /><input type="hidden" name="suspend" value={u.suspended ? '0' : '1'} /><button className="sec small">{u.suspended ? 'Reactivate' : 'Suspend'}</button></form>}</div>)}</div>}
         <div className="stats">
           <Stat k="Members" v={t.members} /><Stat k="Contacts" v={t.contacts} /><Stat k="Wall Templates" v={t.walls} /><Stat k="Productions" v={m.prods ?? 0} /><Stat k="Jobs" v={m.jobs ?? 0} /><Stat k="Monitor Plans" v={m.plans ?? 0} />

@@ -5,18 +5,20 @@ import { requireMe } from '@/lib/session';
 import { newMail, saveGroup, deleteGroup } from '@/lib/mailLib';
 export const dynamic = 'force-dynamic';
 const ST: Record<string, string> = { draft: 'Draft', tested: 'Tested', signed_off: 'Signed off', sending: 'Sending', sent: 'Sent' };
-export default async function Mail() {
+export default async function Mail({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const q = ((await searchParams).q ?? '').trim().slice(0, 200).toLowerCase();
   const me = await requireMe(); if (me.role !== 'webappdev') redirect('/');
-  const list = await rows('select id,subject,status,updated_at,sent_at,audience,sent_count from mail_messages order by coalesce(sent_at,updated_at) desc limit 300');
+  const list = await rows(`select id,subject,status,category,updated_at,sent_at,audience,sent_count from mail_messages where ($1='' or exists(select 1 from mail_sends s where s.message_id=mail_messages.id and lower(s.email)=$1)) order by coalesce(sent_at,updated_at) desc limit 300`, [q]);
   const groups = await rows('select id,name,emails from mail_groups order by name');
   const d = (x: any) => new Date(x).toISOString().slice(0, 16).replace('T', ' ');
   return (<><h1>Email</h1>
     <p className="mut">Draft press releases, updates and other news. Test it to {'info@teleplanner.tv'}, sign it off, then send it to groups or individuals. Every email is kept here with who it went to.</p>
     <form action={newMail}><button>New email</button></form>
-    <h2>Library</h2>
+    <h2>{q ? `Emails sent to ${q}` : 'Library'}</h2>
+    {q && <p><Link href="/mail">Show everything</Link></p>}
     {list.length === 0 && <p className="mut">No emails yet.</p>}
     {list.map((m: any) => (<Link key={m.id} href={`/mail/${m.id}`} className="card" style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
-      <b>{m.subject || '(no subject)'}</b> <span className="tag">{ST[m.status] ?? m.status}</span>
+      <b>{m.subject || '(no subject)'}</b> <span className="tag">{ST[m.status] ?? m.status}</span> <span className="tag">{m.category === 'important' ? 'Important update' : 'Marketing'}</span>
       <div className="mut">{m.status === 'sent' ? `Sent ${d(m.sent_at)} to ${m.sent_count} · ${m.audience}` : `Edited ${d(m.updated_at)}`}</div></Link>))}
     <h2>Groups</h2>
     <p className="mut">Role groups (all Users, all Admins…) and the registered-interest list are built in. Add your own groups of addresses here.</p>
