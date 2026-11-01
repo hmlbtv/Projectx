@@ -51,10 +51,10 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
   }
   const ink = '#111827', mut = '#5b6472';
   const view = (<div className="pv-host" style={{ position: 'fixed', inset: 0, zIndex: 5000, background: '#2b3039', display: 'flex', flexDirection: 'column' }}>
-    <style>{`@media print{@page{size:A4 portrait;margin:0}html,body{background:#fff!important;overflow:visible!important}body>*:not(.pv-host){display:none!important}.pv-host{position:static!important;background:#fff!important;display:block!important}.pv-bar{display:none!important}.pv-scroll{display:block!important;overflow:visible!important;padding:0!important}.pv-wrap{width:210mm!important;height:297mm!important;position:relative!important;overflow:hidden!important;page-break-after:avoid}.pv-page{position:absolute!important;top:0;left:0;transform-origin:top left!important;transform:translateX(210mm) rotate(90deg)!important;box-shadow:none!important;width:297mm!important;height:210mm!important}.pv-page,.pv-page *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}`}</style>
-    <div className="pv-bar" style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px', background: '#161a21', flex: '0 0 auto', flexWrap: 'wrap' }}>
-      <b style={{ color: '#f4f5f8', flex: 1, minWidth: 120 }}>Print preview · A4 landscape</b>
-      <button type="button" onClick={() => pdf(false, true)} disabled={!meta || !!busy}>{busy === 'print' ? 'Making PDF…' : '🖨 Print'}</button>
+    <style>{`@media print{@page{size:A4 landscape;margin:0}html,body{background:#fff!important;overflow:visible!important}body>*:not(.pv-host){display:none!important}.pv-host{position:static!important;background:#fff!important;display:block!important}.pv-bar{display:none!important}.pv-scroll{display:block!important;overflow:visible!important;padding:0!important}.pv-wrap{width:297mm!important;height:209mm!important;overflow:hidden!important;position:relative!important;page-break-inside:avoid;break-inside:avoid}.pv-page{position:absolute!important;top:0;left:0;transform:none!important;box-shadow:none!important;width:297mm!important;height:209mm!important}.pv-page,.pv-page *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}`}</style>
+    <div className="pv-bar" style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '8px 10px', background: '#161a21', flex: '0 0 auto' }}>
+      <b style={{ color: '#f4f5f8', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Preview · A4</b>
+      <button type="button" onClick={() => window.print()} disabled={!meta}>🖨 Print</button>
       <button type="button" className="sec" style={{ color: '#f4f5f8' }} onClick={() => pdf(false)} disabled={!meta || !!busy}>{busy === 'pdf' ? 'Making PDF…' : '⬇ Save PDF'}</button>
       {canShare && <button type="button" className="sec" style={{ color: '#f4f5f8' }} onClick={() => pdf(true)} disabled={!meta || !!busy}>{busy === 'share' ? 'Making PDF…' : '↗ Share PDF'}</button>}
       <button type="button" className="sec" style={{ color: '#f4f5f8' }} onClick={onClose}>✕ Close</button></div>
@@ -73,7 +73,7 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
             <div><div style={{ fontSize: 12, color: mut }}>{job.bc} \ {job.prod}</div><div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.15 }}>{job.name} · {wl.name}</div>
               {!!job.dates?.length && <div style={{ fontSize: 11.5, color: mut, marginTop: 3, display: 'flex', gap: 14, flexWrap: 'wrap' }}>{job.dates.map(([k, v]) => <span key={k}><b style={{ color: ink }}>{k}</b> {v}</span>)}</div>}</div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', color: ink }}><Logo size={26} /><div style={{ fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: mut, marginTop: 4 }}>Monitor plans for live production</div><div style={{ fontSize: 9.5, color: mut, marginTop: 1 }}>teleplanner.tv</div></div></div>
-          <div style={{ flex: 1, minHeight: 0, border: '1px solid #d5dae1', borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ flex: 1, minHeight: 0, position: 'relative', border: '1px solid #d5dae1', borderRadius: 6, overflow: 'hidden' }}>
             <Wall printView wl={wl} layouts={layouts} cur={cur} srcs={cur?.srcs} readOnly setMon={() => {}} who={who} colors={colors} /></div>
           {total > 0 && <div style={{ flex: '0 0 auto' }}><div style={{ fontSize: 11, fontWeight: 700, margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '.05em', color: mut }}>Sources assigned ({total})</div>
             <div style={{ columnCount: rowsOut.length > 10 ? 4 : 3, columnGap: 18, fontSize: 9.5, lineHeight: 1.35 }}>
