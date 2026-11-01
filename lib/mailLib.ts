@@ -22,17 +22,15 @@ async function resolve(tok: string): Promise<string[]> {
 }
 export async function audienceOptions() {
   await dev();
-  const out: { tok: string; label: string; n: number }[] = [];
-  for (const r of ROLES) out.push({ tok: 'role:' + r, label: ROLE_LABEL[r], n: (await resolve('role:' + r)).length });
-  out.push({ tok: 'interest', label: 'Registered interest (holding page)', n: new Set(await resolve('interest')).size });
-  for (const g of await rows('select id,name,emails from mail_groups order by name')) out.push({ tok: 'group:' + g.id, label: 'Group: ' + g.name, n: mails(g.emails).length });
+  const out: { tok: string; label: string; n: number; emails: string[] }[] = [];
+  const add = (tok: string, label: string, l: string[]) => { const emails = [...new Set(l)].sort(); out.push({ tok, label, n: emails.length, emails }); };
+  for (const r of ROLES) add('role:' + r, ROLE_LABEL[r], await resolve('role:' + r));
+  add('interest', 'Registered interest (holding page)', await resolve('interest'));
+  for (const g of await rows('select id,name,emails from mail_groups order by name')) add('group:' + g.id, 'Group: ' + g.name, mails(g.emails));
   return out;
 }
-async function recipients(aud: string[], extra: string) {
-  const set = new Set<string>(mails(extra));
-  for (const t of aud) for (const e of await resolve(t)) set.add(e);
-  return [...set];
-}
+// The people ticked in the picker (each address individually) plus any typed-in addresses.
+function recipients(to: string[], extra: string) { return [...new Set([...to.map(x => x.trim().toLowerCase()).filter(ok), ...mails(extra)])]; }
 
 export async function newMail() { const me = await dev(); const r = await one("insert into mail_messages(created_by) values($1) returning id", [me.id]); redirect('/mail/' + r.id); }
 
@@ -64,11 +62,11 @@ export async function mailAction(_: any, f: FormData): Promise<{ msg?: string; e
   if (act === 'send') {
     if (cur !== 'signed_off') return { error: 'Sign the email off before sending.' };
     if (f.get('confirm') !== 'yes') return { error: 'Tick the box to confirm.' };
-    const aud = f.getAll('aud').map(String), extra = String(f.get('extra') ?? '');
-    const list = await recipients(aud, extra); if (!list.length) return { error: 'Choose at least one group or address.' };
+    const to = f.getAll('to').map(String), extra = String(f.get('extra') ?? '');
+    const list = recipients(to, extra); if (!list.length) return { error: 'Choose at least one person or address.' };
     // claim the email first so a double click cannot send it twice
     const claim = await one("update mail_messages set status='sending' where id=$1 and status='signed_off' returning id", [id]); if (!claim) return { error: 'Already sending.' };
-    const labels = (await audienceOptions()).filter(o => aud.includes(o.tok)).map(o => o.label); if (mails(extra).length) labels.push(`${mails(extra).length} individual address${mails(extra).length === 1 ? '' : 'es'}`);
+    const chosen = new Set(list); const labels = (await audienceOptions()).map(o => ({ o, k: o.emails.filter(e => chosen.has(e)).length })).filter(x => x.k).map(x => `${x.o.label} (${x.k === x.o.n ? 'all ' + x.k : x.k + ' of ' + x.o.n})`); if (mails(extra).length) labels.push(`${mails(extra).length} individual address${mails(extra).length === 1 ? '' : 'es'}`);
     let n = 0;
     for (let i = 0; i < list.length; i += 8) await Promise.all(list.slice(i, i + 8).map(async e => { const s = await brandedMail(e, t.subject, t.text, t.b); if (s) n++; await rows('insert into mail_sends(message_id,email,ok) values($1,$2,$3)', [id, e, s]); }));
     await rows("update mail_messages set status='sent',sent_at=now(),sent_by=$2,audience=$3,sent_count=$4 where id=$1", [id, me.id, labels.join(', '), n]);
