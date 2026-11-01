@@ -73,11 +73,11 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
             <div><div style={{ fontSize: 12, color: mut }}>{job.bc} \ {job.prod}</div><div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.15 }}>{job.name} · {wl.name}</div>
               {!!job.dates?.length && <div style={{ fontSize: 11.5, color: mut, marginTop: 3, display: 'flex', gap: 14, flexWrap: 'wrap' }}>{job.dates.map(([k, v]) => <span key={k}><b style={{ color: ink }}>{k}</b> {v}</span>)}</div>}</div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', color: ink }}><Logo size={26} /><div style={{ fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: mut, marginTop: 4 }}>Monitor plans for live production</div><div style={{ fontSize: 9.5, color: mut, marginTop: 1 }}>teleplanner.tv</div></div></div>
-          <div style={{ flex: 1, minHeight: 0, position: 'relative', border: '1px solid #d5dae1', borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ flex: '1 1 0', minHeight: 300, position: 'relative', border: '1px solid #d5dae1', borderRadius: 6, overflow: 'hidden' }}>
             <Wall printView wl={wl} layouts={layouts} cur={cur} srcs={cur?.srcs} readOnly setMon={() => {}} who={who} colors={colors} /></div>
           {total > 0 && <div style={{ flex: '0 0 auto' }}><div style={{ fontSize: 11, fontWeight: 700, margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '.05em', color: mut }}>Sources assigned ({total})</div>
-            <div style={{ columnCount: rowsOut.length > 10 ? 4 : 3, columnGap: 18, fontSize: 9.5, lineHeight: 1.35 }}>
-              {rowsOut.map((r: any) => (<div key={r.id} style={{ breakInside: 'avoid', marginBottom: 4 }}><b>{r.name}</b>{r.lay ? <span style={{ color: mut }}> · {r.lay}</span> : null}
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${rowsOut.length > 16 ? 6 : rowsOut.length > 8 ? 5 : 4}, minmax(0, 1fr))`, gap: '4px 14px', fontSize: total > 40 ? 8.5 : 9.5, lineHeight: 1.3, alignItems: 'start' }}>
+              {rowsOut.map((r: any) => (<div key={r.id} style={{ minWidth: 0 }}><b>{r.name}</b>{r.lay ? <span style={{ color: mut }}> · {r.lay}</span> : null}
                 {r.items.map((i: any) => <div key={i.n} style={{ display: 'flex', gap: 5, alignItems: 'baseline' }}><span style={{ width: 8, height: 8, flex: 'none', borderRadius: 2, background: i.by ? colors[i.by] : 'transparent', border: i.by ? 'none' : '1px solid #cbd2db', transform: 'translateY(1px)' }} /><span style={{ color: mut, width: 14 }}>{i.n}</span><span>{i.src}</span></div>)}</div>))}</div></div>}
           {total === 0 && <div style={{ fontSize: 11, color: mut }}>No sources have been assigned to this plan yet.</div>}
           <div style={{ flex: '0 0 auto', borderTop: '1px solid #d5dae1', paddingTop: 6, display: 'grid', gridTemplateColumns: '1.3fr 1.3fr 1fr', gap: 14, fontSize: 9.5, color: mut, lineHeight: 1.4 }}>
