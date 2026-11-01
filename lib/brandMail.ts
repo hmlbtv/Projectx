@@ -3,17 +3,17 @@ import { markPng } from './wallPng';
 
 const esc = (x: string) => x.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
 const font = "font-family:system-ui,-apple-system,'Segoe UI',Arial,sans-serif";
-export type Brand = { heading: string; lines?: string[]; button?: { label: string; url: string }; note?: { text: string; by: string }; small?: string };
+export type Brand = { heading: string; lines?: string[]; button?: { label: string; url: string }; note?: { text: string; by: string }; small?: string; after?: string; images?: { cid: string; png: Buffer }[] };
 
-// The TelePlanner email look (same as the monitor plan invitation): dark header with the mark, red rule, white card, red button.
+// The TelePlanner email look: light header with the blue mark, red rule, white card, red button.
 export async function brandedMailDetailed(to: string, subject: string, text: string, b: Brand) {
-  const mark = await markPng(), images = mark ? [{ cid: 'tpmark', png: mark }] : [];
+  const mark = await markPng(), images = [...(mark ? [{ cid: 'tpmark', png: mark }] : []), ...(b.images ?? [])];
   const html = `<div style="background:#f3f5f8;padding:24px 12px;${font};color:#111">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;border-collapse:collapse">
-<tr><td style="background:#0f1217;border-bottom:3px solid #e5352b;padding:16px 22px;border-radius:12px 12px 0 0">
+<tr><td style="background:#ffffff;border-bottom:3px solid #e5352b;padding:16px 22px;border-radius:12px 12px 0 0">
  <table role="presentation" cellpadding="0" cellspacing="0"><tr>${mark ? '<td style="padding-right:12px"><img src="cid:tpmark" width="40" height="33" alt="" style="display:block"></td>' : ''}
- <td style="color:#fff;font-size:24px;letter-spacing:-0.02em;line-height:1"><b>Tele</b>Planner</td></tr></table>
- <div style="color:#9aa4b2;font-size:11px;letter-spacing:.08em;margin-top:6px">TelePlanner.tv · Monitor plans for live production</div></td></tr>
+ <td style="color:#0f1217;font-size:24px;letter-spacing:-0.02em;line-height:1"><b>Tele</b>Planner</td></tr></table>
+ <div style="color:#5f6978;font-size:11px;letter-spacing:.08em;margin-top:6px">TelePlanner.tv · Monitor plans for live production</div></td></tr>
 <tr><td style="background:#fff;padding:26px 22px;border-radius:0 0 12px 12px">
  <p style="margin:0 0 10px;font-size:20px;font-weight:700;color:#111">${b.heading}</p>
  ${(b.lines ?? []).map(l => `<p style="margin:0 0 10px;font-size:15px;color:#444;line-height:1.5">${l}</p>`).join('')}

@@ -9,6 +9,7 @@ import { allow, clientIp } from './security';
 import { loadJobPlans, saveJobPlans } from './plans';
 import { wallPng, markPng } from './wallPng';
 import { brandedMail, escMail } from './brandMail';
+import { mailTemplates as T } from './mailTemplates';
 import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, sendMail, baseUrl } from './mail';
 import { newToken, sha256, hashPassword, passwordProblem } from './password';
 import type { FormState } from './actions';
@@ -31,7 +32,7 @@ async function createWallLink_(_: FormState, f: FormData): Promise<FormState> {
   await rows('insert into wall_links(job_id,room_wall_id,email,access,token_hash,created_by,contact_id) values($1,$2,$3,$4,$5,$6,$7)', [job, wall, email, access, sha256(token), me.id, contact.id]);
   const link = `${await baseUrl()}/w/${token}`;
   revalidatePath('/productions');
-  const sent = await brandedMail(email, 'A monitor wall has been shared with you', `${me.name} shared a monitor wall with you on TelePlanner (${access === 'edit' ? 'you can edit it' : 'view only'}).\nOpen this link to sign in or create your account:\n${link}\n\nAccess ends when the Job ends.`, { heading: `${escMail(me.name)} shared a monitor wall with you`, lines: [`<b>${access === 'edit' ? 'You can edit it' : 'View only'}</b> on TelePlanner.tv`], button: { label: 'Open the wall', url: link }, small: 'You will sign in or create your account with this email address. Access ends when the Job ends.' });
+  const wt = T.wallShared(me.name, access, link), sent = await brandedMail(email, wt.subject, wt.text, wt.b);
   return { ok: sent ? `Invitation emailed to ${email}.` : `Email sending is not set up. Send this link to ${email}:`, link: sent ? undefined : link };
 }
 async function revokeWallLink_(f: FormData) {
@@ -56,7 +57,7 @@ export async function signUpGuest(_: FormState, f: FormData): Promise<FormState>
   const u = (await one(`insert into users(tenant_id,email,name,role,password_hash,email_verified,verify_hash,verify_expires)
     values(null,$1,$2,'onetime',$3,$4,$5,now() + interval '2 days') returning id`, [link.email, name, await hashPassword(pw), !verify, verify ? sha256(vt) : null]))!;
   if (verify) {
-    if (await (async () => { const u = `${await baseUrl()}/verify/${vt}`; return brandedMail(link.email, 'Verify your TelePlanner account', `Welcome to TelePlanner.\nConfirm your email to open the wall shared with you:\n${u}\n\nThis link expires in 2 days.`, { heading: 'Welcome to TelePlanner', lines: ['Confirm your email address to open the wall shared with you.'], button: { label: 'Confirm my email', url: u }, small: 'This link expires in 2 days.' }); })())
+    const vm = T.verify(`${await baseUrl()}/verify/${vt}`, true); if (await brandedMail(link.email, vm.subject, vm.text, vm.b))
       return { ok: `We sent a verification link to ${link.email}. Open it to finish creating your account.` };
     await rows('delete from users where id=$1', [u.id]); // never let an unverified address in
     return { error: 'We could not send the verification email, so the account was not created. Please try again, or ask the person who invited you for help.' };
@@ -100,7 +101,7 @@ async function reassignWallLink_(_: FormState, f: FormData): Promise<FormState> 
   const token = newToken();
   await rows('update wall_links set email=$1, contact_id=$2, token_hash=$3 where id=$4', [contact.email, contact.id, sha256(token), wl.id]);
   const link = `${await baseUrl()}/w/${token}`; revalidatePath('/productions');
-  const sent = await brandedMail(contact.email, 'A monitor wall has been shared with you', `${me.name} shared a monitor wall with you on TelePlanner (${wl.access === 'edit' ? 'you can edit it' : 'view only'}).\nOpen this link to sign in or create your account:\n${link}\n\nAccess ends when the Job ends.`, { heading: `${escMail(me.name)} shared a monitor wall with you`, lines: [`<b>${wl.access === 'edit' ? 'You can edit it' : 'View only'}</b> on TelePlanner.tv`], button: { label: 'Open the wall', url: link }, small: 'You will sign in or create your account with this email address. Access ends when the Job ends.' });
+  const wt = T.wallShared(me.name, wl.access, link), sent = await brandedMail(contact.email, wt.subject, wt.text, wt.b);
   return { ok: sent ? `New link emailed to ${contact.email}. The previous link no longer works.` : `Email sending is not set up. Send this new link to ${contact.email} (the previous link no longer works):`, link: sent ? undefined : link };
 }
 
@@ -113,30 +114,13 @@ const wallsOf = async (job: number, ids: number[]) => ids.length ? (await rows('
 const ids = (f: FormData) => Array.from(new Set(f.getAll('wall').map(x => Number(x)).filter(n => Number.isInteger(n) && n > 0)));
 // The invitation / update email: branded HTML with wall pictures, plus a plain-text version. Returns whether it was sent.
 async function sendInviteMail(me: Me, email: string, link: string, walls: number[], access: string, note: string, updated: boolean): Promise<boolean> {
-  const who = access === 'edit' ? 'you can edit' : 'view only', many = walls.length === 1 ? '' : 's';
-  const text = `${updated ? `${me.name} updated your access on TelePlanner.tv. You now have ${walls.length} monitor wall${many} (${access === 'edit' ? 'you can edit' : 'view only'}).` : `${me.name} shared ${walls.length} monitor wall${many} with you on TelePlanner.tv (${who}).`}\nOpen this link to sign in or create your account:\n${link}${note ? `\n\n${me.name} wrote:\n${note}` : ''}\n\nThe account is tied to this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.`;
+  const t = T.planInvite(me.name, access, walls.length, link, note, updated);
   // Pictures of the walls they were invited to, shown under the button.
   const shown = await rows('select rw.id, rw.name, wt.data from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id where rw.id = any($1::int[]) order by rw.id limit 6', [walls]);
-  const esc = (x: string) => x.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
   const images: { cid: string; png: Buffer }[] = [];
-  const mark = await markPng(); if (mark) images.push({ cid: 'tpmark', png: mark });
   for (const w of shown) { const png = await wallPng(Array.isArray(w.data?.assets) ? w.data.assets : [], 480, me.tenant_id); if (png) images.push({ cid: `wall${w.id}`, png }); }
-  const font = "font-family:system-ui,-apple-system,'Segoe UI',Arial,sans-serif";
-  const html = `<div style="background:#f3f5f8;padding:24px 12px;${font};color:#111">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;border-collapse:collapse">
-<tr><td style="background:#0f1217;border-bottom:3px solid #e5352b;padding:16px 22px;border-radius:12px 12px 0 0">
- <table role="presentation" cellpadding="0" cellspacing="0"><tr>${mark ? '<td style="padding-right:12px"><img src="cid:tpmark" width="40" height="33" alt="" style="display:block"></td>' : ''}
- <td style="color:#fff;font-size:24px;letter-spacing:-0.02em;line-height:1"><b>Tele</b>Planner</td></tr></table>
- <div style="color:#9aa4b2;font-size:11px;letter-spacing:.08em;margin-top:6px">TelePlanner.tv · Monitor plans for live production</div></td></tr>
-<tr><td style="background:#fff;padding:26px 22px;border-radius:0 0 12px 12px">
- <p style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111">${updated ? `${esc(me.name)} updated your access on <b>TelePlanner.tv</b></p><p style="margin:0;font-size:15px;color:#444">You now have ${walls.length === 1 ? 'a monitor wall' : `${walls.length} monitor walls`} · <b>${access === 'edit' ? 'you can edit' : 'view only'}</b></p>` : `${esc(me.name)} shared ${walls.length === 1 ? 'a monitor wall' : `${walls.length} monitor walls`} with you on <b>TelePlanner.tv</b></p>`}
- <div style="height:14px;line-height:14px">&nbsp;</div>
- ${note ? `<div style="margin:0 0 20px;padding:12px 14px;background:#f3f5f8;border-left:3px solid #e5352b;border-radius:4px;font-size:15px;color:#222;white-space:pre-wrap">${esc(note).replace(/\n/g, '<br>')}<div style="margin-top:8px;font-size:12px;color:#777">— ${esc(me.name)}</div></div>` : ''}
- <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 8px"><tr><td style="background:#e5352b;border-radius:8px"><a href="${link}" style="display:inline-block;padding:13px 26px;color:#fff;font-size:16px;font-weight:700;text-decoration:none;${font}">Open my Monitor Plans</a></td></tr></table>
- <p style="margin:0 0 18px;color:#777;font-size:12px">Button not working? Copy this link into your browser:<br><a href="${link}" style="color:#777;word-break:break-all">${link}</a></p>
- ${shown.map((w: any) => `<p style="margin:16px 0 6px;font-size:15px"><b>${esc(String(w.name))}</b></p>${images.some(i => i.cid === `wall${w.id}`) ? `<img src="cid:wall${w.id}" alt="${esc(String(w.name))}" width="556" style="max-width:100%;height:auto;border-radius:8px;display:block">` : ''}`).join('')}
- <p style="margin:22px 0 0;color:#777;font-size:12px;border-top:1px solid #e5e7eb;padding-top:14px">You will sign in or create your account with this email address. Everything shared with you appears in one place after you sign in. Access ends when the Job ends.</p></td></tr></table></div>`;
-  return await sendMail(email, updated ? 'Your monitor plan access has been updated on TelePlanner.tv' : 'Monitor plans have been shared with you on TelePlanner.tv', text, { html, images });
+  const after = shown.map((w: any) => `<p style="margin:16px 0 6px;font-size:15px"><b>${escMail(String(w.name))}</b></p>${images.some(i => i.cid === `wall${w.id}`) ? `<img src="cid:wall${w.id}" alt="${escMail(String(w.name))}" width="556" style="max-width:100%;height:auto;border-radius:8px;display:block">` : ''}`).join('');
+  return await brandedMail(email, t.subject, t.text, { ...t.b, after, images });
 }
 async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
   const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
