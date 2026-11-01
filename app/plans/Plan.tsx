@@ -13,14 +13,24 @@ type Data = Record<string, { layoutId?: number; assign: Record<string, string>; 
 
 const isScreen = (t: string) => /^(mon|monitor|bvm|pvm)/.test(t);
 // One MV layout drawn inside a monitor: clear numbered windows, each carrying the name of the destination it takes.
+// Biggest text that fits a box: tries 1-4 lines (wrapping on spaces) and keeps whichever gives the largest size.
+function fitText(text: string, w: number, h: number, cw = 0.68, lh = 1.15, max = 400): { lines: string[]; size: number } {
+  const words = text.trim().split(/\s+/).filter(Boolean); let best = { lines: [text], size: Math.min(max, w / Math.max(1, text.length * cw), h / lh) };
+  for (let n = 2; n <= Math.min(4, words.length); n++) {
+    const tot = words.join(' ').length, tgt = tot / n; const lines: string[] = []; let cur = '';
+    for (const wd of words) { if (cur && (cur + ' ' + wd).length > tgt && lines.length < n - 1) { lines.push(cur); cur = wd; } else cur = cur ? cur + ' ' + wd : wd; } lines.push(cur);
+    const size = Math.min(max, w / Math.max(1, Math.max(...lines.map(l => l.length)) * cw), h / (lines.length * lh));
+    if (size > best.size * 1.05) best = { lines, size }; }
+  return best;
+}
 function LayoutPic({ lay, names, picks, big, pos }: { lay: Layout; names?: string[]; picks?: Record<string, string>; big?: boolean; pos?: { x: number; y: number; w: number; h: number } }) {
   return (<svg viewBox="0 0 1920 1080" {...(pos ? { x: pos.x, y: pos.y, width: pos.w, height: pos.h, preserveAspectRatio: 'xMidYMid meet' } : { width: '100%' })} style={pos ? undefined : { display: 'block', background: '#0b0f14', borderRadius: big ? 8 : 0 }}>
     <rect width="1920" height="1080" fill="#0b0f14" />
     {lay.tiles.map(t => { const one = lay.tiles.length === 1, nm = names?.[t.n - 1], bs = Math.max(34, Math.min(one ? 170 : 120, t.h / 3.2)), bw = bs * (t.n > 9 ? 1.6 : 1.25);
       return (<g key={t.n}><rect x={t.x + 5} y={t.y + 5} width={t.w - 10} height={t.h - 10} fill="#1d3557" stroke="#cbd5e1" strokeWidth="6" />
         <rect x={t.x + 5} y={t.y + 5} width={bw} height={bs} fill="#e5352b" /><text x={t.x + 5 + bw / 2} y={t.y + 5 + bs / 2} fill="#fff" fontSize={bs * 0.72} fontWeight="800" textAnchor="middle" dominantBaseline="central" fontFamily="system-ui,sans-serif">{t.n}</text>
-        {picks?.[t.n] && <text x={t.x + t.w / 2} y={t.y + t.h / 2 + bs * 0.35} fill="#7dffb0" fontSize={Math.max(34, Math.min(one ? 210 : 120, (t.w - 40) / Math.max(5, picks[t.n].length * 0.6)))} fontWeight="800" textAnchor="middle" dominantBaseline="central" fontFamily="system-ui,sans-serif">{picks[t.n]}</text>}
-        {nm && <text x={t.x + t.w / 2} y={picks?.[t.n] ? t.y + bs * 1.5 : t.y + t.h / 2 + bs * 0.3} opacity={picks?.[t.n] ? 0.7 : 1} fill="#fff" fontSize={Math.max(30, Math.min(one ? 170 : 96, (t.w - 40) / Math.max(5, nm.length * 0.6)))} fontWeight="700" textAnchor="middle" dominantBaseline="central" fontFamily="system-ui,sans-serif">{nm}</text>}</g>); })}</svg>);
+        {picks?.[t.n] && (() => { const f = fitText(picks[t.n], t.w - 52, t.h - bs - 24), cy = t.y + bs * 0.5 + t.h / 2 - 4; return <text x={t.x + t.w / 2} y={cy - (f.lines.length - 1) * f.size * 0.575} fill="#7dffb0" fontSize={f.size} fontWeight="800" textAnchor="middle" dominantBaseline="central" fontFamily="system-ui,sans-serif">{f.lines.map((l, i) => <tspan key={i} x={t.x + t.w / 2} dy={i ? f.size * 1.15 : 0}>{l}</tspan>)}</text>; })()}
+        {nm && (() => { const has = !!picks?.[t.n], f = has ? fitText(nm, t.w - 52, Math.max(24, bs * 0.9), 0.68, 1.1, 60) : fitText(nm, t.w - 52, t.h - bs - 24); return <text x={t.x + t.w / 2} y={has ? t.y + bs * 1.45 : t.y + bs * 0.5 + t.h / 2 - 4 - (f.lines.length - 1) * f.size * 0.55} opacity={has ? 0.7 : 1} fill="#fff" fontSize={f.size} fontWeight="700" textAnchor="middle" dominantBaseline="central" fontFamily="system-ui,sans-serif">{f.lines.map((l, i) => <tspan key={i} x={t.x + t.w / 2} dy={i ? f.size * 1.1 : 0}>{l}</tspan>)}</text>; })()}</g>); })}</svg>);
 }
 // The wall as saved in its Wall Template, locked. "Layout" lets you tap a monitor and choose which of its MV layouts it shows; "View" shows the wall full screen (turned to landscape on a phone).
 // Phones can stay zoomed out / stuck at the old width after full screen ends or the phone is turned. Nudging the viewport makes the browser lay the page out again at the true width.
