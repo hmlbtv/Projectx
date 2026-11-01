@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Logo } from '../Logo';
 import { loadPlanMeta } from '@/lib/actions';
 
 type Meta = { version: number; updatedAt: string | null; updatedBy: string; who: Record<string, string>; printedBy: string; now: string };
@@ -9,7 +10,7 @@ const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-GB',
 const isScreen = (t: string) => /^(mon|monitor|bvm|pvm)/.test(t);
 
 // Full-screen print preview of one wall's Monitor Plan on A4 landscape, with a source list, colour key and footer.
-export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wall: any; wl: any; layouts: any[]; cur: any; job: { id: number; bc: string; prod: string; name: string }; onClose: () => void }) {
+export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wall: any; wl: any; layouts: any[]; cur: any; job: { id: number; bc: string; prod: string; name: string; dates?: [string, string][] }; onClose: () => void }) {
   const [meta, setMeta] = useState<Meta | null>(null), [err, setErr] = useState(''), [busy, setBusy] = useState(''), [scale, setScale] = useState(0.5), page = useRef<HTMLDivElement>(null), [canShare, setCanShare] = useState(false);
   useEffect(() => { loadPlanMeta(job.id, wl.id).then(setMeta).catch(() => setErr('Could not load the plan details.')); }, [job.id, wl.id]);
   useEffect(() => { const f = () => setScale(Math.max(0.2, Math.min((window.innerWidth - 16) / 1123, (window.innerHeight - 80) / 794))); f(); window.addEventListener('resize', f); const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => { window.removeEventListener('resize', f); window.removeEventListener('keydown', k); }; }, [onClose]);
@@ -47,9 +48,10 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
     <div className="pv-scroll" style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: 8 }}>
       <div className="pv-wrap" style={{ width: 1123 * scale, height: 794 * scale, flex: '0 0 auto' }}>
         <div ref={page} className="pv-page" style={{ width: 1123, height: 794, transform: `scale(${scale})`, transformOrigin: 'top left', background: '#fff', color: ink, boxShadow: '0 10px 40px rgba(0,0,0,.5)', boxSizing: 'border-box', padding: '26px 30px 20px', display: 'flex', flexDirection: 'column', gap: 10, fontFamily: "'Space Grotesk Variable', system-ui, sans-serif", overflow: 'hidden' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, borderBottom: '3px solid #e5352b', paddingBottom: 8 }}>
-            <div><div style={{ fontSize: 12, color: mut }}>{job.bc} \ {job.prod}</div><div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.15 }}>{job.name} · {wl.name}</div></div>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>Tele<span style={{ fontWeight: 400 }}>Planner</span></div></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, borderBottom: '3px solid #e5352b', paddingBottom: 8 }}>
+            <div><div style={{ fontSize: 12, color: mut }}>{job.bc} \ {job.prod}</div><div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.15 }}>{job.name} · {wl.name}</div>
+              {!!job.dates?.length && <div style={{ fontSize: 11.5, color: mut, marginTop: 3, display: 'flex', gap: 14, flexWrap: 'wrap' }}>{job.dates.map(([k, v]) => <span key={k}><b style={{ color: ink }}>{k}</b> {v}</span>)}</div>}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', color: ink }}><Logo size={26} /><div style={{ fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: mut, marginTop: 4 }}>Monitor plans for live production</div><div style={{ fontSize: 9.5, color: mut, marginTop: 1 }}>teleplanner.tv</div></div></div>
           <div style={{ flex: 1, minHeight: 0, border: '1px solid #d5dae1', borderRadius: 6, overflow: 'hidden' }}>
             <Wall printView wl={wl} layouts={layouts} cur={cur} srcs={cur?.srcs} readOnly setMon={() => {}} who={who} colors={colors} /></div>
           {total > 0 && <div style={{ flex: '0 0 auto' }}><div style={{ fontSize: 11, fontWeight: 700, margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '.05em', color: mut }}>Sources assigned ({total})</div>
