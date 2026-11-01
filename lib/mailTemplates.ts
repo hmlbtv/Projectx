@@ -3,6 +3,12 @@ import { escMail as e, type Brand } from './brandMail';
 // Every email the site sends is defined here, so they all share one look (see brandMail.ts) and wording lives in one place.
 export type Tpl = { subject: string; text: string; b: Brand };
 export const mailTemplates = {
+  interestThanks: (name: string): Tpl => ({ subject: 'Thank you for your interest in TelePlanner',
+    text: `Hi ${name},\n\nThank you for your interest in TelePlanner. We will email you when the site is ready.\n\nTelePlanner.tv`,
+    b: { heading: 'Thank you for your interest', lines: [`Hi ${e(name)},`, 'Thank you for your interest in <b>TelePlanner</b>. We will email you when the site is ready.'], small: 'You are receiving this because you registered your interest at teleplanner.tv.' } }),
+  interestBroadcast: (subject: string, body: string): Tpl => ({ subject,
+    text: `${body}\n\nYou are receiving this because you registered your interest at teleplanner.tv.`,
+    b: { heading: e(subject), lines: body.split(/\n\s*\n/).map(x => e(x.trim()).replace(/\n/g, '<br>')).filter(Boolean), small: 'You are receiving this because you registered your interest at teleplanner.tv.' } }),
   signupExists: (url: string): Tpl => ({ subject: 'Someone tried to create a TelePlanner account with your email',
     text: `Someone tried to sign up for TelePlanner with this email address, but you already have an account.\nSign in here: ${url}\nForgot your password? Use "Forgot password" on that page.\n\nIf this was not you, you can ignore this email.`,
     b: { heading: 'You already have a TelePlanner account', lines: ['Someone tried to sign up for TelePlanner with this email address, but you already have an account.', 'Forgot your password? Use <b>Forgot password</b> on the sign-in page.'], button: { label: 'Sign in', url }, small: 'If this was not you, you can ignore this email.' } }),
