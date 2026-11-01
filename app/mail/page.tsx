@@ -2,10 +2,12 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
 import { requireMe } from '@/lib/session';
-import { newMail, saveGroup, deleteGroup } from '@/lib/mailLib';
+import { newMail, deleteGroup } from '@/lib/mailLib';
+import { loadInterest } from '@/lib/interestList';
+import GroupEditor from './GroupEditor';
 export const dynamic = 'force-dynamic';
 const ST: Record<string, string> = { draft: 'Draft', tested: 'Tested', signed_off: 'Signed off', sending: 'Sending', sent: 'Sent' };
-type SP = { q?: string; status?: string; cat?: string; from?: string; to?: string };
+type SP = { edit?: string; q?: string; status?: string; cat?: string; from?: string; to?: string };
 export default async function Mail({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams; const q = (sp.q ?? '').trim().slice(0, 200).toLowerCase().replace(/[%_\\]/g, '');
   const status = ['draft', 'tested', 'signed_off', 'sent'].includes(sp.status ?? '') ? sp.status! : '', cat = ['marketing', 'important'].includes(sp.cat ?? '') ? sp.cat! : '';
@@ -19,6 +21,12 @@ export default async function Mail({ searchParams }: { searchParams: Promise<SP>
     order by coalesce(m.sent_at,m.updated_at) desc limit 300`, [q, status, cat, from, to]);
   const filtered = !!(q || status || cat || from || to);
   const groups = await rows('select id,name,emails from mail_groups order by name');
+  // Everyone the group picker can offer: registered users here, plus the registered-interest list.
+  const kn = new Map<string, { email: string; name: string; src: string }>();
+  for (const u of await rows('select email,name,role from users order by email limit 5000')) kn.set(String(u.email).toLowerCase(), { email: String(u.email).toLowerCase(), name: u.name, src: 'Registered ' + u.role });
+  try { for (const i of (await loadInterest()).list) { const e = String(i.email).toLowerCase(), o = kn.get(e); if (o) o.src += ' + Interest'; else kn.set(e, { email: e, name: i.name, src: 'Interest' }); } } catch { /* interest list unavailable */ }
+  const known = [...kn.values()].sort((a, b) => a.email.localeCompare(b.email));
+  const edit = groups.find((g: any) => String(g.id) === sp.edit);
   const d = (x: any) => new Date(x).toISOString().slice(0, 16).replace('T', ' ');
   return (<><h1>Email</h1>
     <p className="mut">Draft press releases, updates and other news. Test it to {'info@teleplanner.tv'}, sign it off, then send it to groups or individuals. Every email is kept here with who it went to.</p>
@@ -39,9 +47,6 @@ export default async function Mail({ searchParams }: { searchParams: Promise<SP>
     <h2>Groups</h2>
     <p className="mut">Role groups (all Users, all Admins…) and the registered-interest list are built in. Add your own groups of addresses here.</p>
     {groups.map((g: any) => (<div key={g.id} className="card"><b>{g.name}</b> <span className="mut">· {String(g.emails).split('\n').filter(Boolean).length} addresses</span>
-      <form action={deleteGroup} style={{ display: 'inline', marginLeft: 8 }}><input type="hidden" name="id" value={g.id} /><button className="sec">Delete</button></form></div>))}
-    <form action={saveGroup} className="card" style={{ display: 'grid', gap: 8 }}><b>Add or replace a group</b>
-      <label>Group name<input name="name" required maxLength={80} style={{ width: '100%' }} /></label>
-      <label>Email addresses (one per line, or separated by commas)<textarea name="emails" rows={4} style={{ width: '100%' }} /></label>
-      <button className="sec">Save group</button></form></>);
+      <Link href={`/mail?edit=${g.id}`} style={{ marginLeft: 8 }}>Edit</Link><form action={deleteGroup} style={{ display: 'inline', marginLeft: 8 }}><input type="hidden" name="id" value={g.id} /><button className="sec">Delete</button></form></div>))}
+    <GroupEditor key={edit?.id ?? 'new'} known={known} id={edit?.id} name={edit?.name} emails={edit ? String(edit.emails).split('\n').filter(Boolean) : []} /></>);
 }

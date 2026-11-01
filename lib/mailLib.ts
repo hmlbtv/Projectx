@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { rows, one } from './db';
 import { requireMe } from './session';
-import { brandedMail } from './brandMail';
+import { brandedMail, renderBrandedHtml } from './brandMail';
 import { mailTemplates as T } from './mailTemplates';
 import { loadInterest, loadOptouts } from './interestList';
 import { unsubUrl } from './unsub';
@@ -41,14 +41,14 @@ export async function mailAction(_: any, f: FormData): Promise<{ msg?: string; e
   const m = await one('select * from mail_messages where id=$1', [id]); if (!m) return { error: 'Email not found.' };
   if (m.status === 'sent') return { error: 'This email has already been sent. Duplicate it to send again.' };
   const act = String(f.get('act'));
-  const subject = String(f.get('subject') ?? '').trim().slice(0, 150), body = String(f.get('body') ?? '').trim().slice(0, 8000);
+  const subject = String(f.get('subject') ?? '').trim().slice(0, 150), body = String(f.get('body') ?? '').replace(/\r\n/g, '\n').trim().slice(0, 8000);
   const cat = f.get('category') === 'important' ? 'important' : 'marketing';
   const bl = String(f.get('btn_label') ?? '').trim().slice(0, 60), bu = String(f.get('btn_url') ?? '').trim().slice(0, 500);
   if (bu && !/^https?:\/\//i.test(bu)) return { error: 'The button link must start with https://' };
   const changed = subject !== m.subject || body !== m.body || bl !== m.btn_label || bu !== m.btn_url || cat !== m.category;
   if (changed) await rows("update mail_messages set subject=$2,body=$3,btn_label=$4,btn_url=$5,category=$6,updated_at=now(),status='draft',tested_at=null,signed_off_at=null,signed_off_by=null where id=$1", [id, subject, body, bl, bu, cat]);
   const cur = changed ? 'draft' : m.status;
-  if (act === 'save') { return { msg: changed ? 'Saved. Any earlier test or sign-off was cleared because the email changed.' : 'Saved.' }; }
+  if (act === 'save') { revalidatePath('/mail/' + id); return { msg: changed ? 'Saved. Any earlier test or sign-off was cleared because the email changed.' : 'Saved.' }; }
   if (!subject || !body) return { error: 'Please enter a subject and a message first.' };
   const btn = bl && bu ? { label: bl, url: bu } : undefined; const mk = (to: string) => T.announcement(subject, body, btn, cat, unsubUrl(to, cat));
   const t = mk(TEST_ADDRESS);
@@ -74,7 +74,7 @@ export async function mailAction(_: any, f: FormData): Promise<{ msg?: string; e
     const chosen = new Set(list); const labels = (await audienceOptions()).map(o => ({ o, k: o.emails.filter(e => chosen.has(e)).length })).filter(x => x.k).map(x => `${x.o.label} (${x.k === x.o.n ? 'all ' + x.k : x.k + ' of ' + x.o.n})`); if (mails(extra).length) labels.push(`${mails(extra).length} individual address${mails(extra).length === 1 ? '' : 'es'}`);
     let n = 0;
     for (let i = 0; i < list.length; i += 8) await Promise.all(list.slice(i, i + 8).map(async e => { const tt = mk(e); const s = await brandedMail(e, tt.subject, tt.text, tt.b); if (s) n++; await rows('insert into mail_sends(message_id,email,ok) values($1,$2,$3)', [id, e, s]); }));
-    await rows("update mail_messages set status='sent',sent_at=now(),sent_by=$2,audience=$3,sent_count=$4,skipped=$5 where id=$1", [id, me.id, labels.join(', '), n, skipped]);
+    await rows("update mail_messages set status='sent',sent_at=now(),sent_by=$2,audience=$3,sent_count=$4,skipped=$5,sent_html=$6 where id=$1", [id, me.id, labels.join(', '), n, skipped, renderBrandedHtml(mk(list[0]).b)]);
     revalidatePath('/mail'); redirect('/mail/' + id);
   }
   return undefined;
@@ -83,5 +83,8 @@ export async function duplicateMail(f: FormData) { const me = await dev(); const
   const r = await one('insert into mail_messages(subject,body,btn_label,btn_url,created_by) values($1,$2,$3,$4,$5) returning id', [m.subject, m.body, m.btn_label, m.btn_url, me.id]); redirect('/mail/' + r.id); }
 export async function deleteDraft(f: FormData) { await dev(); await rows("delete from mail_messages where id=$1 and status<>'sent'", [Number(f.get('id'))]); redirect('/mail'); }
 export async function saveGroup(f: FormData) { await dev(); const name = String(f.get('name') ?? '').trim().slice(0, 80); if (!name) return;
-  await rows('insert into mail_groups(name,emails) values($1,$2) on conflict(name) do update set emails=excluded.emails', [name, mails(String(f.get('emails') ?? '')).join('\n')]); revalidatePath('/mail'); }
+  const emails = mails(String(f.get('emails') ?? '')).join('\n'), id = Number(f.get('id')) || 0;
+  if (id) await rows('update mail_groups set name=$2,emails=$3 where id=$1', [id, name, emails]).catch(() => {});
+  else await rows('insert into mail_groups(name,emails) values($1,$2) on conflict(name) do update set emails=excluded.emails', [name, emails]);
+  revalidatePath('/mail'); redirect('/mail'); }
 export async function deleteGroup(f: FormData) { await dev(); await rows('delete from mail_groups where id=$1', [Number(f.get('id'))]); revalidatePath('/mail'); }

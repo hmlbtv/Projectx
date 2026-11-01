@@ -75,6 +75,7 @@ create table if not exists mail_messages(id serial primary key, subject text not
 create table if not exists mail_groups(id serial primary key, name text not null unique, emails text not null default '');
 create table if not exists mail_sends(id bigserial primary key, message_id int not null references mail_messages(id) on delete cascade, email text not null, ok boolean not null, at timestamptz not null default now());
 alter table mail_messages add column if not exists category text not null default 'marketing';
+alter table mail_messages add column if not exists sent_html text;
 alter table mail_messages add column if not exists skipped int not null default 0;
 create table if not exists mail_optout(email text not null, category text not null, at timestamptz not null default now(), message_id int, primary key(email, category));
 create table if not exists interest(id serial primary key, name text not null, company text not null default '', email text not null, comment text not null default '', created_at timestamptz not null default now());
