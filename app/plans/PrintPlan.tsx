@@ -11,7 +11,7 @@ const isScreen = (t: string) => /^(mon|monitor|bvm|pvm)/.test(t);
 
 // Full-screen print preview of one wall's Monitor Plan on A4 landscape, with a source list, colour key and footer.
 export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wall: any; wl: any; layouts: any[]; cur: any; job: { id: number; bc: string; prod: string; name: string; dates?: [string, string][] }; onClose: () => void }) {
-  const [meta, setMeta] = useState<Meta | null>(null), [err, setErr] = useState(''), [busy, setBusy] = useState(''), [scale, setScale] = useState(0.5), page = useRef<HTMLDivElement>(null), [canShare, setCanShare] = useState(false);
+  const [meta, setMeta] = useState<Meta | null>(null), [err, setErr] = useState(''), [busy, setBusy] = useState(''), [scale, setScale] = useState(0.5), page = useRef<HTMLDivElement>(null), [canShare, setCanShare] = useState(false), [ready, setReady] = useState<{ url: string; name: string; file: File } | null>(null);
   useEffect(() => { loadPlanMeta(job.id, wl.id).then(setMeta).catch(() => setErr('Could not load the plan details.')); }, [job.id, wl.id]);
   useEffect(() => { const f = () => setScale(Math.max(0.2, Math.min((window.innerWidth - 16) / 1123, (window.innerHeight - 80) / 794))); f(); window.addEventListener('resize', f); const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => { window.removeEventListener('resize', f); window.removeEventListener('keydown', k); }; }, [onClose]);
   useEffect(() => { try { setCanShare(!!navigator.canShare && navigator.canShare({ files: [new File([''], 'a.pdf', { type: 'application/pdf' })] })); } catch { setCanShare(false); } }, []);
@@ -27,8 +27,6 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
 
   async function pdf(share: boolean, portrait = false) {
     if (!page.current) return; setBusy(portrait ? 'print' : share ? 'share' : 'pdf');
-    // Print opens the PDF in a new tab (the phone's own viewer has working print and share). The tab has to be opened now, inside the tap.
-    const win = portrait ? window.open('', '_blank') : null;
     try { const [{ toPng }, { jsPDF }] = await Promise.all([import('html-to-image'), import('jspdf')]);
       const el = page.current, opt = { pixelRatio: 2, width: 1123, height: 794, style: { transform: 'none', margin: '0' } };
       // Embedding web fonts can stall on phones, so give it a few seconds and then fall back to a render without it. Never hang.
@@ -42,10 +40,10 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
         doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' }); doc.addImage(cv.toDataURL('image/png'), 'PNG', 0, 0, 210, 297);
       } else { doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' }); doc.addImage(png, 'PNG', 0, 0, 297, 210); }
       const name = `${job.prod} - ${wl.name} v${meta?.version ?? 0}.pdf`.replace(/[\\/:*?"<>|]/g, ' '), blob = doc.output('blob'), file = new File([blob], name, { type: 'application/pdf' });
-      if (portrait) { const u = URL.createObjectURL(blob); if (win) win.location.href = u; else window.location.href = u; }
+      if (portrait) { setReady(r => { if (r) URL.revokeObjectURL(r.url); return { url: URL.createObjectURL(blob), name, file }; }); }
       else if (share && navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); } catch { /* cancelled */ } }
       else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
-    } catch { win?.close(); setErr('Could not make the PDF. Please try again.'); } finally { setBusy(''); }
+    } catch { setErr('Could not make the PDF. Please try again.'); } finally { setBusy(''); }
   }
   const ink = '#111827', mut = '#5b6472';
   const view = (<div className="pv-host" style={{ position: 'fixed', inset: 0, zIndex: 5000, background: '#2b3039', display: 'flex', flexDirection: 'column' }}>
@@ -56,6 +54,13 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
       <button type="button" className="sec" style={{ color: '#f4f5f8' }} onClick={() => pdf(false)} disabled={!meta || !!busy}>{busy === 'pdf' ? 'Making PDF…' : '⬇ Save PDF'}</button>
       {canShare && <button type="button" className="sec" style={{ color: '#f4f5f8' }} onClick={() => pdf(true)} disabled={!meta || !!busy}>{busy === 'share' ? 'Making PDF…' : '↗ Share PDF'}</button>}
       <button type="button" className="sec" style={{ color: '#f4f5f8' }} onClick={onClose}>✕ Close</button></div>
+    {ready && <div role="dialog" aria-label="PDF ready" style={{ position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: '#fff', color: '#111827', borderRadius: 14, padding: 18, maxWidth: 340, width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <b style={{ fontSize: '1.05rem' }}>Your PDF is ready</b><span style={{ fontSize: '.85rem', color: '#5b6472' }}>A4, upright. Open it to print, or share it.</span>
+        <a href={ready.url} target="_blank" rel="noopener" className="btn" style={{ display: 'block', textAlign: 'center', padding: '12px 14px', borderRadius: 10, background: '#0f131a', color: '#fff', textDecoration: 'none', fontWeight: 700 }}>Open to print</a>
+        {canShare && <button type="button" className="sec" onClick={async () => { try { await navigator.share({ files: [ready.file], title: ready.name }); } catch { /* cancelled */ } }}>Share / Save to Files</button>}
+        <a href={ready.url} download={ready.name} style={{ textAlign: 'center', fontSize: '.85rem' }}>Download</a>
+        <button type="button" className="sec" onClick={() => { URL.revokeObjectURL(ready.url); setReady(null); }}>Close</button></div></div>}
     {err && <div role="alert" style={{ color: '#ff8a80', padding: '6px 12px' }}>{err}</div>}
     <div className="pv-scroll" style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: 8 }}>
       <div className="pv-wrap" style={{ width: 1123 * scale, height: 794 * scale, flex: '0 0 auto' }}>
