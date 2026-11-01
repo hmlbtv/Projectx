@@ -1,7 +1,7 @@
 'use server';
 import { audited } from '@/lib/audit';
 import { redirect } from 'next/navigation';
-import { loadJobPlans, saveJobPlans } from './plans';
+import { loadJobPlans, saveJobPlans, planMeta } from './plans';
 import { parseSources } from './sourceText';
 import { cookies } from 'next/headers';
 import { unseal, checkCode } from './totp';
@@ -700,6 +700,10 @@ async function savePlan_(jobId: number, _name: string, data: any) {
   revalidatePath('/plans');
 }
 // Latest shared plans for a Job (used to pick up other people's changes).
+export async function loadPlanMeta(jobId: number, wallId: number) {
+  const me = await requireMe(); if (!(await canAccessJob(me, jobId))) throw new Error('Not found');
+  return { ...(await planMeta(jobId, wallId)), printedBy: me.name || me.email, now: new Date().toISOString() };
+}
 export async function loadPlans(jobId: number): Promise<Record<string, any>> {
   const me = await requireMe(); if (!(await canAccessJob(me, jobId))) throw new Error('Not found');
   return loadJobPlans(jobId);
