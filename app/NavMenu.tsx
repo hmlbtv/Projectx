@@ -27,6 +27,8 @@ function Group({ label, children, path }: { label: string; children: L[]; path: 
 export default function NavMenu({ links, children }: { links: Item[]; children: React.ReactNode }) {
   const path = usePathname(); const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [path]);
+  // while the menu is open the page behind it stays still, so the first swipe scrolls the menu
+  useEffect(() => { if (!open) return; const b = document.body, old = b.style.overflow; b.style.overflow = 'hidden'; return () => { b.style.overflow = old; }; }, [open]);
   const link = (l: L) => <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className={'nl' + (path === l.href || path.startsWith(l.href + '/') ? ' on' : '')}>{l.label}</Link>;
   return (<>
     <div className="navlinks">{links.map(i => isGroup(i) ? <Group key={i.label} label={i.label} path={path}>{i.children}</Group> : link(i))}</div>
