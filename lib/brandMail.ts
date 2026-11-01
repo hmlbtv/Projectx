@@ -1,4 +1,4 @@
-import { sendMail } from './mail';
+import { sendMailDetailed } from './mail';
 import { markPng } from './wallPng';
 
 const esc = (x: string) => x.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
@@ -6,7 +6,7 @@ const font = "font-family:system-ui,-apple-system,'Segoe UI',Arial,sans-serif";
 export type Brand = { heading: string; lines?: string[]; button?: { label: string; url: string }; note?: { text: string; by: string }; small?: string };
 
 // The TelePlanner email look (same as the monitor plan invitation): dark header with the mark, red rule, white card, red button.
-export async function brandedMail(to: string, subject: string, text: string, b: Brand): Promise<boolean> {
+export async function brandedMailDetailed(to: string, subject: string, text: string, b: Brand) {
   const mark = await markPng(), images = mark ? [{ cid: 'tpmark', png: mark }] : [];
   const html = `<div style="background:#f3f5f8;padding:24px 12px;${font};color:#111">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;border-collapse:collapse">
@@ -21,6 +21,7 @@ export async function brandedMail(to: string, subject: string, text: string, b: 
  ${b.button ? `<div style="height:8px;line-height:8px">&nbsp;</div><table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 8px"><tr><td style="background:#e5352b;border-radius:8px"><a href="${b.button.url}" style="display:inline-block;padding:13px 26px;color:#fff;font-size:16px;font-weight:700;text-decoration:none;${font}">${esc(b.button.label)}</a></td></tr></table>
  <p style="margin:0 0 6px;color:#777;font-size:12px">Button not working? Copy this link into your browser:<br><a href="${b.button.url}" style="color:#777;word-break:break-all">${b.button.url}</a></p>` : ''}
  ${b.small ? `<p style="margin:20px 0 0;color:#777;font-size:12px;border-top:1px solid #e5e7eb;padding-top:14px">${b.small}</p>` : ''}</td></tr></table></div>`;
-  return sendMail(to, subject, text, { html, images });
+  return sendMailDetailed(to, subject, text, { html, images });
 }
+export async function brandedMail(to: string, subject: string, text: string, b: Brand): Promise<boolean> { return (await brandedMailDetailed(to, subject, text, b)).ok; }
 export { esc as escMail };

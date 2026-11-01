@@ -9,7 +9,7 @@ import { revalidatePath } from 'next/cache';
 import { one, rows } from './db';
 import { requireMe, canManage, isAdmin, createSession, destroySession, resetLimits, type Me } from './session';
 import { allow, clientIp } from './security';
-import { brandedMail, escMail } from './brandMail';
+import { brandedMail, brandedMailDetailed, escMail } from './brandMail';
 import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, sendMail, sendMailDetailed, mailFrom, baseUrl } from './mail';
 import { verifyPassword, hashPassword, passwordProblem, newToken, sha256 } from './password';
 
@@ -781,7 +781,7 @@ export async function sendTestEmail(_: FormState, f: FormData): Promise<FormStat
   if (!(await allow('test-mail', String(me.id), 10, 60))) return { error: 'Too many test emails. Please wait a while and try again.' };
   const to = (s(f, 'to') || me.email).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return { error: 'Enter a valid email address.' };
-  const r = await sendMailDetailed(to, 'TelePlanner test email', `This is a test email from TelePlanner.\n\nSent: ${new Date().toISOString()}\nFrom: ${mailFrom()}\nSite: ${await baseUrl()}\n\nIf you can read this, email sending works.`);
+  const site = await baseUrl(), r = await brandedMailDetailed(to, 'TelePlanner test email', `This is a test email from TelePlanner.\n\nSent: ${new Date().toISOString()}\nFrom: ${mailFrom()}\nSite: ${site}\n\nIf you can read this, email sending works.`, { heading: 'Email is working', lines: ['This is a test email from TelePlanner. If you can read this, email sending works.', `<span style="color:#777;font-size:13px">Sent ${new Date().toISOString().replace('T', ' ').slice(0, 16)} UTC · From ${escMail(mailFrom())} · Site ${escMail(site)}</span>`] });
   return r.ok ? { ok: `Test email sent to ${to}. It should arrive within a minute (check spam too). Resend id: ${r.id ?? 'n/a'}` } : { error: r.error };
 }
 
