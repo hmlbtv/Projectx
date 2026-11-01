@@ -28,7 +28,11 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
   async function pdf(share: boolean) {
     if (!page.current) return; setBusy(share ? 'share' : 'pdf');
     try { const [{ toPng }, { jsPDF }] = await Promise.all([import('html-to-image'), import('jspdf')]);
-      const el = page.current, png = await toPng(el, { pixelRatio: 2, cacheBust: true, width: 1123, height: 794, style: { transform: 'none', margin: '0' } });
+      const el = page.current, opt = { pixelRatio: 2, width: 1123, height: 794, style: { transform: 'none', margin: '0' } };
+      // Embedding web fonts can stall on phones, so give it a few seconds and then fall back to a render without it. Never hang.
+      const tm = <T,>(p: Promise<T>, ms: number) => new Promise<T>((res, rej) => { const t = setTimeout(() => rej(new Error('timeout')), ms); p.then(v => { clearTimeout(t); res(v); }, e => { clearTimeout(t); rej(e); }); });
+      let png = ''; try { png = await tm(toPng(el, opt), 8000); } catch { png = await tm(toPng(el, { ...opt, skipFonts: true, pixelRatio: 1.5 }), 15000); }
+      if (png.length < 5000) png = await tm(toPng(el, { ...opt, skipFonts: true, pixelRatio: 1.5 }), 15000); // Safari sometimes returns a blank first render
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' }); doc.addImage(png, 'PNG', 0, 0, 297, 210);
       const name = `${job.prod} - ${wl.name} v${meta?.version ?? 0}.pdf`.replace(/[\\/:*?"<>|]/g, ' '), blob = doc.output('blob'), file = new File([blob], name, { type: 'application/pdf' });
       if (share && navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); } catch { /* cancelled */ } }
