@@ -25,26 +25,34 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
   }).filter((r: any) => r.items.length > 0).sort((x: any, y: any) => String(x.name).localeCompare(String(y.name), undefined, { numeric: true })), [wl, layouts, cur, who]);
   const total = rowsOut.reduce((n: number, r: any) => n + r.items.length, 0);
 
-  async function pdf(share: boolean) {
-    if (!page.current) return; setBusy(share ? 'share' : 'pdf');
+  async function pdf(share: boolean, portrait = false) {
+    if (!page.current) return; setBusy(portrait ? 'print' : share ? 'share' : 'pdf');
+    // Print opens the PDF in a new tab (the phone's own viewer has working print and share). The tab has to be opened now, inside the tap.
+    const win = portrait ? window.open('', '_blank') : null;
     try { const [{ toPng }, { jsPDF }] = await Promise.all([import('html-to-image'), import('jspdf')]);
       const el = page.current, opt = { pixelRatio: 2, width: 1123, height: 794, style: { transform: 'none', margin: '0' } };
       // Embedding web fonts can stall on phones, so give it a few seconds and then fall back to a render without it. Never hang.
       const tm = <T,>(p: Promise<T>, ms: number) => new Promise<T>((res, rej) => { const t = setTimeout(() => rej(new Error('timeout')), ms); p.then(v => { clearTimeout(t); res(v); }, e => { clearTimeout(t); rej(e); }); });
       let png = ''; try { png = await tm(toPng(el, opt), 8000); } catch { png = await tm(toPng(el, { ...opt, skipFonts: true, pixelRatio: 1.5 }), 15000); }
       if (png.length < 5000) png = await tm(toPng(el, { ...opt, skipFonts: true, pixelRatio: 1.5 }), 15000); // Safari sometimes returns a blank first render
-      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' }); doc.addImage(png, 'PNG', 0, 0, 297, 210);
+      let doc: any;
+      if (portrait) { // turn the landscape sheet a quarter turn so it fills an upright A4 page
+        const img = await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = png; });
+        const cv = document.createElement('canvas'); cv.width = img.height; cv.height = img.width; const cx = cv.getContext('2d')!; cx.translate(cv.width, 0); cx.rotate(Math.PI / 2); cx.drawImage(img, 0, 0);
+        doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' }); doc.addImage(cv.toDataURL('image/png'), 'PNG', 0, 0, 210, 297);
+      } else { doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' }); doc.addImage(png, 'PNG', 0, 0, 297, 210); }
       const name = `${job.prod} - ${wl.name} v${meta?.version ?? 0}.pdf`.replace(/[\\/:*?"<>|]/g, ' '), blob = doc.output('blob'), file = new File([blob], name, { type: 'application/pdf' });
-      if (share && navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); } catch { /* cancelled */ } }
+      if (portrait) { const u = URL.createObjectURL(blob); if (win) win.location.href = u; else window.location.href = u; }
+      else if (share && navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); } catch { /* cancelled */ } }
       else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
-    } catch { setErr('Could not make the PDF. Use Print and choose Save as PDF.'); } finally { setBusy(''); }
+    } catch { win?.close(); setErr('Could not make the PDF. Please try again.'); } finally { setBusy(''); }
   }
   const ink = '#111827', mut = '#5b6472';
   const view = (<div className="pv-host" style={{ position: 'fixed', inset: 0, zIndex: 5000, background: '#2b3039', display: 'flex', flexDirection: 'column' }}>
     <style>{`@media print{@page{size:A4 portrait;margin:0}html,body{background:#fff!important;overflow:visible!important}body>*:not(.pv-host){display:none!important}.pv-host{position:static!important;background:#fff!important;display:block!important}.pv-bar{display:none!important}.pv-scroll{display:block!important;overflow:visible!important;padding:0!important}.pv-wrap{width:210mm!important;height:297mm!important;position:relative!important;overflow:hidden!important;page-break-after:avoid}.pv-page{position:absolute!important;top:0;left:0;transform-origin:top left!important;transform:translateX(210mm) rotate(90deg)!important;box-shadow:none!important;width:297mm!important;height:210mm!important}.pv-page,.pv-page *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}`}</style>
     <div className="pv-bar" style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px', background: '#161a21', flex: '0 0 auto', flexWrap: 'wrap' }}>
       <b style={{ color: '#f4f5f8', flex: 1, minWidth: 120 }}>Print preview · A4 landscape</b>
-      <button type="button" onClick={() => window.print()} disabled={!meta}>🖨 Print</button>
+      <button type="button" onClick={() => pdf(false, true)} disabled={!meta || !!busy}>{busy === 'print' ? 'Making PDF…' : '🖨 Print'}</button>
       <button type="button" className="sec" style={{ color: '#f4f5f8' }} onClick={() => pdf(false)} disabled={!meta || !!busy}>{busy === 'pdf' ? 'Making PDF…' : '⬇ Save PDF'}</button>
       {canShare && <button type="button" className="sec" style={{ color: '#f4f5f8' }} onClick={() => pdf(true)} disabled={!meta || !!busy}>{busy === 'share' ? 'Making PDF…' : '↗ Share PDF'}</button>}
       <button type="button" className="sec" style={{ color: '#f4f5f8' }} onClick={onClose}>✕ Close</button></div>
