@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache';
 import { one, rows } from './db';
 import { requireMe, canManage, isAdmin, createSession, destroySession, resetLimits, type Me } from './session';
 import { allow, clientIp } from './security';
+import { brandedMail, escMail } from './brandMail';
 import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, sendMail, sendMailDetailed, mailFrom, baseUrl } from './mail';
 import { verifyPassword, hashPassword, passwordProblem, newToken, sha256 } from './password';
 
@@ -101,7 +102,7 @@ export async function signUp(_: FormState, f: FormData): Promise<FormState> {
   if (await one('select 1 from users where email=$1', [email])) {
     // With email set up, answer exactly as for a new sign-up so nobody can use this form to find out who has an account; the real owner gets a note instead.
     if (!emailOn()) return { error: 'An account with this email already exists. Sign in instead.' };
-    await sendMail(email, 'Someone tried to create a TelePlanner account with your email', `Someone tried to sign up for TelePlanner with this email address, but you already have an account.\nSign in here: ${await baseUrl()}/signin\nForgot your password? Use "Forgot password" on that page.\n\nIf this was not you, you can ignore this email.`);
+    await (async () => { const u = `${await baseUrl()}/signin`; return brandedMail(email, 'Someone tried to create a TelePlanner account with your email', `Someone tried to sign up for TelePlanner with this email address, but you already have an account.\nSign in here: ${u}\nForgot your password? Use "Forgot password" on that page.\n\nIf this was not you, you can ignore this email.`, { heading: 'You already have a TelePlanner account', lines: ['Someone tried to sign up for TelePlanner with this email address, but you already have an account.', 'Forgot your password? Use <b>Forgot password</b> on the sign-in page.'], button: { label: 'Sign in', url: u }, small: 'If this was not you, you can ignore this email.' }); })();
     return { ok: `We sent a verification link to ${email}. Open it to finish creating your account.` };
   }
   const t = await one('insert into tenants(name,plan,max_walls_per_broadcaster) values($1,\'demo\',1) returning id', [org]);
@@ -110,7 +111,7 @@ export async function signUp(_: FormState, f: FormData): Promise<FormState> {
   const u = await one(`insert into users(tenant_id,email,name,role,password_hash,email_verified,verify_hash,verify_expires)
     values($1,$2,$3,'master_admin',$4,$5,$6,now() + interval '2 days') returning id`, [t.id, email, name, await hashPassword(pw), !verify, verify ? sha256(token) : null]);
   if (verify) {
-    const sent = await sendMail(email, 'Verify your TelePlanner account', `Welcome to TelePlanner.\nConfirm your email to finish setting up your account:\n${await baseUrl()}/verify/${token}\n\nThis link expires in 2 days.`);
+    const sent = await (async () => { const u = `${await baseUrl()}/verify/${token}`; return brandedMail(email, 'Verify your TelePlanner account', `Welcome to TelePlanner.\nConfirm your email to finish setting up your account:\n${u}\n\nThis link expires in 2 days.`, { heading: 'Welcome to TelePlanner', lines: ['Confirm your email address to finish setting up your account.'], button: { label: 'Confirm my email', url: u }, small: 'This link expires in 2 days.' }); })();
     if (sent) return { ok: `We sent a verification link to ${email}. Open it to finish creating your account.` };
     // The email could not be sent. Never let an unverified address in: undo the sign-up so they can try again.
     await rows('delete from users where id=$1', [u.id]); await rows('delete from tenants where id=$1', [t.id]);
@@ -128,7 +129,7 @@ export async function requestReset(_: FormState, f: FormData): Promise<FormState
   if (u) {
     const token = newToken();
     await rows("update users set invite_hash=$1, invite_expires=now() + interval '1 hour' where id=$2", [sha256(token), u.id]);
-    await sendMail(email, 'Reset your TelePlanner password', `Use this link to set a new password (valid for 1 hour):\n${await baseUrl()}/invite/${token}\n\nIf you did not ask for this, ignore this email.`);
+    await (async () => { const u = `${await baseUrl()}/invite/${token}`; return brandedMail(email, 'Reset your TelePlanner password', `Use this link to set a new password (valid for 1 hour):\n${u}\n\nIf you did not ask for this, ignore this email.`, { heading: 'Reset your password', lines: ['Use the button below to set a new password. The link is valid for 1 hour.'], button: { label: 'Set a new password', url: u }, small: 'If you did not ask for this, ignore this email.' }); })();
   }
   return { ok: 'If an account exists for that email, a reset link is on its way.' };
 }
@@ -166,7 +167,7 @@ async function invite(me: Me, email: string, role: string, jobId?: number): Prom
   let u = await one('select id,tenant_id,password_hash from users where email=$1', [email]);
   if (u && u.tenant_id && u.tenant_id !== tid(me)) { // already in another team: don't tell the inviter, tell the person (can only be hidden when email is set up)
     if (!emailOn()) return { error: 'That email already belongs to another team.' };
-    await sendMail(email, 'A TelePlanner invitation could not be used', `${me.name} tried to invite you to TelePlanner, but this email address is already part of another team.\nIf you want to join them, ask them to invite a different email address.`);
+    await brandedMail(email, 'A TelePlanner invitation could not be used', `${me.name} tried to invite you to TelePlanner, but this email address is already part of another team.\nIf you want to join them, ask them to invite a different email address.`, { heading: 'An invitation could not be used', lines: [`${escMail(me.name)} tried to invite you to TelePlanner, but this email address is already part of another team.`, 'If you want to join them, ask them to invite a different email address.'] });
     return { ok: `Invite emailed to ${email}.` };
   }
   // Every account, including One-Time Users, belongs to exactly one tenant.
@@ -185,7 +186,7 @@ async function invite(me: Me, email: string, role: string, jobId?: number): Prom
   const token = newToken();
   await rows("update users set invite_hash=$1, invite_expires=now() + interval '7 days' where id=$2", [sha256(token), u.id]);
   const link = `${await baseUrl()}/invite/${token}`;
-  if (await sendMail(email, 'You have been invited to TelePlanner', `${me.name} invited you to TelePlanner.\nSet your password to join:\n${link}\n\nThis link expires in 7 days.`)) return { ok: `Invite emailed to ${email}.` };
+  if (await brandedMail(email, 'You have been invited to TelePlanner', `${me.name} invited you to TelePlanner.\nSet your password to join:\n${link}\n\nThis link expires in 7 days.`, { heading: `${escMail(me.name)} invited you to <b>TelePlanner</b>`, lines: ['Set your password to join the team.'], button: { label: 'Join TelePlanner', url: link }, small: 'This link expires in 7 days.' })) return { ok: `Invite emailed to ${email}.` };
   return { ok: `Email sending is not set up. Send this link to ${email} (valid 7 days):`, link };
 }
 async function inviteUser_(_: FormState, f: FormData): Promise<FormState> {
