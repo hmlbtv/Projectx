@@ -78,6 +78,8 @@ alter table mail_messages add column if not exists category text not null defaul
 alter table mail_messages add column if not exists sent_html text;
 alter table mail_messages add column if not exists skipped int not null default 0;
 create table if not exists mail_optout(email text not null, category text not null, at timestamptz not null default now(), message_id int, primary key(email, category));
+create index if not exists ix_mail_sends_msg on mail_sends(message_id);
+create index if not exists ix_mail_sends_email on mail_sends(lower(email));
 create table if not exists interest(id serial primary key, name text not null, company text not null default '', email text not null, comment text not null default '', created_at timestamptz not null default now());
 create table if not exists email_log(id serial primary key, at timestamptz not null default now(), to_email text not null, subject text not null, ok boolean not null, error text, resend_id text);
 create index if not exists email_log_at on email_log(at);

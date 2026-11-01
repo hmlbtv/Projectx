@@ -16,6 +16,7 @@ export async function registerInterest(_: any, f: FormData): Promise<{ ok?: bool
   const text = `New TelePlanner interest\nName: ${name}\nCompany: ${company || '-'}\nEmail: ${email}\nComment: ${comment || '-'}`;
   await brandedMail('info@teleplanner.tv', `Interest in TelePlanner: ${name}`, text, { heading: 'New interest in TelePlanner',
     lines: [`<b>Name:</b> ${e(name)}`, `<b>Company:</b> ${e(company || '-')}`, `<b>Email:</b> ${e(email)}`, `<b>Comment:</b> ${e(comment || '-').replace(/\n/g, '<br>')}`], small: 'Sent from the teleplanner.tv holding page.' });
-  const t = T.interestThanks(name); await brandedMail(email, t.subject, t.text, t.b); // thank-you reply to the person
+  // The thank-you goes to whatever address was typed, so cap it per address (stops the form being used to flood someone's inbox).
+  if (await allow('interest-thanks', email.toLowerCase(), 1, 1440)) { const t = T.interestThanks(name); await brandedMail(email, t.subject, t.text, t.b); } // thank-you reply to the person
   return { ok: true };
 }
