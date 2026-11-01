@@ -1,0 +1,84 @@
+'use server';
+import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
+import { rows, one } from './db';
+import { requireMe } from './session';
+import { brandedMail } from './brandMail';
+import { mailTemplates as T } from './mailTemplates';
+import { loadInterest } from './interestList';
+
+import { ROLES, TEST_ADDRESS } from './mailConst';
+const ROLE_LABEL: Record<string, string> = { user: 'All User accounts', manager: 'All Manager accounts', admin: 'All Admin accounts', master_admin: 'All Master admin accounts', webappdev: 'All Site developer accounts', onetime: 'All guest (invited) accounts' };
+const ok = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+const mails = (t: string) => t.split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(ok);
+async function dev() { const me = await requireMe(); if (me.role !== 'webappdev') redirect('/'); return me; }
+
+// One audience token: role:<role>, interest, group:<id>. Returns the email addresses it covers.
+async function resolve(tok: string): Promise<string[]> {
+  if (tok.startsWith('role:')) { const r = tok.slice(5); if (!ROLES.includes(r)) return []; return (await rows('select email from users where role=$1 and not coalesce(suspended,false)', [r])).map((x: any) => String(x.email).toLowerCase()); }
+  if (tok === 'interest') { try { return (await loadInterest()).list.map((x: any) => String(x.email).toLowerCase()); } catch { return []; } }
+  if (tok.startsWith('group:')) { const g = await one('select emails from mail_groups where id=$1', [Number(tok.slice(6)) || 0]); return g ? mails(g.emails) : []; }
+  return [];
+}
+export async function audienceOptions() {
+  await dev();
+  const out: { tok: string; label: string; n: number }[] = [];
+  for (const r of ROLES) out.push({ tok: 'role:' + r, label: ROLE_LABEL[r], n: (await resolve('role:' + r)).length });
+  out.push({ tok: 'interest', label: 'Registered interest (holding page)', n: new Set(await resolve('interest')).size });
+  for (const g of await rows('select id,name,emails from mail_groups order by name')) out.push({ tok: 'group:' + g.id, label: 'Group: ' + g.name, n: mails(g.emails).length });
+  return out;
+}
+async function recipients(aud: string[], extra: string) {
+  const set = new Set<string>(mails(extra));
+  for (const t of aud) for (const e of await resolve(t)) set.add(e);
+  return [...set];
+}
+
+export async function newMail() { const me = await dev(); const r = await one("insert into mail_messages(created_by) values($1) returning id", [me.id]); redirect('/mail/' + r.id); }
+
+// One form, several buttons (act): save | test | signoff | send
+export async function mailAction(_: any, f: FormData): Promise<{ msg?: string; error?: string } | undefined> {
+  const me = await dev(); const id = Number(f.get('id'));
+  const m = await one('select * from mail_messages where id=$1', [id]); if (!m) return { error: 'Email not found.' };
+  if (m.status === 'sent') return { error: 'This email has already been sent. Duplicate it to send again.' };
+  const act = String(f.get('act'));
+  const subject = String(f.get('subject') ?? '').trim().slice(0, 150), body = String(f.get('body') ?? '').trim().slice(0, 8000);
+  const bl = String(f.get('btn_label') ?? '').trim().slice(0, 60), bu = String(f.get('btn_url') ?? '').trim().slice(0, 500);
+  if (bu && !/^https?:\/\//i.test(bu)) return { error: 'The button link must start with https://' };
+  const changed = subject !== m.subject || body !== m.body || bl !== m.btn_label || bu !== m.btn_url;
+  if (changed) await rows("update mail_messages set subject=$2,body=$3,btn_label=$4,btn_url=$5,updated_at=now(),status='draft',tested_at=null,signed_off_at=null,signed_off_by=null where id=$1", [id, subject, body, bl, bu]);
+  const cur = changed ? 'draft' : m.status;
+  if (act === 'save') { return { msg: changed ? 'Saved. Any earlier test or sign-off was cleared because the email changed.' : 'Saved.' }; }
+  if (!subject || !body) return { error: 'Please enter a subject and a message first.' };
+  const t = T.announcement(subject, body, bl && bu ? { label: bl, url: bu } : undefined);
+  if (act === 'test') {
+    const sent = await brandedMail(TEST_ADDRESS, `[Test] ${t.subject}`, t.text, t.b);
+    if (!sent) return { error: 'Could not send the test email.' };
+    await rows("update mail_messages set status='tested',tested_at=now(),signed_off_at=null,signed_off_by=null where id=$1", [id]); revalidatePath('/mail/' + id);
+    return { msg: `Test sent to ${TEST_ADDRESS}. Check it, then sign it off.` };
+  }
+  if (act === 'signoff') {
+    if (cur !== 'tested') return { error: 'Send a test and check it before signing off.' };
+    await rows("update mail_messages set status='signed_off',signed_off_at=now(),signed_off_by=$2 where id=$1", [id, me.id]); revalidatePath('/mail/' + id); return { msg: 'Signed off. You can now choose who to send it to.' };
+  }
+  if (act === 'send') {
+    if (cur !== 'signed_off') return { error: 'Sign the email off before sending.' };
+    if (f.get('confirm') !== 'yes') return { error: 'Tick the box to confirm.' };
+    const aud = f.getAll('aud').map(String), extra = String(f.get('extra') ?? '');
+    const list = await recipients(aud, extra); if (!list.length) return { error: 'Choose at least one group or address.' };
+    // claim the email first so a double click cannot send it twice
+    const claim = await one("update mail_messages set status='sending' where id=$1 and status='signed_off' returning id", [id]); if (!claim) return { error: 'Already sending.' };
+    const labels = (await audienceOptions()).filter(o => aud.includes(o.tok)).map(o => o.label); if (mails(extra).length) labels.push(`${mails(extra).length} individual address${mails(extra).length === 1 ? '' : 'es'}`);
+    let n = 0;
+    for (let i = 0; i < list.length; i += 8) await Promise.all(list.slice(i, i + 8).map(async e => { const s = await brandedMail(e, t.subject, t.text, t.b); if (s) n++; await rows('insert into mail_sends(message_id,email,ok) values($1,$2,$3)', [id, e, s]); }));
+    await rows("update mail_messages set status='sent',sent_at=now(),sent_by=$2,audience=$3,sent_count=$4 where id=$1", [id, me.id, labels.join(', '), n]);
+    revalidatePath('/mail'); redirect('/mail/' + id);
+  }
+  return undefined;
+}
+export async function duplicateMail(f: FormData) { const me = await dev(); const m = await one('select subject,body,btn_label,btn_url from mail_messages where id=$1', [Number(f.get('id'))]); if (!m) redirect('/mail');
+  const r = await one('insert into mail_messages(subject,body,btn_label,btn_url,created_by) values($1,$2,$3,$4,$5) returning id', [m.subject, m.body, m.btn_label, m.btn_url, me.id]); redirect('/mail/' + r.id); }
+export async function deleteDraft(f: FormData) { await dev(); await rows("delete from mail_messages where id=$1 and status<>'sent'", [Number(f.get('id'))]); redirect('/mail'); }
+export async function saveGroup(f: FormData) { await dev(); const name = String(f.get('name') ?? '').trim().slice(0, 80); if (!name) return;
+  await rows('insert into mail_groups(name,emails) values($1,$2) on conflict(name) do update set emails=excluded.emails', [name, mails(String(f.get('emails') ?? '')).join('\n')]); revalidatePath('/mail'); }
+export async function deleteGroup(f: FormData) { await dev(); await rows('delete from mail_groups where id=$1', [Number(f.get('id'))]); revalidatePath('/mail'); }
