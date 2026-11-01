@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
-import { getMe, canManage, isAdmin } from '@/lib/session';
+import { getMe, requireMe, canManage, isAdmin } from '@/lib/session';
 import Holding from './Holding';
 import { loadDemoData } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
@@ -15,7 +15,9 @@ const RIGHTS: Record<string, { title: string; items: string[] }> = {
   webappdev: { title: 'Site developer', items: ['Full access across all Sites', 'Use Site admin to manage Sites and accounts', 'Switch on Dev comments for people on the dev site'] },
 };
 export default async function Home() {
-  const me = await getMe(); if (!me) return <Holding />;
+  // The holding page is only for the live site (teleplanner.tv); dev and local go straight to sign-in.
+  const live = process.env.VERCEL_ENV === 'production';
+  const me = live ? await getMe() : await requireMe(); if (!me) return <Holding />;
   if (me.role === 'onetime') redirect('/shared');
   const manage = canManage(me);
   // Current = not yet expired. Managers see every Job in their tenant; other users only Jobs they are assigned to.
