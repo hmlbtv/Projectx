@@ -170,7 +170,7 @@ async function invite(me: Me, email: string, role: string, jobId?: number): Prom
   if (u && u.tenant_id && u.tenant_id !== tid(me)) { // already has an account in another organization: add a membership here (their login stays one; each organization only sees its own side)
     const org = (await one('select name from tenants where id=$1', [tid(me)]))?.name ?? 'a TelePlanner workspace';
     const ex = await one('select id from memberships where user_id=$1 and tenant_id=$2', [u.id, tid(me)]);
-    const mem = ex ?? await one('insert into memberships(user_id,tenant_id,role) values($1,$2,$3) returning id', [u.id, tid(me), role]);
+    const mem = ex ?? await one('insert into memberships(user_id,tenant_id,role,accepted) values($1,$2,$3,false) returning id', [u.id, tid(me), role]);
     if (jobId) {
       const already = await one('select 1 from job_users where job_id=$1 and user_id=$2', [jobId, u.id]);
       const lim = await one(`select m.max_jobs m, m.role, (select count(*)::int from job_users ju join jobs j on j.id=ju.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where ju.user_id=m.user_id and b.tenant_id=m.tenant_id and j.expires_at >= current_date) c from memberships m where m.id=$1`, [mem.id]);
@@ -178,7 +178,7 @@ async function invite(me: Me, email: string, role: string, jobId?: number): Prom
       await rows('insert into job_users(job_id,user_id) values($1,$2) on conflict do nothing', [jobId, u.id]);
     }
     revalidatePath('/productions'); revalidatePath('/team');
-    if (!ex && emailOn()) { const t = T.addedToOrg(me.name, org, await baseUrl()); await brandedMail(email, t.subject, t.text, t.b); }
+    if (!ex && emailOn()) { const t = T.orgInvite(me.name, org, (await baseUrl()) + '/organizations'); await brandedMail(email, t.subject, t.text, t.b); }
     return { ok: `Invite emailed to ${email}.` }; // same wording as any invite, so nothing reveals whether they already had an account
   }
   // Every account, including One-Time Users, belongs to exactly one tenant.

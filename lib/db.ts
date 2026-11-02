@@ -72,6 +72,7 @@ alter table tenants add column if not exists status text not null default 'activ
 create table if not exists mv_tiles(id serial primary key, tenant_id int, name text not null, assets jsonb not null default '[]', created_at timestamptz not null default now());
 alter table users add column if not exists suspended boolean not null default false;
 create table if not exists memberships(id serial primary key, user_id int not null references users(id) on delete cascade, tenant_id int not null references tenants(id) on delete cascade, role text not null, suspended boolean not null default false, max_jobs int not null default 5, created_at timestamptz not null default now(), unique(user_id, tenant_id));
+alter table memberships add column if not exists accepted boolean not null default true;
 create index if not exists ix_memberships_user on memberships(user_id);
 create index if not exists ix_memberships_tenant on memberships(tenant_id);
 alter table sessions add column if not exists membership_id int references memberships(id) on delete set null;

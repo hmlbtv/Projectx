@@ -27,7 +27,7 @@ export async function createSession(userId: number) {
   const st = await one<{ status: string; suspended: boolean }>("select t.status, u.suspended from users u left join tenants t on t.id=u.tenant_id where u.id=$1 and u.role<>'webappdev'", [userId]);
   let start: number | null = null;
   if (st && (st.suspended || (st.status && st.status !== 'active'))) {
-    const alt = await one<{ id: number }>("select m.id from memberships m join tenants t on t.id=m.tenant_id where m.user_id=$1 and not m.suspended and t.status='active' order by m.id limit 1", [userId]);
+    const alt = await one<{ id: number }>("select m.id from memberships m join tenants t on t.id=m.tenant_id where m.user_id=$1 and m.accepted and not m.suspended and t.status='active' order by m.id limit 1", [userId]);
     if (!alt) redirect('/suspended?r=' + (st.suspended ? 'suspended' : st.status));
     start = alt.id;
   }
@@ -49,7 +49,7 @@ export const getMe = cache(async function getMe(): Promise<Me | null> {
   const h = sha256(t);
   const { idleHours } = await sessionLimits();
   const r = await one<Me & { stale: boolean }>(`select u.id,u.name,u.email,coalesce(m.role,u.role) role,coalesce(m.tenant_id,u.tenant_id) tenant_id, m.id membership_id, (s.last_active < now() - interval '1 minute') stale from sessions s join users u on u.id=s.user_id
-    left join memberships m on m.id=s.membership_id and m.user_id=u.id
+    left join memberships m on m.id=s.membership_id and m.user_id=u.id and m.accepted
     left join tenants t on t.id=coalesce(m.tenant_id,u.tenant_id)
     where s.id=$1 and s.expires_at > now() and ($2::numeric = 0 or s.last_active > now() - ($2::numeric * interval '1 hour')) and (u.role='webappdev' or (not (case when m.id is null then u.suspended else m.suspended end) and (t.id is null or t.status='active')))`, [h, idleHours]);
   if (!r) return null;
@@ -71,14 +71,17 @@ export async function requireMe(): Promise<Me> {
 // The organizations this account can work in: its home one plus any memberships. Each organization only ever sees its own side of this.
 export const myOrgs = cache(async function myOrgs(userId: number): Promise<{ key: string; name: string; role: string }[]> {
   return rows(`select 'home' as key, t.name, u.role from users u join tenants t on t.id=u.tenant_id where u.id=$1 and u.role<>'webappdev'
-    union all select m.id::text, t.name, m.role from memberships m join tenants t on t.id=m.tenant_id where m.user_id=$1 and not m.suspended and t.status='active'
+    union all select m.id::text, t.name, m.role from memberships m join tenants t on t.id=m.tenant_id where m.user_id=$1 and m.accepted and not m.suspended and t.status='active'
     order by 2`, [userId]);
 });
+export async function pendingInvites(userId: number): Promise<{ id: number; org: string; role: string }[]> {
+  return rows("select m.id, t.name org, m.role from memberships m join tenants t on t.id=m.tenant_id where m.user_id=$1 and not m.accepted and t.status='active' order by m.id", [userId]);
+}
 // Switch which organization this session is working in (null = home). Only the account's own organizations are accepted.
 export async function setActiveOrg(key: string) {
   const me = await requireMe(); const t = (await cookies()).get(COOKIE)?.value; if (!t) return;
   let mid: number | null = null;
-  if (key !== 'home') { const m = await one<{ id: number }>("select m.id from memberships m join tenants t on t.id=m.tenant_id where m.id=$1 and m.user_id=$2 and not m.suspended and t.status='active'", [Number(key) || 0, me.id]); if (!m) return; mid = m.id; }
+  if (key !== 'home') { const m = await one<{ id: number }>("select m.id from memberships m join tenants t on t.id=m.tenant_id where m.id=$1 and m.user_id=$2 and m.accepted and not m.suspended and t.status='active'", [Number(key) || 0, me.id]); if (!m) return; mid = m.id; }
   else { const h = await one<{ s: boolean; st: string }>('select u.suspended s, t.status st from users u join tenants t on t.id=u.tenant_id where u.id=$1', [me.id]); if (!h || h.s || h.st !== 'active') return; }
   await rows('update sessions set membership_id=$2 where id=$1', [sha256(t), mid]);
 }

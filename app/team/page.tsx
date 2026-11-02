@@ -13,11 +13,11 @@ export default async function Team() {
   const tenant_p = one('select name,plan,max_walls_per_broadcaster m from tenants where id=$1', [t]);
   // Home members, then people who work here through a membership (they show only their role here, never their other organizations).
   const members_p = rows(`select * from (
-    select id,null::int mid,name,email,role,suspended,totp_enabled,(password_hash is null) pending, max_jobs,
+    select id,null::int mid,name,email,role,suspended,totp_enabled,(password_hash is null) pending, false awaiting, max_jobs,
       (select count(*)::int from job_users ju join jobs j on j.id=ju.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where ju.user_id=users.id and b.tenant_id=$1 and j.expires_at >= current_date) active, 0 ord
     from users where tenant_id=$1
     union all
-    select u.id,m.id mid,u.name,u.email,m.role,m.suspended,false totp_enabled,false pending,m.max_jobs,
+    select u.id,m.id mid,u.name,u.email,m.role,m.suspended,false totp_enabled,false pending,not m.accepted awaiting,m.max_jobs,
       (select count(*)::int from job_users ju join jobs j on j.id=ju.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where ju.user_id=u.id and b.tenant_id=$1 and j.expires_at >= current_date) active, 1 ord
     from memberships m join users u on u.id=m.user_id where m.tenant_id=$1) x order by ord, id`, [t]);
   const [tenant, members] = await Promise.all([tenant_p, members_p]);
@@ -29,7 +29,7 @@ export default async function Team() {
     {['master_admin', 'webappdev'].includes(me.role) && <p><Link href="/audit" className="btn small">Audit trail</Link></p>}
     <p className="mut">Plan <span className="tag">{tenant.plan}</span> · {tenant.m >= 100000 ? 'Unlimited' : tenant.m} Wall Template{tenant.m === 1 ? '' : 's'} per workspace</p>
     <div className="tiles">{members.map((m: any) => { const canEdit = adm && m.role === 'user'; const canRole = mayManage(m); const canSusp = canRole; const canRemove = canRole;
-      return (<div key={m.mid ? 'm' + m.mid : m.id} className="card tile"><div className="tilelink"><b>{m.name}</b><span className="mut">{m.email}</span>
+      return (<div key={m.mid ? 'm' + m.mid : m.id} className="card tile"><div className="tilelink"><b>{m.name}</b><span className="mut">{m.email}</span>{m.awaiting && <span className="tag">Invite awaiting acceptance</span>}
         <span><span className="tag">{m.role}</span>{m.pending && <span className="tag">invite pending</span>}{m.suspended && <span className="tag">suspended</span>}</span>
         <span className="mut">{m.role === 'user' ? `${m.active} of ${m.max_jobs} active Jobs` : 'no Job limit'}</span>
         {m.pending && <AddDialog inline noName action={resendInvite} label="Resend invite" title={`Send ${m.email} a new invite link`}><input type="hidden" name="id" value={m.id} />{m.mid && <input type="hidden" name="mid" value={m.mid} />}<p className="mut" style={{ margin: 0 }}>A new link is emailed (valid 7 days). The old link stops working.</p></AddDialog>}</div>
