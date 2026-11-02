@@ -1,10 +1,14 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useRef, useState, useTransition } from 'react';
+import { copyPlanPreview } from '@/lib/actions';
 
 type P = { id: number; name: string; prod: string; prodId: number; job: string; jobId: number; place: string; expired: boolean; when: string; who: string };
 // "Copy from another Job": plans are kept by Production, then Job (finished Jobs included). Only plans for the same Location as this Job's walls are offered.
 export default function CopyPlan({ job, plans, action }: { job: number; plans: P[]; action: (f: FormData) => Promise<void> }) {
   const ref = useRef<HTMLDialogElement>(null); const [q, setQ] = useState(''), [prod, setProd] = useState(0), [state, setState] = useState('all');
+  const [pick, setPick] = useState<P | null>(null), [res, setRes] = useState<any>(null), [ok, setOk] = useState(false), [busy, go] = useTransition();
+  const choose = (p: P) => { setPick(p); setRes(null); setOk(false); go(async () => setRes(await copyPlanPreview(job, p.id))); };
+  const warns = (res?.findings ?? []).filter((x: any) => x.level === 'warn');
   const prods = Array.from(new Map(plans.map(p => [p.prodId, p.prod])).entries());
   const shown = plans.filter(p => (!prod || p.prodId === prod) && (state === 'all' || (state === 'finished') === p.expired) && `${p.name} ${p.job} ${p.prod} ${p.who} ${p.place}`.toLowerCase().includes(q.toLowerCase()));
   const groups = Array.from(new Set(shown.map(p => p.prodId))).map(pid => ({ pid, name: shown.find(p => p.prodId === pid)!.prod, jobs: Array.from(new Set(shown.filter(p => p.prodId === pid).map(p => p.jobId))).map(jid => ({ jid, items: shown.filter(p => p.jobId === jid) })) }));
@@ -20,7 +24,13 @@ export default function CopyPlan({ job, plans, action }: { job: number; plans: P
         {groups.length === 0 && <p className="mut">No plans match.</p>}
         {groups.map(g => (<div key={g.pid}><b>{g.name}</b>
           {g.jobs.map(j => (<div key={j.jid} style={{ margin: '6px 0 0 10px' }}><div className="mut" style={{ fontSize: '.85rem' }}>{j.items[0].job}{j.items[0].expired ? ' · finished' : ''}</div>
-            <div style={{ display: 'grid', gap: 4, marginTop: 3 }}>{j.items.map(p => (<form key={p.id} action={action}><input type="hidden" name="job" value={job} /><input type="hidden" name="plan" value={p.id} />
-              <button className="sec" style={{ width: '100%', textAlign: 'left', display: 'grid', gap: 2, padding: 8 }}><b>{p.name}</b><span className="mut" style={{ fontSize: '.8rem' }}>{p.place} · saved {p.when}{p.who ? ` · by ${p.who}` : ''}</span></button></form>))}</div></div>))}</div>))}</div>
+            <div style={{ display: 'grid', gap: 4, marginTop: 3 }}>{j.items.map(p => (<button type="button" key={p.id} className={pick?.id === p.id ? '' : 'sec'} onClick={() => choose(p)} style={{ width: '100%', textAlign: 'left', display: 'grid', gap: 2, padding: 8 }}><b>{p.name}</b><span className="mut" style={{ fontSize: '.8rem' }}>{p.place} · saved {p.when}{p.who ? ` · by ${p.who}` : ''}</span></button>))}</div></div>))}</div>))}</div>
+      {pick && <div style={{ marginTop: 12, borderTop: '1px solid var(--line)', paddingTop: 10 }}><b>{pick.job}</b>
+        {busy && !res && <p className="mut">Checking it fits…</p>}
+        {res?.error && <p role="alert" style={{ color: 'var(--bad)' }}>{res.error}</p>}
+        {res?.findings?.length > 0 && <ul style={{ margin: '6px 0', paddingLeft: 18 }}>{res.findings.map((x: any, i: number) => <li key={i} style={{ color: x.level === 'warn' ? '#b45309' : undefined }}><b>{x.wall}:</b> {x.text}</li>)}</ul>}
+        {res && !res.error && warns.length === 0 && <p>This plan fits with no differences.</p>}
+        {res && !res.error && warns.length > 0 && <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="checkbox" checked={ok} onChange={e => setOk(e.target.checked)} /> I have reviewed these differences</label>}
+        {res && !res.error && <form action={action} style={{ marginTop: 8 }}><input type="hidden" name="job" value={job} /><input type="hidden" name="plan" value={pick.id} /><input type="hidden" name="confirm" value={ok ? '1' : ''} /><button disabled={busy || (warns.length > 0 && !ok)}>Paste into this Job's plan</button></form>}</div>}
     </dialog></div>);
 }

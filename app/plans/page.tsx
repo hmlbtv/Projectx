@@ -50,6 +50,7 @@ export default async function Plans({ searchParams }: { searchParams: Promise<{ 
   const contacts = canManage(me) ? await rows('select id,name,email,company from contacts where tenant_id=$1 order by name', [tenantId]) : [];
   const roomIds = [...new Set(rws.map((r: any) => r.room_id))];
   return (<><a href="/plans">← Monitor Plans</a><h1>{cur.prod} / {cur.name}</h1>{arch && <p className="mut">This Job has expired and is in the Archive: view only.</p>}
+    {copied === 'review' && <p role="alert" style={{ color: '#b45309' }}>That plan had differences that need to be reviewed first. Open "Copy a saved plan" and tick the review box.</p>}
     {copied === 'none' && <p role="alert" style={{ color: '#b45309' }}>Nothing was copied: that plan has no walls in common with this Job.</p>}
     {!arch && cands.length > 0 && <CopyPlan job={cur.id} action={copyPlan} plans={cands.map((c: any) => ({ id: c.id, name: c.name, prod: c.prod, prodId: c.prod_id, job: c.job, jobId: c.job_id, place: c.place ?? '', expired: !!c.expired, when: String(c.updated_at).slice(0, 10), who: c.user_id === me.id ? '' : c.who }))} />}
     {roomIds.map(rid => { const rs = rws.filter((r: any) => r.room_id === rid); return (<div key={rid}><h2>Room: {rs[0].room}</h2>

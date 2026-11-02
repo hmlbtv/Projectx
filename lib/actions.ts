@@ -3,6 +3,7 @@ import { audited } from '@/lib/audit';
 import { redirect } from 'next/navigation';
 import { loadJobPlans, saveJobPlans, planMeta } from './plans';
 import { parseSources } from './sourceText';
+import { checkCopy } from './planCopy';
 import { cookies } from 'next/headers';
 import { unseal, checkCode } from './totp';
 import { revalidatePath } from 'next/cache';
@@ -759,26 +760,39 @@ export async function loadPlans(jobId: number): Promise<Record<string, any>> {
 }
 // Copy a saved Monitor Plan (from another Job, including one that has expired) into this Job. Each wall is matched by its place in a Room, or failing that by its Wall Template.
 // Only the monitors' chosen MV layouts and sources that still exist on the wall are kept.
-async function copyPlan_(f: FormData) {
-  const me = await requireMe(); const job = Number(s(f, 'job')), planId = Number(s(f, 'plan'));
+// Works out what copying another Job's saved plan onto this Job would do, wall by wall, checking it fits (MV layouts allowed, monitors, tiles, sources).
+async function copyPlanCompute(me: Me, job: number, planId: number) {
   if (!(await canAccessJob(me, job)) || !(await jobOpen(job))) throw new Error('Not found');
   // planId is the Job whose plans are being copied (any Job in the same workspace that this person can open).
   if (!(await canAccessJob(me, planId)) || planId === job) throw new Error('Not found');
   const src = { job_id: planId, data: await loadJobPlans(planId) as Record<string, any> };
-  const walls = await rows('select rw.id, rw.wall_template_id wt, r.location_id loc, w.data from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join rooms r on r.id=rw.room_id join wall_templates w on w.id=rw.wall_template_id where jw.job_id=$1', [job]);
-  const old = await rows('select rw.id, rw.wall_template_id wt, r.location_id loc from room_walls rw join rooms r on r.id=rw.room_id where rw.id = any($1::int[])', [Object.keys(src.data ?? {}).map(Number).filter(Boolean)]);
-  const wtOf = new Map<number, number>(old.map((o: any) => [o.id, o.wt])), locOf = new Map<number, number>(old.map((o: any) => [o.id, o.loc]));
+  const walls = await rows('select rw.id, rw.name, rw.wall_template_id wt, r.location_id loc, w.data from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join rooms r on r.id=rw.room_id join wall_templates w on w.id=rw.wall_template_id where jw.job_id=$1', [job]);
+  const old = await rows('select rw.id, rw.wall_template_id wt, r.location_id loc, w.data from room_walls rw join rooms r on r.id=rw.room_id join wall_templates w on w.id=rw.wall_template_id where rw.id = any($1::int[])', [Object.keys(src.data ?? {}).map(Number).filter(Boolean)]);
+  const wtOf = new Map<number, number>(old.map((o: any) => [o.id, o.wt])), locOf = new Map<number, number>(old.map((o: any) => [o.id, o.loc])), dataOf = new Map<number, any>(old.map((o: any) => [o.id, o.data]));
+  const layouts = await rows('select id,name,tiles from mv_layouts where tenant_id is null or tenant_id=$1', [tid(me)]);
+  const names = async (j: number) => { const r = await one('select ss.sources from jobs j join source_sets ss on ss.id=j.source_set_id where j.id=$1', [j]); return Array.isArray(r?.sources) ? r.sources.map((x: any) => String(typeof x === 'string' ? x : x?.name ?? '')) : null; };
+  const [srcSrc, tgtSrc] = [await names(planId), await names(job)];
+  const arr = (x: any) => (Array.isArray(x?.assets) ? x.assets : []);
+  const out: Record<string, any> = {}; const findings: { wall: string; level: string; text: string }[] = [];
   // A plan belongs to its Location: it can only be copied onto walls in that same Location.
-  const out: Record<string, any> = {};
   for (const w of walls) {
     const key = (src.data ?? {})[w.id] ? String(w.id) : Object.keys(src.data ?? {}).find(k => wtOf.get(Number(k)) === w.wt && locOf.get(Number(k)) === w.loc && !walls.some((x: any) => String(x.id) === k));
     if (key && locOf.get(Number(key)) !== w.loc) continue;
     const d = key ? src.data[key] : null; if (!d) continue;
-    const assets: any[] = Array.isArray(w.data?.assets) ? w.data.assets : [], mons: Record<string, number> = {};
-    for (const [aid, lid] of Object.entries(d.mons ?? {})) { const a = assets.find(x => x.id === aid); if (a && Array.isArray(a.props?.mvs) && a.props.mvs.includes(Number(lid))) mons[aid] = Number(lid); }
-    out[w.id] = { ...(d.layoutId ? { layoutId: d.layoutId } : {}), assign: d.assign ?? {}, ...(Object.keys(mons).length ? { mons } : {}) };
+    const r = checkCopy({ src: d, srcAssets: arr(dataOf.get(Number(key))), tgtAssets: arr(w.data), layouts: layouts as any, srcSources: srcSrc, tgtSources: tgtSrc });
+    out[w.id] = r.data; for (const x of r.findings) findings.push({ wall: w.name, ...x });
   }
+  return { out, findings };
+}
+export async function copyPlanPreview(job: number, planId: number): Promise<{ error?: string; walls?: number; findings?: { wall: string; level: string; text: string }[] }> {
+  const me = await requireMe();
+  try { const c = await copyPlanCompute(me, Number(job), Number(planId)); const n = Object.keys(c.out).length; return n ? { walls: n, findings: c.findings } : { error: 'That plan has no walls in common with this Job.' }; } catch { return { error: 'You cannot copy that plan.' }; }
+}
+async function copyPlan_(f: FormData) {
+  const me = await requireMe(); const job = Number(s(f, 'job')), planId = Number(s(f, 'plan'));
+  const { out, findings } = await copyPlanCompute(me, job, planId);
   if (!Object.keys(out).length) { redirect(`/plans?job=${job}&copied=none`); } // nothing in a shared Location
+  if (findings.some(x => x.level === 'warn') && s(f, 'confirm') !== '1') redirect(`/plans?job=${job}&copied=review`); // differences must be reviewed first
   await saveJobPlans(job, out, me.id);
   revalidatePath('/plans'); redirect(`/plans?job=${job}`);
 }
