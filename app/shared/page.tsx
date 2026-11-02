@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { rows } from '@/lib/db';
 import { myEmails } from '@/lib/emails';
-import { requireMe } from '@/lib/session';
+import { requireMe, myOrgs } from '@/lib/session';
 import ArchiveFilter from '../ArchiveFilter';
 import { unreadByWall } from '@/lib/comments';
 export const dynamic = 'force-dynamic';
@@ -9,10 +9,12 @@ export const dynamic = 'force-dynamic';
 // Every active invitation sent to this account's email, from any tenant, in one place.
 export default async function Shared() {
   const me = await requireMe();
+  // People who belong to several organizations only see shares that belong to the organization they are working in (and, in their home organization, shares from organizations they are not a member of), so two companies never appear together.
+  const multi = (await myOrgs(me.id)).length > 1;
   const items = await rows(`select j.job_date, wl.id, wl.job_id, wl.room_wall_id, wl.access, (j.expires_at < current_date) expired, t.name tenant, b.name broadcaster, p.name prod, j.name job, r.name room, rw.name wall, j.expires_at
     from wall_links wl join jobs j on j.id=wl.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id join tenants t on t.id=b.tenant_id
     join room_walls rw on rw.id=wl.room_wall_id join rooms r on r.id=rw.room_id
-    where lower(wl.email) in ${myEmails(1)} and not wl.revoked and (select tn.status from tenants tn join broadcasters bb on bb.tenant_id=tn.id join productions pp on pp.broadcaster_id=bb.id where pp.id=j.production_id)='active' order by t.name, j.job_date desc nulls last, wl.id`, [me.id]);
+    where lower(wl.email) in ${myEmails(1)} and ($2::boolean = false or t.id=$3 or ($4::boolean and t.id not in (select tenant_id from users where id=$1 union select tenant_id from memberships where user_id=$1))) and not wl.revoked and (select tn.status from tenants tn join broadcasters bb on bb.tenant_id=tn.id join productions pp on pp.broadcaster_id=bb.id where pp.id=j.production_id)='active' order by t.name, j.job_date desc nulls last, wl.id`, [me.id, multi, me.tenant_id ?? 0, !me.membership_id]);
   const unread = await unreadByWall(me.id);
   const render = (list: any[], archived: boolean) => [...new Set(list.map((x: any) => x.tenant))].map(g => (<div key={g}><h2>{g}</h2>{list.filter((i: any) => i.tenant === g).map((i: any) => (
       <div key={i.id} className="card" style={unread[`${i.job_id}:${i.room_wall_id}`] > 0 ? { borderLeft: '6px solid #e5352b', boxShadow: '0 0 0 2px rgba(229,53,43,.35)' } : undefined}><div className="row" style={{ justifyContent: 'space-between' }}><div><b>{i.wall}</b> <div className="mut" style={{ fontSize: '.85rem' }}>{i.broadcaster} \ {i.prod} \ {i.job} · {i.room}</div></div>

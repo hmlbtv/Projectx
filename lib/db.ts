@@ -19,8 +19,6 @@ create table if not exists wall_templates(id serial primary key, tenant_id int, 
 create table if not exists mv_layouts(id serial primary key, tenant_id int, name text not null, tiles jsonb not null);
 create table if not exists room_walls(id serial primary key, room_id int not null references rooms(id) on delete cascade, wall_template_id int not null references wall_templates(id), name text not null);
 create table if not exists source_sets(id serial primary key, tenant_id int not null, name text not null, sources jsonb not null default '[]');
-alter table job_wall_plans add column if not exists version int not null default 0;
-alter table job_wall_plans add column if not exists who jsonb not null default '{}';
 alter table source_sets add column if not exists categories jsonb not null default '{}';
 create table if not exists integrations(id serial primary key, tenant_id int not null unique, name text not null default '', url text not null default '', auth_header text not null default '', auth_value text not null default '', records_path text not null default '', mapping jsonb not null default '{}', updated_at timestamptz default now());
 alter table source_sets add column if not exists cat_names jsonb not null default '[]';
@@ -33,6 +31,8 @@ create table if not exists monitor_plans(id serial primary key, job_id int not n
 create table if not exists job_walls(job_id int not null references jobs(id) on delete cascade, room_wall_id int not null references room_walls(id) on delete cascade, primary key(job_id, room_wall_id));
 create table if not exists wall_links(id serial primary key, job_id int not null references jobs(id) on delete cascade, room_wall_id int not null references room_walls(id) on delete cascade, email text not null, access text not null default 'edit', token_hash text unique not null, revoked boolean not null default false, created_by int, created_at timestamptz not null default now());
 create table if not exists job_wall_plans(job_id int not null references jobs(id) on delete cascade, room_wall_id int not null references room_walls(id) on delete cascade, data jsonb not null default '{}', updated_at timestamptz not null default now(), updated_by int, primary key(job_id, room_wall_id));
+alter table job_wall_plans add column if not exists version int not null default 0;
+alter table job_wall_plans add column if not exists who jsonb not null default '{}';
 -- One shared plan per wall in a Job. Plans saved per person before this are folded in once (the most recent save of each wall wins).
 insert into job_wall_plans(job_id, room_wall_id, data, updated_at, updated_by)
   select distinct on (mp.job_id, w.id) mp.job_id, w.id, k.value, mp.updated_at, mp.user_id

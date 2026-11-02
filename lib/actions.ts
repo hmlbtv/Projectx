@@ -271,7 +271,7 @@ async function setUserSuspended_(f: FormData) {
   if (mid) { // suspends only their access to this organization
     const t = await one('select role,tenant_id from memberships where id=$1', [mid]);
     if (!t || (t.tenant_id !== tid(me) && me.role !== 'webappdev') || ((t.role === 'admin' || t.role === 'master_admin') && !top)) return;
-    await rows('update memberships set suspended=$1 where id=$2', [on, mid]); if (on) await rows('delete from sessions where membership_id=$1', [mid]);
+    await rows('update memberships set suspended=$1 where id=$2', [on, mid]); if (on) await rows('update sessions set membership_id=null where membership_id=$1', [mid]); // they fall back to their home organization
     revalidatePath('/team'); return;
   }
   const tgt = await one('select role,tenant_id from users where id=$1', [id]);
@@ -341,7 +341,8 @@ export async function setTenantStatus(f: FormData) {
   const id = Number(s(f, 'id')), status = s(f, 'status');
   if (!['active', 'suspended', 'archived'].includes(status) || id === me.tenant_id) return;
   await rows('update tenants set status=$1 where id=$2', [status, id]);
-  if (status !== 'active') await rows('delete from sessions where user_id in (select id from users where tenant_id=$1)', [id]);
+  // Only sign out people who are working in this organization right now (not someone whose home is here but who is working elsewhere).
+  if (status !== 'active') await rows('delete from sessions where (membership_id is null and user_id in (select id from users where tenant_id=$1)) or membership_id in (select id from memberships where tenant_id=$1)', [id]);
   revalidatePath('/webappdev');
 }
 // Permanently removes a tenant and everything in it. The tenant name must be typed to confirm.
@@ -349,7 +350,11 @@ export async function deleteTenant(f: FormData) {
   const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
   const id = Number(s(f, 'id')); if (id === me.tenant_id) return;
   const t = await one('select name from tenants where id=$1', [id]); if (!t || s(f, 'confirm') !== t.name) return;
-  const U = '(select id from users where tenant_id=$1)';
+  // People whose home is this organization but who also work in others keep their account: another organization becomes their home.
+  for (const r of await rows<{ id: number; mid: number; mt: number; mr: string }>("select u.id, m.id mid, m.tenant_id mt, m.role mr from users u join lateral (select * from memberships where user_id=u.id and accepted and tenant_id<>$1 order by id limit 1) m on true where u.tenant_id=$1 and u.role<>'webappdev'", [id])) {
+    await rows('update users set tenant_id=$2, role=$3 where id=$1', [r.id, r.mt, r.mr]); await rows('delete from memberships where id=$1', [r.mid]); await rows('delete from sessions where user_id=$1', [r.id]);
+  }
+  const U = '(select id from users where tenant_id=$1)'; // only accounts that exist nowhere else are removed with the organization
   await rows(`delete from job_users where user_id in ${U}`, [id]);
   await rows('delete from broadcasters where tenant_id=$1', [id]);
   await rows('delete from sites where tenant_id=$1', [id]);
