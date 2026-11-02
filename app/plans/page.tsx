@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 export default async function Plans({ searchParams }: { searchParams: Promise<{ job?: string; plan?: string; copied?: string }> }) {
   const me = await requireMe(); if (me.role === 'onetime') redirect('/shared'); const { job, plan: planQ, copied } = await searchParams;
   const jobs = await rows(`select j.id,j.name,j.job_date,(j.expires_at < current_date) expired,p.name prod,b.name broadcaster from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id
-    where (j.id in (select job_id from job_users where user_id=$1) or ($2 and b.tenant_id=$3)) order by j.job_date desc nulls last`, [me.id, canManage(me), me.tenant_id ?? 0]);
+    where b.tenant_id=$3 and (j.id in (select job_id from job_users where user_id=$1) or $2::boolean) order by j.job_date desc nulls last`, [me.id, canManage(me), me.tenant_id ?? 0]);
   const cur = jobs.find((j: any) => String(j.id) === job);
   if (!cur) { const unread = await unreadByJob(me.id);
     const card = (j: any, old: boolean) => (<div key={j.id} className="card" style={!old && unread[j.id] > 0 ? { borderLeft: '6px solid #e5352b', boxShadow: '0 0 0 2px rgba(229,53,43,.35)' } : undefined}><div className="row" style={{ justifyContent: 'space-between', gap: 8 }}><div><a href={`/plans?job=${j.id}`}><b>{j.name}</b></a> <span className="mut">{String(j.job_date ?? '').slice(0, 10)}</span>

@@ -11,7 +11,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
   const { q: q0, s: sf, imported, of, tidied } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
   const me = await requireMe(); if (me.role !== 'webappdev') redirect('/');
   const ts = await rows(`select t.id,t.name,t.plan,t.max_walls_per_broadcaster m, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j, t.max_wall_defaults wd, t.status,
-    (select count(*)::int from users u where u.tenant_id=t.id) members,
+    ((select count(*)::int from users u where u.tenant_id=t.id) + (select count(*)::int from memberships mm where mm.tenant_id=t.id)) members,
     (select count(*)::int from wall_templates w where w.tenant_id=t.id) walls,
     (select count(*)::int from contacts c where c.tenant_id=t.id) contacts,
     (select min(u.email) from users u where u.tenant_id=t.id and u.role='master_admin') owner from tenants t where ($1='' or t.name ilike '%'||$1||'%' or exists(select 1 from users u where u.tenant_id=t.id and (u.email ilike '%'||$1||'%' or u.name ilike '%'||$1||'%')))
@@ -28,7 +28,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
     (select count(distinct e.user_id)::int from login_events e where e.tenant_id=t.id and e.started_at > now()-interval '30 days') active30,
     (select coalesce(avg(extract(epoch from e.last_seen_at-e.started_at)),0)::int from login_events e where e.tenant_id=t.id and e.started_at > now()-interval '30 days') avg_secs,
     (select coalesce(sum(extract(epoch from e.last_seen_at-e.started_at)),0)::int from login_events e where e.tenant_id=t.id and e.started_at > now()-interval '30 days') total_secs,
-    (select count(*)::int from users u where u.tenant_id=t.id) members,
+    ((select count(*)::int from users u where u.tenant_id=t.id) + (select count(*)::int from memberships mm where mm.tenant_id=t.id)) members,
     (select count(*)::int from users u where u.tenant_id=t.id and u.invite_hash is not null) pending,
     (select count(*)::int from users u where u.tenant_id=t.id and u.login_count=0 and u.invite_hash is null) never,
     (select count(*)::int from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id) prods,

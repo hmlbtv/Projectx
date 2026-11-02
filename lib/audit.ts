@@ -40,9 +40,10 @@ async function detail(name: string, args: any[], pre: string | null): Promise<st
 
 async function verified(name: string, args: any[]): Promise<boolean> {
   const f = args.find(a => a instanceof FormData) as FormData | undefined; if (!f) return true; const id = Number(f.get('id'));
-  if (name === 'removeMember') return !(await one('select 1 from users where id=$1', [id]));
-  if (name === 'setUserRole') return (await one('select role from users where id=$1', [id]))?.role === f.get('role');
-  if (name === 'setUserSuspended') return !!(await one('select suspended from users where id=$1', [id]))?.suspended === (f.get('suspend') === '1');
+  const mid = Number(f.get('mid')); // a person who works here through a membership rather than as a home member
+  if (name === 'removeMember') return mid ? !(await one('select 1 from memberships where id=$1', [mid])) : true;
+  if (name === 'setUserRole') return mid ? (await one('select role from memberships where id=$1', [mid]))?.role === f.get('role') : (await one('select role from users where id=$1', [id]))?.role === f.get('role');
+  if (name === 'setUserSuspended') return mid ? !!(await one('select suspended from memberships where id=$1', [mid]))?.suspended === (f.get('suspend') === '1') : !!(await one('select suspended from users where id=$1', [id]))?.suspended === (f.get('suspend') === '1');
   return true;
 }
 

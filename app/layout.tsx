@@ -1,6 +1,7 @@
 import './globals.css';
 import Link from 'next/link';
-import { getMe, canManage, isAdmin } from '@/lib/session';
+import { getMe, myOrgs, canManage, isAdmin } from '@/lib/session';
+import OrgSwitch from './OrgSwitch';
 import { Logo } from './Logo';
 import NavMenu from './NavMenu';
 import '@fontsource-variable/space-grotesk';
@@ -17,7 +18,7 @@ export default async function Root({ children }: { children: React.ReactNode }) 
   const devAccess = process.env.DEV_TOOLS_BUILD === '1' ? (await import('@/lib/devfeedback')).devAccess : null;
   const DevBar = process.env.DEV_TOOLS_BUILD === '1' ? (await import('./DevBar')).default : null;
   const DevStamp = process.env.DEV_TOOLS_BUILD === '1' ? (await import('./DevStamp')).default : null;
-  const me = await getMe(); const dev = me && devSite() && devAccess ? await devAccess() : null; const nonce = (await headers()).get('x-nonce') ?? undefined; // the page's CSP only runs scripts that carry this
+  const me = await getMe(); const orgs = me ? await myOrgs(me.id) : []; const dev = me && devSite() && devAccess ? await devAccess() : null; const nonce = (await headers()).get('x-nonce') ?? undefined; // the page's CSP only runs scripts that carry this
   return (<html lang="en" suppressHydrationWarning><head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('tp-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}" }} /></head><body>
     {me && <nav><Link href="/" className="brand" style={devSite() ? { position: 'relative' } : undefined}><Logo size={24} />{devSite() && DevStamp && <DevStamp />}</Link>
       <NavMenu account={<><div style={{ color: '#9aa4b2', fontSize: 13, padding: '2px 14px' }}>Signed in as {me.name} <span className="tag">{me.role}</span></div><Link href="/account" className="nl">Account settings</Link><form action={signOut}><button className="signout">Sign out</button></form></>} links={[
@@ -29,6 +30,7 @@ export default async function Root({ children }: { children: React.ReactNode }) 
         ...(dev?.on ? [{ href: '/my-comments', label: 'My comments' }] : []),
         ...(me.role === 'webappdev' ? [{ href: '/webappdev', label: 'Site admin' }, { href: '/mail', label: 'Email' }, ...(devSite() ? [{ href: '/webappdev/markup', label: 'Markup' }, { href: '/interest', label: 'Interest' }] : [])] : []),
       ]}>
+        {orgs.length > 1 && <OrgSwitch orgs={orgs} current={me.membership_id ? String(me.membership_id) : 'home'} />}
         <Link href="/account" className="who">{me.name} <span className="tag">{me.role}</span></Link>
         <ThemeToggle />
         <form action={signOut}><button className="sec">Sign out</button></form>

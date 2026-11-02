@@ -71,6 +71,10 @@ alter table tenants add column if not exists created_at timestamptz not null def
 alter table tenants add column if not exists status text not null default 'active';
 create table if not exists mv_tiles(id serial primary key, tenant_id int, name text not null, assets jsonb not null default '[]', created_at timestamptz not null default now());
 alter table users add column if not exists suspended boolean not null default false;
+create table if not exists memberships(id serial primary key, user_id int not null references users(id) on delete cascade, tenant_id int not null references tenants(id) on delete cascade, role text not null, suspended boolean not null default false, max_jobs int not null default 5, created_at timestamptz not null default now(), unique(user_id, tenant_id));
+create index if not exists ix_memberships_user on memberships(user_id);
+create index if not exists ix_memberships_tenant on memberships(tenant_id);
+alter table sessions add column if not exists membership_id int references memberships(id) on delete set null;
 create table if not exists mail_messages(id serial primary key, subject text not null default '', body text not null default '', btn_label text not null default '', btn_url text not null default '', status text not null default 'draft', created_by int, created_at timestamptz not null default now(), updated_at timestamptz not null default now(), tested_at timestamptz, signed_off_at timestamptz, signed_off_by int, sent_at timestamptz, sent_by int, audience text not null default '', sent_count int not null default 0);
 create table if not exists mail_groups(id serial primary key, name text not null unique, emails text not null default '');
 create table if not exists mail_sends(id bigserial primary key, message_id int not null references mail_messages(id) on delete cascade, email text not null, ok boolean not null, at timestamptz not null default now());

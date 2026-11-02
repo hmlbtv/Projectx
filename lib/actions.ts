@@ -42,7 +42,7 @@ async function own(kind: keyof typeof OWN, id: number, me: Me) {
 // A finished Job (past its expiry) is in the Archive: view only.
 async function jobOpen(jobId: number) { return !!(await one('select 1 from jobs where id=$1 and (expires_at is null or expires_at >= current_date)', [jobId])); }
 async function canAccessJob(me: Me, jobId: number) {
-  if (await one('select 1 from job_users where job_id=$1 and user_id=$2', [jobId, me.id])) return true;
+  if (await one('select 1 from job_users ju join jobs j on j.id=ju.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where ju.job_id=$1 and ju.user_id=$2 and b.tenant_id=$3', [jobId, me.id, tid(me)])) return true;
   return canManage(me) && !!(await one(OWN.jobs, [jobId, tid(me)]));
 }
 
@@ -165,11 +165,21 @@ async function changePassword_(_: FormState, f: FormData): Promise<FormState> {
 async function invite(me: Me, email: string, role: string, jobId?: number): Promise<FormState> {
   if (!(await allow('invite', String(me.id), 40, 60))) return TOO_MANY;
   if (!EMAIL.test(email)) return { error: 'Enter a valid email address.' };
-  let u = await one('select id,tenant_id,password_hash from users where email=$1', [email]);
-  if (u && u.tenant_id && u.tenant_id !== tid(me)) { // already in another team: don't tell the inviter, tell the person (can only be hidden when email is set up)
-    if (!emailOn()) return { error: 'That email already belongs to another team.' };
-    { const t = T.inviteUnusable(me.name); await brandedMail(email, t.subject, t.text, t.b); }
-    return { ok: `Invite emailed to ${email}.` };
+  let u = await one('select id,tenant_id,role,password_hash from users where email=$1', [email]);
+  if (u && u.role === 'webappdev') return { ok: `Invite emailed to ${email}.` }; // never added to a team
+  if (u && u.tenant_id && u.tenant_id !== tid(me)) { // already has an account in another organization: add a membership here (their login stays one; each organization only sees its own side)
+    const org = (await one('select name from tenants where id=$1', [tid(me)]))?.name ?? 'a TelePlanner workspace';
+    const ex = await one('select id from memberships where user_id=$1 and tenant_id=$2', [u.id, tid(me)]);
+    const mem = ex ?? await one('insert into memberships(user_id,tenant_id,role) values($1,$2,$3) returning id', [u.id, tid(me), role]);
+    if (jobId) {
+      const already = await one('select 1 from job_users where job_id=$1 and user_id=$2', [jobId, u.id]);
+      const lim = await one(`select m.max_jobs m, m.role, (select count(*)::int from job_users ju join jobs j on j.id=ju.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where ju.user_id=m.user_id and b.tenant_id=m.tenant_id and j.expires_at >= current_date) c from memberships m where m.id=$1`, [mem.id]);
+      if (!already && lim.role === 'user' && lim.c >= lim.m) return { error: `${email} is already on ${lim.c} active Jobs here, the limit set for them (${lim.m}). An Admin can raise it on the Team page.` };
+      await rows('insert into job_users(job_id,user_id) values($1,$2) on conflict do nothing', [jobId, u.id]);
+    }
+    revalidatePath('/productions'); revalidatePath('/team');
+    if (!ex && emailOn()) { const t = T.addedToOrg(me.name, org, await baseUrl()); await brandedMail(email, t.subject, t.text, t.b); }
+    return { ok: `Invite emailed to ${email}.` }; // same wording as any invite, so nothing reveals whether they already had an account
   }
   // Every account, including One-Time Users, belongs to exactly one tenant.
   if (!u) u = await one("insert into users(email,name,role,tenant_id,email_verified) values($1,$1,$2,$3,true) returning id,tenant_id,password_hash", [email, role, tid(me)]);
@@ -177,7 +187,7 @@ async function invite(me: Me, email: string, role: string, jobId?: number): Prom
     // Per-user cap on active Jobs they can access (default 5, set by the tenant Admin on the Team page).
     const already = await one('select 1 from job_users where job_id=$1 and user_id=$2', [jobId, u.id]);
     if (!already) {
-      const lim = await one(`select max_jobs m, role, (select count(*)::int from job_users ju join jobs j on j.id=ju.job_id where ju.user_id=users.id and j.expires_at >= current_date) c from users where id=$1`, [u.id]);
+      const lim = await one(`select max_jobs m, role, (select count(*)::int from job_users ju join jobs j on j.id=ju.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where ju.user_id=users.id and b.tenant_id=users.tenant_id and j.expires_at >= current_date) c from users where id=$1`, [u.id]);
       if (lim.role === 'user' && lim.c >= lim.m) return { error: `${email} is already on ${lim.c} active Jobs, the limit set for them (${lim.m}). An Admin can raise it on the Team page.` };
     }
     await rows('insert into job_users(job_id,user_id) values($1,$2) on conflict do nothing', [jobId, u.id]);
@@ -211,19 +221,40 @@ async function resendInvite_(_: FormState, f: FormData): Promise<FormState> {
 async function removeMember_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
   const id = Number(s(f, 'id')); if (id === me.id) return;
+  const mid = Number(s(f, 'mid'));
+  if (mid) { // works here through a membership: only that membership goes, their account and other organizations are untouched
+    const t = await one('select user_id,role from memberships where id=$1 and tenant_id=$2', [mid, tid(me)]); if (!t || t.user_id === me.id) return;
+    if ((t.role === 'master_admin' || t.role === 'admin') && me.role === 'admin') return;
+    await rows(`delete from job_users where user_id=$1 and job_id in ${JOBS_OF}`, [t.user_id, tid(me)]);
+    await rows('delete from memberships where id=$1', [mid]); revalidatePath('/team'); return;
+  }
   const tgt = await one('select role from users where id=$1 and tenant_id=$2', [id, tid(me)]); if (!tgt) return;
   if (tgt.role === 'master_admin' && (me.role === 'admin' || id === await founder(tid(me)))) return;
   if (!['user', 'manager', 'admin', 'master_admin'].includes(tgt.role)) return;
-  await rows('delete from users where id=$1 and tenant_id=$2', [id, tid(me)]); revalidatePath('/team');
+  // If this is their home organization but they also work elsewhere, keep the account and make one of their other organizations their home.
+  const alt = await one('select id,tenant_id,role from memberships where user_id=$1 order by id limit 1', [id]);
+  if (alt) {
+    await rows(`delete from job_users where user_id=$1 and job_id in ${JOBS_OF}`, [id, tid(me)]);
+    await rows('update users set tenant_id=$2, role=$3 where id=$1', [id, alt.tenant_id, alt.role]);
+    await rows('delete from memberships where id=$1', [alt.id]); await rows('delete from sessions where user_id=$1', [id]);
+  } else await rows('delete from users where id=$1 and tenant_id=$2', [id, tid(me)]);
+  revalidatePath('/team');
 }
 
 // The founding Master Admin (first one on the account) can't be changed by other Master Admins, so an account always keeps an owner.
+const JOBS_OF = '(select j.id from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$2)';
 const founder = async (tenant: number) => (await one("select min(id) id from users where tenant_id=$1 and role='master_admin'", [tenant]))?.id ?? 0;
 async function setUserRole_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
   const id = Number(s(f, 'id')), role = s(f, 'role'), top = me.role === 'master_admin' || me.role === 'webappdev';
   const allowed = top ? ['user', 'manager', 'admin', 'master_admin'] : ['user', 'manager'];
   if (id === me.id || !allowed.includes(role)) return;
+  const mid = Number(s(f, 'mid'));
+  if (mid) { // membership in this organization
+    const t = await one('select role,tenant_id from memberships where id=$1', [mid]);
+    if (!t || (t.tenant_id !== tid(me) && me.role !== 'webappdev') || ((t.role === 'admin' || t.role === 'master_admin') && !top)) return;
+    await rows('update memberships set role=$1 where id=$2', [role, mid]); await rows('delete from sessions where membership_id=$1', [mid]); revalidatePath('/team'); return;
+  }
   const tgt = await one('select role,tenant_id from users where id=$1', [id]);
   if (!tgt || tgt.tenant_id !== tid(me) && me.role !== 'webappdev') return;
   if (tgt.role === 'webappdev' || (tgt.role === 'admin' && !top) || (tgt.role === 'master_admin' && (!top || (me.role !== 'webappdev' && id === await founder(tgt.tenant_id))))) return;
@@ -236,6 +267,13 @@ async function setUserSuspended_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
   const id = Number(s(f, 'id')), on = s(f, 'suspend') === '1', top = me.role === 'master_admin' || me.role === 'webappdev';
   if (id === me.id) return;
+  const mid = Number(s(f, 'mid'));
+  if (mid) { // suspends only their access to this organization
+    const t = await one('select role,tenant_id from memberships where id=$1', [mid]);
+    if (!t || (t.tenant_id !== tid(me) && me.role !== 'webappdev') || ((t.role === 'admin' || t.role === 'master_admin') && !top)) return;
+    await rows('update memberships set suspended=$1 where id=$2', [on, mid]); if (on) await rows('delete from sessions where membership_id=$1', [mid]);
+    revalidatePath('/team'); return;
+  }
   const tgt = await one('select role,tenant_id from users where id=$1', [id]);
   if (!tgt || tgt.role === 'webappdev' || (tgt.tenant_id !== tid(me) && me.role !== 'webappdev')) return;
   if ((tgt.role === 'admin' || tgt.role === 'master_admin') && !top) return;
@@ -247,7 +285,10 @@ async function setUserSuspended_(f: FormData) {
 async function setUserMaxJobs_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Admin only');
   const max = Math.min(Math.max(parseInt(s(f, 'max')), 0) || 0, 1000);
-  await rows("update users set max_jobs=$1 where id=$2 and tenant_id=$3 and role='user'", [max, Number(s(f, 'id')), tid(me)]); revalidatePath('/team');
+  const mid = Number(s(f, 'mid'));
+  if (mid) await rows("update memberships set max_jobs=$1 where id=$2 and tenant_id=$3 and role='user'", [max, mid, tid(me)]);
+  else await rows("update users set max_jobs=$1 where id=$2 and tenant_id=$3 and role='user'", [max, Number(s(f, 'id')), tid(me)]);
+  revalidatePath('/team');
 }
 async function removeJobUser_(f: FormData) {
   const me = await mgr(); const job = Number(s(f, 'job')); await own('jobs', job, me);

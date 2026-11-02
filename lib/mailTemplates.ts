@@ -3,6 +3,9 @@ import { escMail as e, type Brand } from './brandMail';
 // Every email the site sends is defined here, so they all share one look (see brandMail.ts) and wording lives in one place.
 export type Tpl = { subject: string; text: string; b: Brand };
 export const mailTemplates = {
+  addedToOrg: (name: string, org: string, url: string): Tpl => ({ subject: `You have been added to ${org} on TelePlanner`,
+    text: `${name} added you to ${org} on TelePlanner.\nYou keep your existing login. Sign in and use the "Working in" menu to switch to ${org}.\n${url}`,
+    b: { heading: `${e(name)} added you to <b>${e(org)}</b>`, lines: [`You keep your existing TelePlanner login. Sign in and pick <b>${e(org)}</b> from the <b>Working in</b> menu to switch to it.`, 'Each organization is kept separate: they only see their own part of your account.'], button: { label: 'Open TelePlanner', url } } }),
   interestThanks: (name: string): Tpl => ({ subject: 'Thank you for your interest in TelePlanner',
     text: `Hi ${name},\n\nThank you for your interest in TelePlanner. We will email you when the site is ready.\n\nTelePlanner.tv`,
     b: { heading: 'Thank you for your interest', lines: [`Hi ${e(name)},`, 'Thank you for your interest in <b>TelePlanner</b>. We will email you when the site is ready.'], small: 'You are receiving this because you registered your interest at teleplanner.tv.' } }),

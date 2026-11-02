@@ -31,7 +31,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   const sets_p = rows('select * from source_sets where tenant_id=$1', [t]);
   const allWalls_p = rows('select rw.id, rw.name, r.name room, l.name loc, s.name site from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name, l.name, r.name, rw.name', [t]);
   const tree_p = rows('select s.id sid, s.name site, l.id lid, l.name loc, r.id rid, r.name room from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name, l.name, r.name', [t]);
-  const ju_p = rows('select ju.job_id, ju.user_id, u.email from job_users ju join users u on u.id=ju.user_id where u.tenant_id=$1', [t]);
+  const ju_p = rows('select ju.job_id, ju.user_id, u.email from job_users ju join users u on u.id=ju.user_id join jobs j on j.id=ju.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1', [t]);
   const [bs, ps, js, rw, wl, contacts, pcs, sets, allWalls, ju, tree] = await Promise.all([bs_p, ps_p, js_p, rw_p, wl_p, contacts_p, pcs_p, sets_p, allWalls_p, ju_p, tree_p]); // run the page's queries together instead of one after another
   const q = await searchParams; const adm = isAdmin(me); const d = (x: any) => x ? new Date(x).toISOString().slice(0, 10) : '';
   const Del = ({ action, id, what }: { action: any; id: number; what: string }) => adm ? (<form action={action} className="del-row"><input type="hidden" name="id" value={id} /><span className="mut">Delete this {what} and everything inside it? This cannot be undone.</span><button className="del">Yes, delete</button></form>) : null;
