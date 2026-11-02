@@ -2,6 +2,7 @@ import './globals.css';
 import Link from 'next/link';
 import { getMe, myOrgs, pendingInvites, canManage, isAdmin } from '@/lib/session';
 import OrgSwitch from './OrgSwitch';
+import OrgBanner from './OrgBanner';
 import { Logo } from './Logo';
 import NavMenu from './NavMenu';
 import '@fontsource-variable/space-grotesk';
@@ -11,7 +12,12 @@ import { headers } from 'next/headers';
 import { devSite } from '@/lib/devmode';
 
 export const viewport = { width: 'device-width', initialScale: 1, minimumScale: 1, themeColor: '#0f1217' };
-export const metadata = { title: 'TelePlanner', description: 'Monitor plans for live production' };
+export async function generateMetadata() {
+  const me = await getMe(); const orgs = me ? await myOrgs(me.id) : [];
+  const cur = me && orgs.length > 1 ? orgs.find(o => o.key === (me.membership_id ? String(me.membership_id) : 'home')) : null;
+  return { title: cur ? `${cur.name} · TelePlanner` : 'TelePlanner', description: 'Monitor plans for live production' };
+}
+const hueOf = (s: string) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 
 export default async function Root({ children }: { children: React.ReactNode }) {
   // Only present in builds that include the dev tools (never the production build: the condition is fixed at build time, so the imports are dropped).
@@ -35,5 +41,5 @@ export default async function Root({ children }: { children: React.ReactNode }) 
         <Link href="/account" className="who">{me.name} <span className="tag">{me.role}</span></Link>
         <ThemeToggle />
         <form action={signOut}><button className="sec">Sign out</button></form>
-      </NavMenu></nav>}<main>{children}</main>{dev?.on && DevBar && <DevBar owner={dev.owner} />}</body></html>);
+      </NavMenu></nav>}{me && me.role !== 'webappdev' && orgs.length > 1 && (() => { const c = orgs.find(o => o.key === (me.membership_id ? String(me.membership_id) : 'home')); return c ? <OrgBanner name={c.name} role={c.role} hue={hueOf(c.name)} /> : null; })()}<main>{children}</main>{dev?.on && DevBar && <DevBar owner={dev.owner} />}</body></html>);
 }
