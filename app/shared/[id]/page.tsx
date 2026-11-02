@@ -4,7 +4,8 @@ import { one, rows } from '@/lib/db';
 import { myEmails } from '@/lib/emails';
 import { requireMe } from '@/lib/session';
 import { loadJobPlans } from '@/lib/plans';
-import { savePlanLink, addCommentLink, loadPlansLink, loadPlanMetaLink } from '@/lib/guestActions';
+import { savePlanLink, addCommentLink, loadPlansLink, loadPlanMetaLink, guestCopyCandidates } from '@/lib/guestActions';
+import GuestCopy from '../GuestCopy';
 import { wallComments, markSeen } from '@/lib/comments';
 import WallComments from '@/app/plans/WallComments';
 import Plan from '@/app/plans/Plan';
@@ -28,6 +29,7 @@ export default async function SharedWall({ params }: { params: Promise<{ id: str
   const comments = await wallComments(link.job_id, link.room_wall_id); await markSeen(me.id, link.job_id, [link.room_wall_id]);
   return (<><Link href="/shared">← Shared with me</Link><h1 style={{ marginTop: 8 }}>{link.wall}</h1>
     <p className="mut">{link.tenant} · {link.prod} / {link.job} · {link.room} <span className="tag">{link.expired ? 'Archive: view only' : edit ? 'You can edit this wall' : 'View only'}</span></p>
+    {edit && await (async () => { const c = await guestCopyCandidates(link.id); return c.length ? <GuestCopy link={link.id} cands={c.map((x: any) => ({ id: x.id, job: x.job, prod: x.prod, wall: x.wall, expired: !!x.expired, when: String(x.updated_at).slice(0, 10) }))} /> : null; })()}
     {Object.keys(saved[0].data).length === 0 && !edit && <div className="card mut">No plan has been saved for this wall yet.</div>}
     <Plan refresh={loadPlansLink.bind(null, link.id)} walls={pw} layouts={layouts} sources={src?.sources ?? []} sourceCats={src?.categories ?? {}} saved={saved} save={edit ? savePlanLink.bind(null, link.id) : undefined} readOnly={!edit} printInfo={{ id: link.job_id, bc: link.bc, prod: link.prod, name: link.job, load: loadPlanMetaLink.bind(null, link.id), dates: [['Job date', link.job_date], ['Final date', link.final_date], ['Expires', link.expires_at]].filter(x => x[1]).map(x => [x[0], new Date(x[1] as any).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })]) as [string, string][] }} />
     <WallComments title={`${link.wall} · ${link.job}`} comments={comments as any} action={edit ? addCommentLink : undefined} hidden={{ link: link.id }} /></>);

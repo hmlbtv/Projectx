@@ -7,6 +7,7 @@ import { requireMe, canManage, createSession, type Me } from './session';
 import { myEmails } from './emails';
 import { allow, clientIp } from './security';
 import { loadJobPlans, saveJobPlans, planMeta } from './plans';
+import { checkCopy } from './planCopy';
 import { wallPng, markPng } from './wallPng';
 import { brandedMail, escMail } from './brandMail';
 import { mailTemplates as T } from './mailTemplates';
@@ -189,3 +190,44 @@ export async function removeInvite(...a: Parameters<typeof removeInvite_>) { ret
 export async function createWallLink(...a: Parameters<typeof createWallLink_>) { return audited('createWallLink', createWallLink_, a) as ReturnType<typeof createWallLink_>; }
 export async function revokeWallLink(...a: Parameters<typeof revokeWallLink_>) { return audited('revokeWallLink', revokeWallLink_, a) as ReturnType<typeof revokeWallLink_>; }
 export async function reassignWallLink(...a: Parameters<typeof reassignWallLink_>) { return audited('reassignWallLink', reassignWallLink_, a) as ReturnType<typeof reassignWallLink_>; }
+
+// ---- Guests: copy a saved plan from another Job in the SAME organization, with checks ----
+async function copySource(me: Me, linkId: number, srcLinkId: number) {
+  const tgt = await linkAccess(me, linkId); if (!tgt || tgt.access !== 'edit') throw new Error('Not allowed');
+  // The source must be one of this person's own shares (any access, archived Jobs included) in the same organization.
+  const src = await one(`select wl.job_id, wl.room_wall_id, b.tenant_id, rw.wall_template_id, wt.data wdata from wall_links wl join jobs j on j.id=wl.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id
+    join room_walls rw on rw.id=wl.room_wall_id join wall_templates wt on wt.id=rw.wall_template_id
+    where wl.id=$1 and lower(wl.email) in ${myEmails(2)} and not wl.revoked and wl.job_id<>$3 and (select status from tenants where id=b.tenant_id)='active'
+      and b.tenant_id=(select b2.tenant_id from jobs j2 join productions p2 on p2.id=j2.production_id join broadcasters b2 on b2.id=p2.broadcaster_id where j2.id=$3)`, [srcLinkId, me.id, tgt.job_id]);
+  if (!src) throw new Error('Not allowed');
+  const t = await one('select wt.data, j.source_set_id, b.tenant_id from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id, jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where rw.id=$1 and j.id=$2', [tgt.room_wall_id, tgt.job_id]);
+  const sp = (await loadJobPlans(src.job_id, [src.room_wall_id]))[String(src.room_wall_id)];
+  const srcSet = await one('select ss.sources from jobs j join source_sets ss on ss.id=j.source_set_id where j.id=$1', [src.job_id]);
+  const tgtSet = await one('select ss.sources from jobs j join source_sets ss on ss.id=j.source_set_id where j.id=$1', [tgt.job_id]);
+  const layouts = await rows('select id,name,tiles from mv_layouts where tenant_id is null or tenant_id=$1', [src.tenant_id]);
+  const arr = (x: any) => (Array.isArray(x?.assets) ? x.assets : []);
+  const nm = (v: any) => (Array.isArray(v) ? v.map((s: any) => String(typeof s === 'string' ? s : s?.name ?? '')) : null);
+  return { tgt, src, sp, res: sp ? checkCopy({ src: sp, srcAssets: arr(src.wdata), tgtAssets: arr(t?.data), layouts: layouts as any, srcSources: nm(srcSet?.sources), tgtSources: nm(tgtSet?.sources) }) : null };
+}
+// Plans this person may copy onto the wall they are editing: their own other shares, same organization, with a saved plan.
+export async function guestCopyCandidates(linkId: number) {
+  const me = await requireMe(); const tgt = await linkAccess(me, linkId); if (!tgt || tgt.access !== 'edit') return [];
+  return rows(`select wl.id, j.name job, p.name prod, rw.name wall, (j.expires_at < current_date) expired, q.updated_at from wall_links wl join jobs j on j.id=wl.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id
+    join room_walls rw on rw.id=wl.room_wall_id join job_wall_plans q on q.job_id=wl.job_id and q.room_wall_id=wl.room_wall_id
+    where lower(wl.email) in ${myEmails(1)} and not wl.revoked and wl.job_id<>$2 and (select status from tenants where id=b.tenant_id)='active'
+      and b.tenant_id=(select b2.tenant_id from jobs j2 join productions p2 on p2.id=j2.production_id join broadcasters b2 on b2.id=p2.broadcaster_id where j2.id=$2)
+    order by q.updated_at desc limit 100`, [me.id, tgt.job_id]);
+}
+export async function guestCopyPreview(linkId: number, srcLinkId: number): Promise<{ error?: string; findings?: { level: string; text: string }[]; copied?: number }> {
+  const me = await requireMe();
+  try { const c = await copySource(me, linkId, srcLinkId); if (!c.res) return { error: 'That wall has no saved plan.' }; if (!c.res.copied && !c.res.data.layoutId) return { error: 'Nothing in that plan fits this wall.', findings: c.res.findings }; return { findings: c.res.findings, copied: c.res.copied }; }
+  catch { return { error: 'You cannot copy that plan.' }; }
+}
+export async function guestCopyApply(linkId: number, srcLinkId: number, confirmed: boolean): Promise<{ error?: string; ok?: boolean }> {
+  const me = await requireMe();
+  try {
+    const c = await copySource(me, linkId, srcLinkId); if (!c.res || (!c.res.copied && !c.res.data.layoutId)) return { error: 'Nothing in that plan fits this wall.' };
+    if (c.res.findings.some(x => x.level === 'warn') && !confirmed) return { error: 'Please review the differences and confirm.' };
+    await saveJobPlans(c.tgt.job_id, { [c.tgt.room_wall_id]: c.res.data }, me.id, c.tgt.room_wall_id); revalidatePath('/shared'); return { ok: true };
+  } catch { return { error: 'You cannot copy that plan.' }; }
+}
