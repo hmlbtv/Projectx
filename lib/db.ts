@@ -155,7 +155,7 @@ function oneAndFive() {
 }
 
 // Bump this when the start-up code below (not SCHEMA) changes and must run again.
-const MIGRATION_REV = 'r1';
+const MIGRATION_REV = 'r2';
 type Client = { query: (sql: string, params?: any[]) => Promise<{ rows: any[] }>; exec: (sql: string) => Promise<any> };
 
 async function init(): Promise<Client> {
@@ -192,6 +192,8 @@ async function init(): Promise<Client> {
     if (hadTiles) for (const r of (await client.query('select id,assets from mv_tiles')).rows) await client.query('update mv_tiles set assets=$1 where id=$2', [JSON.stringify(sc(r.assets || [])), r.id]);
   }
   await client.query("insert into settings(key,value) values('canvas','1080') on conflict (key) do nothing");
+  // Layouts are called N-way, not N up.
+  await client.exec("update mv_layouts set name=regexp_replace(name,'^([0-9]+) up\\M','\\1-way') where name ~ '^[0-9]+ up\\M'");
   await bootstrap(client);
   if (!hadTiles) await seedTiles(client);
   await client.query("insert into settings(key,value) values('schema_ver',$1) on conflict (key) do update set value=excluded.value", [ver]);
@@ -228,7 +230,7 @@ async function bootstrap(db: Client) {
 async function seedPresets(db: Client) {
   const q = async (s: string, p: any[] = []) => (await db.query(s, p)).rows as any[];
   // Preset MV layouts (WebAppDev, tenant_id null), 16:9 frame = 1920x1080
-  const presets: [string, any][] = [['1 up',grid(1,1)],['2 up',grid(2,1)],['4 up (2x2)',grid(2,2)],['6 up (3x2)',grid(3,2)],['9 up (3x3)',grid(3,3)],['16 up (4x4)',grid(4,4)],['1 + 5',oneAndFive()]];
+  const presets: [string, any][] = [['1-way',grid(1,1)],['2-way',grid(2,1)],['4-way (2x2)',grid(2,2)],['6-way (3x2)',grid(3,2)],['9-way (3x3)',grid(3,3)],['16-way (4x4)',grid(4,4)],['1 + 5',oneAndFive()]];
   for (const [n,tiles] of presets) await q('insert into mv_layouts(tenant_id,name,tiles) values(null,$1,$2)',[n,JSON.stringify(tiles)]);
 }
 
