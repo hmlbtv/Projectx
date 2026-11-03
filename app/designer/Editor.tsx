@@ -6,6 +6,7 @@ import type { DAsset, PaletteItem } from './assets';
 export type Flag = { key: string; label: string; initial: boolean };
 export type SaveArgs = { id: number | null; name: string; assets: DAsset[]; asNew: boolean; flags: Record<string, boolean> };
 type Props = {
+  nameList?: { title: string; test: (a: DAsset) => boolean; prefix: string }; /* a quick list to name every matching item, with an auto-name button */
   kind: string; backHref: string; world: { w: number; h: number }; onWorld?: (w: { w: number; h: number }) => void; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
   id: number | null; initialName: string; initial: DAsset[]; onSave: (a: SaveArgs) => Promise<{ id?: number; error?: string }>;
   canvasName?: string; fitSpace?: boolean; rotatable?: boolean; stamps?: { id: number; name: string; group: string; node: React.ReactNode }[]; stampKey?: string; neaten?: (items: DAsset[]) => DAsset[] | null; allowOverlap?: boolean; readOnly?: boolean; notice?: React.ReactNode; viewOnly?: boolean; backQuery?: string; touch?: { on: (a: DAsset) => Record<string, any> | null; off: () => void }; /* while set, clicking an item patches its props (on returns the patch, null to skip) and a click on empty canvas calls off */ onTileClick?: (a: DAsset, items: DAsset[]) => boolean; /* return true to take the click (e.g. renumbering) instead of selecting/moving */ looseTypes?: string[]; /* item types that may sit over anything (text, pictures) */ zoomable?: boolean; onAction?: (pi: PaletteItem, add: (over: Partial<PaletteItem>) => void) => void; headerExtra?: React.ReactNode; extras?: (a: DAsset, setProps: (patch: Record<string, any>) => void) => React.ReactNode; flags?: Flag[]; backdrop?: React.ReactNode;
@@ -446,6 +447,13 @@ export default function Editor(p: Props) {
             <div className="dz-row"><span>Assets</span><em>{items.length}</em></div>
             <p className="mut dz-help">{readOnly ? 'Select an item to see its properties.' : 'Click an item to edit it. Drag on empty canvas to select several (left to right touches, right to left encloses). Shift-click adds. Drag a corner to resize; arrows nudge (Shift = fine). Ctrl+C / V / D copy, paste, duplicate; Ctrl+Z undoes.'}</p></>)}
         </Sec>
+        {p.nameList && !readOnly && (() => { const nl = p.nameList!, L = items.filter(nl.test).sort((x, y) => x.y - y.y || x.x - y.x); if (!L.length) return null;
+          return (<Sec id="names" title={nl.title} badge={<span className="tag">{L.length}</span>} open={openSec.names ?? true} toggle={toggleSec}>
+            <div style={{ display: 'grid', gap: 4 }}>{L.map((a, i) => (<div key={a.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button type="button" className={sel.includes(a.id) ? '' : 'sec'} style={{ minWidth: 30, padding: '2px 6px' }} onClick={() => setSel([a.id])} aria-label={`Select ${a.name || nl.prefix + ' ' + (i + 1)}`}>{i + 1}</button>
+              <input value={a.name} maxLength={60} placeholder={`${nl.prefix} ${i + 1}`} aria-label={`${nl.prefix} ${i + 1} name`} style={{ flex: 1, minWidth: 0 }} onFocus={push} onChange={e => apply(items.map(x => x.id === a.id ? { ...x, name: e.target.value } : x), false)} /></div>))}</div>
+            <button type="button" className="sec small" style={{ marginTop: 6 }} onClick={() => { const m = new Map(L.map((a, i) => [a.id, `${nl.prefix} ${i + 1}`])); apply(items.map(x => m.has(x.id) ? { ...x, name: m.get(x.id)! } : x)); }}>Auto-name top to bottom, left to right</button>
+          </Sec>); })()}
         {!readOnly && <Sec id="add" title="Add" open={openSec.add} toggle={toggleSec}>
           {palette.some(x => x.group) ? [...new Set(palette.map(x => x.group ?? ''))].map(g => (<div key={g}><div className="dz-help mut">{g}</div><div className="dz-pal">{palette.filter(x => (x.group ?? '') === g).map(pi => <button key={pi.type} className="sec small" onClick={() => pi.action ? p.onAction?.(pi, over => add({ ...pi, ...over })) : add(pi)}>+ {pi.label}</button>)}</div></div>))
             : <div className="dz-pal">{palette.map(pi => <button key={pi.type} className="sec small" onClick={() => add(pi)}>+ {pi.label}</button>)}</div>}
