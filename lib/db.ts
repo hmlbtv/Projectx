@@ -129,6 +129,12 @@ create index if not exists ix_locations_site on locations(site_id);
 create index if not exists ix_rooms_location on rooms(location_id);
 create index if not exists ix_room_walls_room on room_walls(room_id);
 create index if not exists ix_job_walls_rw on job_walls(room_wall_id);
+create table if not exists hw_units(id serial primary key, tenant_id int not null references tenants(id) on delete cascade, site_id int references sites(id) on delete set null, name text not null, model text not null default '', inputs int not null default 1, outputs int not null default 1);
+alter table hw_units add column if not exists location_id int references locations(id) on delete set null;
+alter table hw_units add column if not exists room_id int references rooms(id) on delete set null;
+create index if not exists ix_hw_units_tenant on hw_units(tenant_id);
+create table if not exists hw_outputs(unit_id int not null references hw_units(id) on delete cascade, out_no int not null, room_wall_id int not null references room_walls(id) on delete cascade, monitor_id text not null, primary key(unit_id, out_no), unique(room_wall_id, monitor_id));
+create table if not exists hw_dests(room_wall_id int not null references room_walls(id) on delete cascade, monitor_id text not null, layout_id int not null, first_dest int not null, primary key(room_wall_id, monitor_id, layout_id));
 `;
 
 function grid(cols: number, rows: number) {

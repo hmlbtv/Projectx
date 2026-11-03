@@ -16,6 +16,7 @@ import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, sendMail, sendMailDetailed,
 import { verifyPassword, hashPassword, passwordProblem, newToken, sha256 } from './password';
 
 const tid = (me: any) => me.tenant_id ?? 0;
+import { loadHardware, taken } from './hardware';
 const s = (f: FormData, k: string) => String(f.get(k) ?? '').trim().slice(0, k === 'sources' ? 20000 : 200);
 const TOO_MANY: FormState = { error: 'Too many requests. Please wait a while and try again.' };
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -666,6 +667,100 @@ async function deleteDestSet_(f: FormData) {
   const me = await adm(); const id = Number(s(f, 'id')); await own('destSets', id, me);
   await rows('delete from destination_sets where id=$1', [id]); revalidatePath('/tenant'); revalidatePath('/walls');
 }
+// ---- Hardware: MV units (inputs/outputs), which output drives which monitor in which Room, and where each MV layout starts on the unit. Admin only. ----
+// Where a unit lives: a whole Site ("s:ID"), one Location ("l:ID") or one Room ("r:ID"). It can be used by monitors anywhere in that Site.
+async function hwWhere(me: Me, v: string): Promise<{ site: number | null; loc: number | null; room: number | null }> {
+  const k = v.slice(0, 1), id = Number(v.slice(2)); if (!id || !'slr'.includes(k)) return { site: null, loc: null, room: null };
+  if (k === 's') { await own('sites', id, me); return { site: id, loc: null, room: null }; }
+  if (k === 'l') { await own('locations', id, me); const r = await one('select site_id from locations where id=$1', [id]); return { site: r!.site_id, loc: id, room: null }; }
+  await own('rooms', id, me); const r = await one('select l.site_id, l.id lid from rooms r join locations l on l.id=r.location_id where r.id=$1', [id]); return { site: r!.site_id, loc: r!.lid, room: id };
+}
+const hwBack = (unit: number, msg?: string): never => redirect(`/hardware?id=${unit}${msg ? '&err=' + encodeURIComponent(msg) : ''}`);
+const intIn = (v: string, lo: number, hi: number, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= lo && n <= hi ? n : d; };
+async function addHwUnit_(_: FormState, f: FormData): Promise<FormState> {
+  const me = await adm(); const name = s(f, 'name').slice(0, 80); if (!name) return { error: 'Give the unit a name.' };
+  const w = await hwWhere(me, s(f, 'where')); if (!w.site) return { error: 'Choose where the unit is (a Site, Location or Room).' };
+  if (((await one('select count(*)::int c from hw_units where tenant_id=$1', [tid(me)]))!).c >= 200) return { error: 'Hardware unit limit reached.' };
+  await rows('insert into hw_units(tenant_id,site_id,location_id,room_id,name,model,inputs,outputs) values($1,$2,$3,$4,$5,$6,$7,$8)', [tid(me), w.site, w.loc, w.room, name, s(f, 'model').slice(0, 80), intIn(s(f, 'inputs'), 1, 1024, 16), intIn(s(f, 'outputs'), 1, 256, 4)]);
+  revalidatePath('/hardware'); return { ok: 'Added.' };
+}
+async function updateHwUnit_(f: FormData) {
+  const me = await adm(); const id = Number(s(f, 'id')); const u = await one('select id from hw_units where id=$1 and tenant_id=$2', [id, tid(me)]); if (!u) throw new Error('Not found');
+  const w = await hwWhere(me, s(f, 'where')); const cur = (await one('select site_id from hw_units where id=$1', [id]))!;
+  if (w.site && w.site !== cur.site_id && (await one('select 1 from hw_outputs where unit_id=$1', [id]))) return hwBack(id, 'This unit has outputs assigned in its current Site. Clear them before moving it to another Site.');
+  const mo = (await one('select coalesce(max(out_no),0)::int m from hw_outputs where unit_id=$1', [id]))!.m;
+  const { dests, outs, layouts } = await loadHardware(tid(me)); const used = taken(id, outs, dests, layouts); const mi = used.reduce((m, r) => Math.max(m, r.to), 0);
+  const inputs = Math.max(mi, intIn(s(f, 'inputs'), 1, 1024, 16)), outputs = Math.max(mo, intIn(s(f, 'outputs'), 1, 256, 4)); // never below what is already in use
+  await rows('update hw_units set name=coalesce(nullif($2,\'\'),name), model=$3, site_id=coalesce($4,site_id), location_id=case when $4::int is null then location_id else $7::int end, room_id=case when $4::int is null then room_id else $8::int end, inputs=$5, outputs=$6 where id=$1', [id, s(f, 'name').slice(0, 80), s(f, 'model').slice(0, 80), w.site, inputs, outputs, w.loc, w.room]);
+  revalidatePath('/hardware');
+}
+async function deleteHwUnit_(f: FormData) {
+  const me = await adm(); const id = Number(s(f, 'id'));
+  const outs = await rows('select room_wall_id, monitor_id from hw_outputs where unit_id=$1', [id]);
+  const r = await one('select id from hw_units where id=$1 and tenant_id=$2', [id, tid(me)]); if (!r) throw new Error('Not found');
+  for (const o of outs) await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2', [o.room_wall_id, o.monitor_id]);
+  await rows('delete from hw_units where id=$1', [id]); revalidatePath('/hardware'); redirect('/hardware');
+}
+async function setHwOutput_(f: FormData) {
+  const me = await adm(); const unit = Number(s(f, 'unit')), out = Number(s(f, 'out')), target = s(f, 'target');
+  const { units, walls, outs } = await loadHardware(tid(me)); const u = units.find(x => x.id === unit); if (!u) throw new Error('Not found');
+  if (!(out >= 1 && out <= u.outputs)) return hwBack(unit, 'That output does not exist on this unit.');
+  const prev = outs.find(o => o.unit_id === unit && o.out_no === out);
+  if (!target) { if (prev) { await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2', [prev.room_wall_id, prev.monitor_id]); await rows('delete from hw_outputs where unit_id=$1 and out_no=$2', [unit, out]); } revalidatePath('/hardware'); return hwBack(unit); }
+  const [rwS, monId] = [target.slice(0, target.indexOf(':')), target.slice(target.indexOf(':') + 1)]; const rw = walls.find(w => String(w.id) === rwS && w.site_id === u.site_id); const mon = rw?.mons.find(m => m.id === monId);
+  if (!rw || !mon) return hwBack(unit, 'That monitor was not found in this unit\'s Site.');
+  const had = outs.find(o => o.room_wall_id === rw.id && o.monitor_id === mon.id);
+  if (had && had.unit_id === unit && had.out_no === out) return hwBack(unit);
+  if (prev) await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2', [prev.room_wall_id, prev.monitor_id]); // the monitor that lost this output loses its destinations
+  if (had && had.unit_id !== unit) await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2', [rw.id, mon.id]); // moved to a different unit: its old numbers no longer apply
+  await rows('delete from hw_outputs where (room_wall_id=$1 and monitor_id=$2) or (unit_id=$3 and out_no=$4)', [rw.id, mon.id, unit, out]);
+  await rows('insert into hw_outputs(unit_id,out_no,room_wall_id,monitor_id) values($1,$2,$3,$4)', [unit, out, rw.id, mon.id]);
+  revalidatePath('/hardware'); hwBack(unit);
+}
+// Checks a start number for one layout on one monitor against its unit: it must fit the unit's inputs and must not overlap another monitor's numbers.
+function checkDest(ctx: Awaited<ReturnType<typeof loadHardware>>, rwId: number, monId: string, layoutId: number, first: number, ignore: Set<string> = new Set()): { unit: number; err?: string } {
+  const o = ctx.outs.find(x => x.room_wall_id === rwId && x.monitor_id === monId); if (!o) return { unit: 0, err: 'Assign this monitor to a hardware output first.' };
+  const u = ctx.units.find(x => x.id === o.unit_id)!; const rw = ctx.walls.find(w => w.id === rwId); const mon = rw?.mons.find(m => m.id === monId); const lay = ctx.layouts.get(layoutId);
+  if (!mon || !lay || !mon.mvs.includes(layoutId)) return { unit: u.id, err: 'That layout is not one of this monitor\'s MV layouts.' };
+  if (!Number.isInteger(first) || first < 1) return { unit: u.id, err: 'Use a whole number of 1 or more.' };
+  if (first + lay.n - 1 > u.inputs) return { unit: u.id, err: `${lay.name} needs ${lay.n} destinations from ${first}, but ${u.name} only has ${u.inputs} inputs.` };
+  for (const t of taken(u.id, ctx.outs, ctx.dests, ctx.layouts, { rw: rwId, mon: monId })) { if (ignore.has(t.rw + ':' + t.mon)) continue;
+    if (first <= t.to && first + lay.n - 1 >= t.from) { const w = ctx.walls.find(x => x.id === t.rw); return { unit: u.id, err: `${first}–${first + lay.n - 1} overlaps ${w?.room} · ${w?.mons.find(m => m.id === t.mon)?.name} (${t.from}–${t.to}) on ${u.name}.` }; } }
+  return { unit: u.id };
+}
+async function setHwDest_(f: FormData) {
+  const me = await adm(); const ctx = await loadHardware(tid(me)); const rw = Number(s(f, 'rw')), mon = s(f, 'mon'), lay = Number(s(f, 'layout')), txt = s(f, 'first'), unit = Number(s(f, 'unit'));
+  if (!txt) { if (ctx.outs.some(o => o.room_wall_id === rw && o.monitor_id === mon)) await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2 and layout_id=$3', [rw, mon, lay]); revalidatePath('/hardware'); return hwBack(unit); }
+  const c = checkDest(ctx, rw, mon, lay, Number(txt)); if (c.err) return hwBack(unit || c.unit, c.err);
+  await rows('insert into hw_dests(room_wall_id,monitor_id,layout_id,first_dest) values($1,$2,$3,$4) on conflict(room_wall_id,monitor_id,layout_id) do update set first_dest=excluded.first_dest', [rw, mon, lay, Number(txt)]);
+  revalidatePath('/hardware'); hwBack(unit || c.unit);
+}
+// Every MV layout of one monitor starts at the same number (a full-screen layout then sits on the first destination of the multi-tile one).
+async function setHwMonitorStart_(f: FormData) {
+  const me = await adm(); const ctx = await loadHardware(tid(me)); const rw = Number(s(f, 'rw')), mon = s(f, 'mon'), first = Number(s(f, 'first')), unit = Number(s(f, 'unit'));
+  const m = ctx.walls.find(w => w.id === rw)?.mons.find(x => x.id === mon); if (!m) return hwBack(unit, 'That monitor was not found.');
+  const ls = m.mvs.filter(l => ctx.layouts.has(l)); for (const l of ls) { const c = checkDest(ctx, rw, mon, l, first); if (c.err) return hwBack(unit || c.unit, c.err); }
+  for (const l of ls) await rows('insert into hw_dests(room_wall_id,monitor_id,layout_id,first_dest) values($1,$2,$3,$4) on conflict(room_wall_id,monitor_id,layout_id) do update set first_dest=excluded.first_dest', [rw, mon, l, first]);
+  revalidatePath('/hardware'); hwBack(unit);
+}
+// Packs the unit's monitors one after another in output order: a monitor takes as many destinations as its biggest layout, and all its layouts start at its first one.
+async function autoHwDests_(f: FormData) {
+  const me = await adm(); const unit = Number(s(f, 'unit')); const ctx = await loadHardware(tid(me)); const u = ctx.units.find(x => x.id === unit); if (!u) throw new Error('Not found');
+  let at = intIn(s(f, 'start'), 1, 1024, 1); const plan: { rw: number; mon: string; layout: number; first: number }[] = [];
+  for (const o of ctx.outs.filter(x => x.unit_id === unit).sort((a, b) => a.out_no - b.out_no)) {
+    const m = ctx.walls.find(w => w.id === o.room_wall_id)?.mons.find(x => x.id === o.monitor_id); const ls = (m?.mvs ?? []).filter(l => (ctx.layouts.get(l)?.n ?? 0) > 0); if (!ls.length) continue;
+    const size = Math.max(...ls.map(l => ctx.layouts.get(l)!.n)); if (at + size - 1 > u.inputs) return hwBack(unit, `Not enough inputs: ${u.name} has ${u.inputs}, and the monitors need more than that from ${intIn(s(f, 'start'), 1, 1024, 1)}.`);
+    for (const l of ls) plan.push({ rw: o.room_wall_id, mon: o.monitor_id, layout: l, first: at }); at += size;
+  }
+  for (const o of ctx.outs.filter(x => x.unit_id === unit)) await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2', [o.room_wall_id, o.monitor_id]);
+  for (const p of plan) await rows('insert into hw_dests(room_wall_id,monitor_id,layout_id,first_dest) values($1,$2,$3,$4)', [p.rw, p.mon, p.layout, p.first]);
+  revalidatePath('/hardware'); hwBack(unit);
+}
+async function clearHwDests_(f: FormData) {
+  const me = await adm(); const unit = Number(s(f, 'unit')); const { units, outs } = await loadHardware(tid(me)); if (!units.some(x => x.id === unit)) throw new Error('Not found');
+  for (const o of outs.filter(x => x.unit_id === unit)) await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2', [o.room_wall_id, o.monitor_id]);
+  revalidatePath('/hardware'); hwBack(unit);
+}
 // Archive: copy an old Job into a new one for the same Production, with its walls and Monitor Plans but no dates.
 async function copyJobToNew_(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id')); await own('jobs', id, me); const l = await limits(me);
@@ -886,6 +981,14 @@ export async function addProduction(...a: Parameters<typeof addProduction_>) { r
 export async function addDestSet(...a: Parameters<typeof addDestSet_>) { return audited('addDestSet', addDestSet_, a) as ReturnType<typeof addDestSet_>; }
 export async function updateDestSet(...a: Parameters<typeof updateDestSet_>) { return audited('updateDestSet', updateDestSet_, a) as ReturnType<typeof updateDestSet_>; }
 export async function deleteDestSet(...a: Parameters<typeof deleteDestSet_>) { return audited('deleteDestSet', deleteDestSet_, a) as ReturnType<typeof deleteDestSet_>; }
+export async function addHwUnit(...a: Parameters<typeof addHwUnit_>) { return audited('addHwUnit', addHwUnit_, a) as ReturnType<typeof addHwUnit_>; }
+export async function updateHwUnit(...a: Parameters<typeof updateHwUnit_>) { return audited('updateHwUnit', updateHwUnit_, a) as ReturnType<typeof updateHwUnit_>; }
+export async function deleteHwUnit(...a: Parameters<typeof deleteHwUnit_>) { return audited('deleteHwUnit', deleteHwUnit_, a) as ReturnType<typeof deleteHwUnit_>; }
+export async function setHwOutput(...a: Parameters<typeof setHwOutput_>) { return audited('setHwOutput', setHwOutput_, a) as ReturnType<typeof setHwOutput_>; }
+export async function setHwDest(...a: Parameters<typeof setHwDest_>) { return audited('setHwDest', setHwDest_, a) as ReturnType<typeof setHwDest_>; }
+export async function setHwMonitorStart(...a: Parameters<typeof setHwMonitorStart_>) { return audited('setHwMonitorStart', setHwMonitorStart_, a) as ReturnType<typeof setHwMonitorStart_>; }
+export async function autoHwDests(...a: Parameters<typeof autoHwDests_>) { return audited('autoHwDests', autoHwDests_, a) as ReturnType<typeof autoHwDests_>; }
+export async function clearHwDests(...a: Parameters<typeof clearHwDests_>) { return audited('clearHwDests', clearHwDests_, a) as ReturnType<typeof clearHwDests_>; }
 export async function addSourceSet(...a: Parameters<typeof addSourceSet_>) { return audited('addSourceSet', addSourceSet_, a) as ReturnType<typeof addSourceSet_>; }
 export async function updateSourceSet(...a: Parameters<typeof updateSourceSet_>) { return audited('updateSourceSet', updateSourceSet_, a) as ReturnType<typeof updateSourceSet_>; }
 export async function saveSourceSetData(...a: Parameters<typeof saveSourceSetData_>) { return audited('saveSourceSetData', saveSourceSetData_, a) as ReturnType<typeof saveSourceSetData_>; }
