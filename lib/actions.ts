@@ -776,8 +776,8 @@ async function copyPlanCompute(me: Me, job: number, planId: number, onlyWall = 0
   const out: Record<string, any> = {}; const findings: { wall: string; level: string; text: string }[] = [];
   // A plan belongs to its Location: it can only be copied onto walls in that same Location.
   for (const w of walls.filter((x: any) => !onlyWall || x.id === onlyWall)) {
-    const key = (src.data ?? {})[w.id] ? String(w.id) : Object.keys(src.data ?? {}).find(k => wtOf.get(Number(k)) === w.wt && locOf.get(Number(k)) === w.loc && !walls.some((x: any) => String(x.id) === k));
-    if (key && locOf.get(Number(key)) !== w.loc) continue;
+    // Only a plan made on the same Wall Template can be copied onto this wall: same wall first, else another wall of that Template.
+    const key = (src.data ?? {})[w.id] && wtOf.get(w.id) === w.wt ? String(w.id) : Object.keys(src.data ?? {}).find(k => wtOf.get(Number(k)) === w.wt && !walls.some((x: any) => String(x.id) === k));
     const d = key ? src.data[key] : null; if (!d) continue;
     const r = checkCopy({ src: d, srcAssets: arr(dataOf.get(Number(key))), tgtAssets: arr(w.data), layouts: layouts as any, srcSources: srcSrc, tgtSources: tgtSrc });
     out[w.id] = r.data; for (const x of r.findings) findings.push({ wall: w.name, ...x });

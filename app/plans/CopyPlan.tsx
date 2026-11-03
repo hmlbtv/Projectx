@@ -15,7 +15,7 @@ export default function CopyPlan({ job, wall, plans, action }: { job: number; wa
   return (<div style={{ margin: '10px 0 0' }}><button type="button" className="sec small" onClick={() => ref.current?.showModal()}>Copy a saved plan from another Job</button>
     <dialog ref={ref} className="dlg" onClick={e => { if (e.target === ref.current) ref.current?.close(); }} style={{ width: 'min(680px, 96vw)' }}>
       <div className="row" style={{ justifyContent: 'space-between' }}><h2 style={{ margin: 0 }}>Copy a saved plan onto this wall</h2><button type="button" className="sec small" onClick={() => ref.current?.close()}>Close</button></div>
-      <p className="mut" style={{ margin: '4px 0 8px' }}>Plans are kept by Production, then Job, including finished Jobs. Only plans for the same Location as this Job's walls are listed, and they are copied onto walls in that Location.</p>
+      <p className="mut" style={{ margin: '4px 0 8px' }}>Plans are kept by Production, then Job, including finished Jobs. Only plans made on the same Wall Template as this wall are listed.</p>
       <div className="row" style={{ gap: 8, margin: '0 0 8px', flexWrap: 'wrap' }}>
         <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search plans" aria-label="Search plans" style={{ flex: '1 1 160px' }} />
         <select value={prod} onChange={e => setProd(Number(e.target.value))} aria-label="Production"><option value={0}>All Productions</option>{prods.map(([id, n]) => <option key={id} value={id}>{n}</option>)}</select>
