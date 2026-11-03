@@ -34,9 +34,23 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
         <label>Inputs <input name="inputs" type="number" min={1} max={1024} defaultValue={48} /></label><label>Outputs <input name="outputs" type="number" min={1} max={256} defaultValue={4} /></label></AddDialog></div>
       <p className="mut">Multiviewer hardware defines the monitors' MV layouts. Give each unit its inputs and outputs, put it in a Site, Location or Room (any monitor in that Site can use it), then assign each output to a monitor. <Link href="/hardware/usage">Usage report</Link></p>
       {units.length === 0 && <p className="mut">No hardware yet.</p>}
-      <div className="tiles">{units.map(x => { const o = outs.filter(y => y.unit_id === x.id); const used = taken(x.id, outs, dests, layouts); const set = new Set<number>(); used.forEach(r => { for (let i = r.from; i <= r.to; i++) set.add(i); });
-        return (<div key={x.id} className="card tile"><Link href={`/hardware?id=${x.id}`} className="tilelink"><b>{x.name}</b><span className="mut">{x.model ? x.model + ' · ' : ''}{whereOf(x)}</span>
-          <span className="mut">{o.length}/{x.outputs} outputs in use · {set.size}/{x.inputs} inputs used</span></Link></div>); })}</div></>);
+      {(() => {
+        // Each unit sits at the branch where its outputs are used: one Room, else the Location they share, else the Site. A unit with no outputs yet sits where it was put.
+        const place = (x: any) => { const rs = Array.from(new Set(outs.filter(o => o.unit_id === x.id).map(o => walls.find(w => w.id === o.room_wall_id)).filter(Boolean).map(w => w!.room_id)));
+          if (rs.length === 0) return x.room_id ? { k: 'r', id: x.room_id } : x.location_id ? { k: 'l', id: x.location_id } : { k: 's', id: x.site_id };
+          const ws = rs.map(id => walls.find(w => w.room_id === id)!); if (rs.length === 1) return { k: 'r', id: rs[0] };
+          return new Set(ws.map(w => w.location_id)).size === 1 ? { k: 'l', id: ws[0].location_id } : { k: 's', id: ws[0].site_id }; };
+        const at = (k: string, id: number) => units.filter(x => { const p = place(x); return p.k === k && p.id === id; });
+        const Card = ({ x }: { x: any }) => { const o = outs.filter(y => y.unit_id === x.id); const used = taken(x.id, outs, dests, layouts); const set = new Set<number>(); used.forEach(r => { for (let i = r.from; i <= r.to; i++) set.add(i); });
+          return (<div className="card tile"><Link href={`/hardware?id=${x.id}`} className="tilelink"><b>{x.name}</b><span className="mut">{x.model ? x.model + ' · ' : ''}{o.length}/{x.outputs} outputs · {set.size}/{x.inputs} inputs used</span></Link></div>); };
+        const Row = ({ list }: { list: any[] }) => list.length ? <div className="tiles">{list.map(x => <Card key={x.id} x={x} />)}</div> : null;
+        const rmCount = (rm: any) => at('r', rm.id).length;
+        const locCount = (l: any) => at('l', l.id).length + rooms.filter((r: any) => r.location_id === l.id).reduce((n: number, r: any) => n + rmCount(r), 0);
+        return sites.map((st: any) => { const ls = locs.filter((l: any) => l.site_id === st.id); const n = at('s', st.id).length + ls.reduce((m: number, l: any) => m + locCount(l), 0); if (!n) return null;
+          return (<section key={st.id} style={{ margin: '18px 0' }}><h2 style={{ margin: '0 0 6px' }}>{st.name}</h2><Row list={at('s', st.id)} />
+            {ls.filter((l: any) => locCount(l)).map((l: any) => (<div key={l.id} style={{ margin: '10px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><h3 style={{ margin: '0 0 6px' }}>{l.name}</h3><Row list={at('l', l.id)} />
+              {rooms.filter((r: any) => r.location_id === l.id && rmCount(r)).map((r: any) => (<div key={r.id} style={{ margin: '8px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><h4 style={{ margin: '0 0 6px' }}>{r.name}</h4><Row list={at('r', r.id)} /></div>))}</div>))}</section>); });
+      })()}</>);
   }
   // ---- One unit ----
   const mine = outs.filter(o => o.unit_id === u.id);
