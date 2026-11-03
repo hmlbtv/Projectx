@@ -2,11 +2,12 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireMe, isAdmin } from '@/lib/session';
 import { rows } from '@/lib/db';
-import { loadHardware, taken, range, outFull } from '@/lib/hardware';
+import { loadHardware, taken, destNums, fmtNums, destLabel, outFull } from '@/lib/hardware';
+import type { Dest } from '@/lib/hardware';
 import ImportNames from './ImportNames';
 import CopyHardware from './CopyHardware';
 import ExpandAll from './ExpandAll';
-import { addHwUnit, updateHwUnit, deleteHwUnit, setHwOutput, setHwDest, setHwMonitorStart, autoHwDests, clearHwDests, saveHwNames } from '@/lib/actions';
+import { addHwUnit, updateHwUnit, deleteHwUnit, setHwOutput, setHwDest, setHwMonitorStart, setHwTiles, autoHwDests, clearHwDests, saveHwNames } from '@/lib/actions';
 import AddDialog from '../AddDialog';
 import Menu from '../Menu';
 export const dynamic = 'force-dynamic';
@@ -43,7 +44,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
           const ws = rs.map(id => walls.find(w => w.room_id === id)!); if (rs.length === 1) return { k: 'r', id: rs[0] };
           return new Set(ws.map(w => w.location_id)).size === 1 ? { k: 'l', id: ws[0].location_id } : { k: 's', id: ws[0].site_id }; };
         const at = (k: string, id: number) => units.filter(x => { const p = place(x); return p.k === k && p.id === id; });
-        const Card = ({ x }: { x: any }) => { const o = outs.filter(y => y.unit_id === x.id); const used = taken(x.id, outs, dests, layouts); const set = new Set<number>(); used.forEach(r => { for (let i = r.from; i <= r.to; i++) set.add(i); });
+        const Card = ({ x }: { x: any }) => { const o = outs.filter(y => y.unit_id === x.id); const used = taken(x.id, outs, dests, layouts); const set = new Set<number>(); used.forEach(r => r.nums.forEach(i => set.add(i)));
           return (<div className="card tile"><Link href={`/hardware?id=${x.id}`} className="tilelink"><b>{x.name}</b><span className="mut">{x.model ? x.model + ' · ' : ''}{o.length}/{x.outputs} outputs · {set.size}/{x.inputs} inputs used</span></Link></div>); };
         const Row = ({ list }: { list: any[] }) => list.length ? <div className="tiles">{list.map(x => <Card key={x.id} x={x} />)}</div> : null;
         const rmCount = (rm: any) => at('r', rm.id).length;
@@ -56,7 +57,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
   }
   // ---- One unit ----
   const mine = outs.filter(o => o.unit_id === u.id);
-  const usedRanges = taken(u.id, outs, dests, layouts); const used = new Set<number>(); usedRanges.forEach(r => { for (let i = r.from; i <= r.to; i++) used.add(i); });
+  const usedRanges = taken(u.id, outs, dests, layouts); const used = new Set<number>(); usedRanges.forEach(r => r.nums.forEach(i => used.add(i)));
   const siteWalls = walls.filter(w => w.site_id === u.site_id);
   const where = (rwId: number, monId: string) => outs.find(o => o.room_wall_id === rwId && o.monitor_id === monId);
   const wallOf = (id: number) => walls.find(w => w.id === id);
@@ -96,11 +97,17 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
         {o && !m && <p className="mut" style={{ margin: '6px 0 0' }}>The assigned monitor no longer exists on its wall.</p>}
         {o && m && w && (<div style={{ marginTop: 8 }}><div className="mut" style={{ fontSize: '.85rem' }}>{w.location} › {w.room} › {w.name} › {m.name}</div>
           {m.mvs.length === 0 ? <p className="mut" style={{ margin: '4px 0' }}>This monitor has no MV layouts chosen in its Wall Template.</p> : (<>
-            <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>{m.mvs.filter(l => layouts.has(l)).map(l => { const lay = layouts.get(l)!; const d = dests.find(x => x.room_wall_id === w.id && x.monitor_id === m.id && x.layout_id === l);
-              return (<form key={l} action={setHwDest} className="row" style={{ margin: 0 }}><input type="hidden" name="unit" value={u.id} /><input type="hidden" name="rw" value={w.id} /><input type="hidden" name="mon" value={m.id} /><input type="hidden" name="layout" value={l} />
+            <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>{m.mvs.filter(l => layouts.has(l)).map(l => { const lay = layouts.get(l)!; const d = dests.find(x => x.room_wall_id === w.id && x.monitor_id === m.id && x.layout_id === l) as Dest | undefined;
+              const nums = d ? destNums(d, lay.n) : Array.from({ length: lay.n }, () => null as number | null); const others = new Set<number>(); taken(u.id, outs, dests, layouts, { rw: w.id, mon: m.id }).forEach(r => r.nums.forEach(v => others.add(v)));
+              return (<div key={l}><form action={setHwDest} className="row" style={{ margin: 0 }}><input type="hidden" name="unit" value={u.id} /><input type="hidden" name="rw" value={w.id} /><input type="hidden" name="mon" value={m.id} /><input type="hidden" name="layout" value={l} />
                 <span style={{ flex: '1 1 160px' }}>{lay.name} <span className="mut">({lay.n} tile{lay.n === 1 ? '' : 's'})</span></span>
-                <label className="mut">starts at <input name="first" type="number" min={1} max={u.inputs} defaultValue={d?.first_dest ?? ''} style={{ width: 80 }} /></label>
-                <span style={{ minWidth: 70 }}>{d ? range(d.first_dest, lay.n) : <span className="mut">unset</span>}</span><button className="sec small">Set</button></form>); })}</div>
+                <label className="mut">fill from <input name="first" type="number" min={1} max={u.inputs} placeholder="start" style={{ width: 80 }} /></label>
+                <span style={{ minWidth: 70 }}>{d ? fmtNums(nums) : <span className="mut">unset</span>}</span><button className="sec small">Fill</button></form>
+                <details key={u.id + '-' + w.id + m.id + l + JSON.stringify(nums)} style={{ marginTop: 4 }}><summary className="mut">Set each tile's destination</summary>
+                  <form action={setHwTiles} className="stack" style={{ marginTop: 6 }}><input type="hidden" name="unit" value={u.id} /><input type="hidden" name="rw" value={w.id} /><input type="hidden" name="mon" value={m.id} /><input type="hidden" name="layout" value={l} />
+                    <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'auto 1fr', alignItems: 'center' }}>{nums.map((v, i) => (<div key={i} style={{ display: 'contents' }}><span style={{ textAlign: 'right' }}>Tile {i + 1}</span>
+                      <select name={'t_' + (i + 1)} defaultValue={v ?? ''} aria-label={`${lay.name} tile ${i + 1} destination`}><option value="">No destination</option>{Array.from({ length: u.inputs }, (_, k) => k + 1).map(k => <option key={k} value={k} disabled={others.has(k)}>{k}{destLabel(u, k) ? ' · ' + destLabel(u, k) : ''}{others.has(k) ? ' (used by another monitor)' : ''}</option>)}</select></div>))}</div>
+                    <button className="sec small" style={{ justifySelf: 'start' }}>Save tiles</button></form></details></div>); })}</div>
             <form action={setHwMonitorStart} className="row" style={{ marginTop: 6 }}><input type="hidden" name="unit" value={u.id} /><input type="hidden" name="rw" value={w.id} /><input type="hidden" name="mon" value={m.id} />
               <label className="mut">All layouts of this monitor start at <input name="first" type="number" min={1} max={u.inputs} required style={{ width: 80 }} /></label><button className="sec small">Set all</button></form></>)}</div>)}</div>); })}</div></>);
 }
