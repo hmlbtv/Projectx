@@ -701,18 +701,17 @@ async function setHwOutput_(f: FormData) {
   await rows('insert into hw_outputs(unit_id,out_no,room_wall_id,monitor_id) values($1,$2,$3,$4)', [unit, out, rw.id, mon.id]);
   revalidatePath('/hardware'); hwBack(unit);
 }
-// Checks the destinations chosen for the tiles of one layout on one monitor: each must exist on the unit, none repeated in the layout, and none used by a different monitor of the unit.
-// (The same monitor's other layouts may use the same numbers: only one layout is on the monitor at a time.)
+// Checks the destinations chosen for the tiles of one layout on one monitor: each must exist on the unit and none repeated in the layout.
+// Different monitors (and a monitor's own layouts) may share destinations: only the layouts chosen in a Monitor Plan must not clash, and the plan highlights that.
 function checkDest(ctx: Awaited<ReturnType<typeof loadHardware>>, rwId: number, monId: string, layoutId: number, nums: (number | null)[]): { unit: number; err?: string } {
   const o = ctx.outs.find(x => x.room_wall_id === rwId && x.monitor_id === monId); if (!o) return { unit: 0, err: 'Assign this monitor to a hardware output first.' };
   const u = ctx.units.find(x => x.id === o.unit_id)!; const rw = ctx.walls.find(w => w.id === rwId); const mon = rw?.mons.find(m => m.id === monId); const lay = ctx.layouts.get(layoutId);
   if (!mon || !lay || !mon.mvs.includes(layoutId)) return { unit: u.id, err: 'That layout is not one of this monitor\'s MV layouts.' };
-  const seen = new Set<number>(); const others = taken(u.id, ctx.outs, ctx.dests, ctx.layouts, { rw: rwId, mon: monId });
+  const seen = new Set<number>();
   for (let i = 0; i < nums.length; i++) { const v = nums[i]; if (v == null) continue;
     if (!Number.isInteger(v) || v < 1) return { unit: u.id, err: 'Use whole destination numbers of 1 or more.' };
     if (v > u.inputs) return { unit: u.id, err: `Destination ${v} does not exist: ${u.name} has ${u.inputs} inputs.` };
-    if (seen.has(v)) return { unit: u.id, err: `Destination ${v} is used on more than one tile of ${lay.name}.` }; seen.add(v);
-    const t = others.find(x => x.nums.includes(v)); if (t) { const w = ctx.walls.find(x => x.id === t.rw); return { unit: u.id, err: `Destination ${v} is already used by ${w?.room} · ${w?.mons.find(m => m.id === t.mon)?.name} on ${u.name}.` }; } }
+    if (seen.has(v)) return { unit: u.id, err: `Destination ${v} is used on more than one tile of ${lay.name}.` }; seen.add(v); }
   return { unit: u.id };
 }
 const consec = (first: number, n: number) => Array.from({ length: n }, (_, i) => first + i);

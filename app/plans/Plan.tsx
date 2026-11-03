@@ -8,6 +8,7 @@ type Tile = { n: number; x: number; y: number; w: number; h: number };
 type Layout = { id: number; name: string; tiles: Tile[] };
 type Asset = { id: string; type: string; name?: string; x: number; y: number; w: number; h: number; props?: any };
 type Wall = { id: number; name: string; assets?: Asset[]; dests?: Record<string, Record<string, string[]>>; defaultMons?: Record<string, number> };
+import type { PlanHw } from '@/lib/hardware';
 type Data = Record<string, { layoutId?: number; assign: Record<string, string>; mons?: Record<string, number>; srcs?: Record<string, Record<string, string>> }>; // srcs: source per MV layout tile, for each monitor
 
 
@@ -45,7 +46,7 @@ function refitAfterFullScreen() {
   const on = () => setTimeout(resetViewport, 250); window.addEventListener('orientationchange', on); screen.orientation?.addEventListener?.('change', on);
   setTimeout(() => { window.removeEventListener('orientationchange', on); screen.orientation?.removeEventListener?.('change', on); }, 10000);
 }
-export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFull, onExit, setAll, sources = [], sourceCats = {}, srcs, setSrc, printView, who, colors, onPrint, extra }: { extra?: React.ReactNode; onPrint?: () => void; printView?: boolean; who?: Record<string, string>; colors?: Record<string, string>; sources?: string[]; sourceCats?: Record<string, string>; srcs?: Record<string, Record<string, string>>; setSrc?: (assetId: string, n: number, v: string) => void; setAll?: (mons: Record<string, number>, srcs: Record<string, Record<string, string>>) => void; wl: Wall; layouts: Layout[]; cur: Data[string] | undefined; setMon: (assetId: string, layoutId: number) => void; readOnly: boolean; autoFull?: boolean; onExit?: () => void; onEditing?: (on: boolean) => void }) {
+export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFull, onExit, setAll, sources = [], sourceCats = {}, srcs, setSrc, printView, who, colors, onPrint, extra, clashIds, layoutNote }: { clashIds?: Set<string>; layoutNote?: (assetId: string, layoutId: number) => string | null; extra?: React.ReactNode; onPrint?: () => void; printView?: boolean; who?: Record<string, string>; colors?: Record<string, string>; sources?: string[]; sourceCats?: Record<string, string>; srcs?: Record<string, Record<string, string>>; setSrc?: (assetId: string, n: number, v: string) => void; setAll?: (mons: Record<string, number>, srcs: Record<string, Record<string, string>>) => void; wl: Wall; layouts: Layout[]; cur: Data[string] | undefined; setMon: (assetId: string, layoutId: number) => void; readOnly: boolean; autoFull?: boolean; onExit?: () => void; onEditing?: (on: boolean) => void }) {
   const [editing, setEditing] = useState(!!autoFull), [pick, setPick] = useState<string | null>(null), [full, setFull] = useState(!!autoFull), [turned, setTurned] = useState(false), [vp, setVp] = useState({ w: 0, h: 0 });
   useEffect(() => { if (!editing) return; onEditing?.(true); return () => onEditing?.(false); }, [editing]); // eslint-disable-line react-hooks/exhaustive-deps
   const [cat, setCat] = useState<string | null>(null);
@@ -91,6 +92,7 @@ export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFu
         style={{ all: 'unset', cursor: 'pointer', boxSizing: 'border-box', display: 'grid', gap: 8, width: '100%', maxWidth: 300, justifySelf: 'center', padding: 6, borderRadius: 12, border: on ? '3px solid #e5352b' : '2px solid var(--line)', background: 'var(--bg)', position: 'relative' }}>
         <LayoutPic lay={l} names={wl.dests?.[pa.id]?.[l.id]} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}><b style={{ fontSize: '.85rem' }}>{l.name}</b><span className="mut" style={{ whiteSpace: 'nowrap' }}>{l.tiles.length} window{l.tiles.length === 1 ? '' : 's'}</span></div>
+        {layoutNote?.(pa.id, l.id) && <span style={{ color: '#ff6b60', fontSize: '.78rem', textAlign: 'left' }}>⚠ {layoutNote(pa.id, l.id)}</span>}
         {on && <span style={{ position: 'absolute', top: 16, right: 16, background: '#e5352b', color: '#fff', borderRadius: 999, padding: '2px 10px', fontSize: '.8rem', fontWeight: 700 }}>✓ In use</span>}</button>); })}</div></div>);
   const tpa = tilePick ? list.find(a => a.id === tilePick.a) : undefined, curSrc = tilePick ? srcs?.[tilePick.a]?.[tilePick.n] : undefined;
   const backAfter = scope === 'monitor' && !!focus && !!tpa && (chosen(tpa)?.tiles.length ?? 0) === 1; // monitor mode, a one-window layout: after choosing, return to the wall
@@ -138,6 +140,7 @@ export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFu
     {(fa ? [fa] : list).map(a => { const lay = isScreen(a.type) ? chosen(a) : undefined, can = editing && !!lay && ((mode === 'layout' && mvsOf(a).length > 1) || (mode === 'source' && scope === 'monitor' && !fa && sources.length > 0));
       return (<g key={a.id}><svg x={a.x} y={a.y} width={a.w} height={a.h} viewBox={`0 0 ${a.w} ${a.h}`}><WallArt a={{ ...a, name: a.name ?? '' }} /></svg>
         {lay && <LayoutPic lay={lay} names={wl.dests?.[a.id]?.[lay.id]} picks={srcs?.[a.id]} pos={{ x: a.x + 4, y: a.y + 4, w: a.w - 8, h: a.h - 8 }} />}
+        {clashIds?.has(a.id) && <rect x={a.x + 3} y={a.y + 3} width={a.w - 6} height={a.h - 6} fill="none" stroke="#ff3b30" strokeWidth="10" strokeDasharray="28 14" pointerEvents="none"><title>Shares hardware destinations with another monitor</title></rect>}
         {lay && who && colors && (() => { const bw = a.w - 8, bh = a.h - 8, sc = Math.min(bw / 1920, bh / 1080), ox = a.x + 4 + (bw - 1920 * sc) / 2, oy = a.y + 4 + (bh - 1080 * sc) / 2, ml = who[`m:${a.id}`];
           return (<>{ml && colors[ml] && <rect x={a.x + 1} y={a.y + 1} width={a.w - 2} height={a.h - 2} fill="none" stroke={colors[ml]} strokeWidth="3" strokeDasharray="14 10" opacity=".9" />}
             {lay.tiles.map(t => { const u = who[`s:${a.id}:${t.n}`]; return u && colors[u] ? <rect key={t.n} x={ox + t.x * sc + 3} y={oy + t.y * sc + 3} width={t.w * sc - 6} height={t.h * sc - 6} fill="none" stroke={colors[u]} strokeWidth="3.5" opacity=".9" /> : null; })}</>); })()}
@@ -167,11 +170,21 @@ export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFu
     {!full && <dialog ref={ref} className="dlg" onClose={() => { setPick(null); setTilePick(null); }} onClick={e => { if (e.target === ref.current) { setPick(null); setTilePick(null); } }} style={{ width: 'min(1100px, 96vw)', maxWidth: '96vw', height: '90vh', maxHeight: '90vh', display: pick || tilePick ? 'block' : 'none', padding: 18 }}>{pick ? chooser : srcChooser}</dialog>}</div>);
 }
 
-export default function Plan({ walls, layouts, sources, sourceCats = {}, saved, save, readOnly = false, start, below, copy, refresh, printInfo }: { copy?: Record<number, React.ReactNode>; printInfo?: { id: number; bc: string; prod: string; name: string; dates?: [string, string][]; load?: (wallId: number) => Promise<any> }; refresh?: () => Promise<Data>; below?: Record<number, React.ReactNode>; start?: string; walls: Wall[]; layouts: Layout[]; sources: string[]; sourceCats?: Record<string, string>; saved: { name: string; data: Data }[]; save?: (name: string, data: Data) => Promise<void>; readOnly?: boolean }) {
+export default function Plan({ walls, layouts, sources, sourceCats = {}, saved, save, readOnly = false, start, below, copy, hw, refresh, printInfo }: { hw?: PlanHw; copy?: Record<number, React.ReactNode>; printInfo?: { id: number; bc: string; prod: string; name: string; dates?: [string, string][]; load?: (wallId: number) => Promise<any> }; refresh?: () => Promise<Data>; below?: Record<number, React.ReactNode>; start?: string; walls: Wall[]; layouts: Layout[]; sources: string[]; sourceCats?: Record<string, string>; saved: { name: string; data: Data }[]; save?: (name: string, data: Data) => Promise<void>; readOnly?: boolean }) {
   const [name, setName] = useState((saved.find(x => x.name === start) ?? saved[0])?.name ?? 'Room Layout 1');
   // A new plan starts from each Wall Template's chosen default MV configuration.
   const seed = () => Object.fromEntries(walls.filter(x => x.defaultMons).map(x => [x.id, { assign: {}, mons: x.defaultMons }])) as Data;
   const [data, setData] = useState<Data>((saved.find(x => x.name === start) ?? saved[0])?.data ?? seed());
+  // Hardware: two monitors on the same unit clash when the layouts chosen on them use the same destination. Shown, never blocked.
+  const fmt = (v: number[]) => { const a = [...v].sort((x, y) => x - y), o: string[] = []; let i = 0; while (i < a.length) { let j = i; while (j + 1 < a.length && a[j + 1] === a[j] + 1) j++; o.push(j > i ? `${a[i]}–${a[j]}` : String(a[i])); i = j + 1; } return o.join(', '); };
+  const hwSel: Record<string, number> = { ...(hw?.sel ?? {}) };
+  for (const wl of walls) for (const a of (wl.assets ?? [])) if (isScreen(a.type)) { const ids: number[] = (Array.isArray(a.props?.mvs) ? a.props.mvs : []).map(Number).filter((id: number) => layouts.some(l => l.id === id)); const sv = data[wl.id]?.mons?.[a.id]; const v = ids.includes(Number(sv)) ? Number(sv) : ids[0]; if (v) hwSel[`${wl.id}:${a.id}`] = v; }
+  const lname = (id: number) => layouts.find(l => l.id === id)?.name ?? '';
+  const clashOf = (k: string, l: number) => { const m = hw?.mons[k]; if (!hw || !m) return [] as { label: string; dests: number[] }[]; const mine = m.layouts[l] ?? []; const out: { label: string; dests: number[] }[] = [];
+    for (const [k2, m2] of Object.entries(hw.mons)) { if (k2 === k || m2.unit !== m.unit) continue; const l2 = hwSel[k2]; if (!l2) continue; const both = mine.filter(n => (m2.layouts[l2] ?? []).includes(n)); if (both.length) out.push({ label: `${m2.label} (${lname(l2)})`, dests: both }); } return out; };
+  const wallClash = (wl: Wall) => (wl.assets ?? []).filter(a => isScreen(a.type)).flatMap(a => { const k = `${wl.id}:${a.id}`, l = hwSel[k]; return l ? clashOf(k, l).map(c => ({ id: a.id, name: a.name || 'Monitor', layout: lname(l), ...c })) : []; });
+  const clashBanner = (wl: Wall) => { const c = wallClash(wl); return c.length === 0 ? null : (<div role="alert" style={{ margin: '8px 0 0', padding: '8px 10px', border: '1px solid #ff3b30', borderRadius: 8, color: '#ff6b60', fontSize: '.9rem' }}><b>Hardware clash</b> — these layouts use the same destination on one unit, so they can't be on together:
+    <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>{c.map((x, i) => <li key={i}>{x.name} ({x.layout}) shares destination {fmt(x.dests)} with {x.label}</li>)}</ul></div>); };
   const [msg, setMsg] = useState(''), [printId, setPrintId] = useState<number | null>(null), [whoBy, setWhoBy] = useState<Record<number, Record<string, string>>>({});
   // Who changed what, so each person's tiles get their own coloured outline.
   useEffect(() => { if (!printInfo) return; let live = true; const ld = async () => { const o: Record<number, Record<string, string>> = {}; for (const wl of walls) { try { o[wl.id] = (await (printInfo.load ?? ((w: number) => loadPlanMeta(printInfo.id, w)))(wl.id)).who ?? {}; } catch { /* ignore */ } } if (live) setWhoBy(o); };
@@ -203,7 +216,7 @@ export default function Plan({ walls, layouts, sources, sourceCats = {}, saved, 
   return (<div>{pw && printInfo && <PrintPlan Wall={WallPlan} wl={pw} layouts={layouts} cur={data[pw.id]} job={printInfo} onClose={() => setPrintId(null)} />}
     {people.length > 1 && <div className="mut" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: '.8rem', alignItems: 'center' }}><b>Edited by</b>{people.map(n => <span key={n} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 14, height: 10, border: `2px solid ${colorOf[n]}`, borderRadius: 2 }} />{n}</span>)}</div>}
     {!readOnly && msg && <div className="mut" style={{ textAlign: 'right', fontSize: '.8rem' }}>{msg}</div>}
-    {walls.map(wl => <div key={wl.id}>{((wl) => { if ((wl.assets ?? []).some(a => isScreen(a.type) && a.props?.mvs?.length)) return <WallPlan key={wl.id} wl={wl} layouts={layouts} cur={data[wl.id]} readOnly={readOnly} setMon={(a, l) => setMon(wl.id, a, l)} setAll={(m, sr) => setMons(wl.id, m, sr)} onEditing={on => { editingN.current += on ? 1 : -1; }} sources={sources} sourceCats={sourceCats} srcs={data[wl.id]?.srcs} setSrc={(a, n, v) => setMonSrc(wl.id, a, n, v)} onPrint={printInfo ? () => setPrintId(wl.id) : undefined} who={whoBy[wl.id]} colors={colorOf} extra={copy?.[wl.id]} />;
+    {walls.map(wl => <div key={wl.id}>{((wl) => { if ((wl.assets ?? []).some(a => isScreen(a.type) && a.props?.mvs?.length)) return <WallPlan key={wl.id} wl={wl} layouts={layouts} cur={data[wl.id]} readOnly={readOnly} setMon={(a, l) => setMon(wl.id, a, l)} setAll={(m, sr) => setMons(wl.id, m, sr)} onEditing={on => { editingN.current += on ? 1 : -1; }} sources={sources} sourceCats={sourceCats} srcs={data[wl.id]?.srcs} setSrc={(a, n, v) => setMonSrc(wl.id, a, n, v)} onPrint={printInfo ? () => setPrintId(wl.id) : undefined} who={whoBy[wl.id]} colors={colorOf} clashIds={new Set(wallClash(wl).map(x => x.id))} layoutNote={(aid, lid) => { const c = clashOf(`${wl.id}:${aid}`, lid); return c.length ? `shares destination ${fmt(c[0].dests)} with ${c[0].label}` : null; }} extra={<>{clashBanner(wl)}{copy?.[wl.id]}</>} />;
       const cur = w(wl.id); const lay = layouts.find(l => l.id === cur.layoutId);
       return (<div key={wl.id} className="card"><b>{wl.name}</b>
         <div className="row"><select disabled={readOnly} value={cur.layoutId ?? ''} onChange={e => setLayout(wl.id, Number(e.target.value))}><option value="">Choose MV Layout…</option>{layouts.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
@@ -212,6 +225,6 @@ export default function Plan({ walls, layouts, sources, sourceCats = {}, saved, 
             <text x={t.x + 30} y={t.y + 70} fill="#e5352b" fontSize="64">{t.n}</text>
             <text x={t.x + t.w / 2} y={t.y + t.h / 2 + 20} fill="#fff" fontSize={Math.min(70, t.w / 9)} textAnchor="middle">{cur.assign[t.n] ?? ''}</text></g>))}</svg>}
         {lay && <table><tbody>{lay.tiles.map(t => (<tr key={t.n}><td>Tile {t.n}</td><td><select disabled={readOnly} value={cur.assign[t.n] ?? ''} onChange={e => setSrc(wl.id, t.n, e.target.value)}><option value="">—</option>{sources.map(s => <option key={s}>{s}</option>)}</select></td></tr>))}</tbody></table>}
-        {copy?.[wl.id]}
+        {clashBanner(wl)}{copy?.[wl.id]}
       </div>); })(wl)}{below?.[wl.id]}</div>)}</div>);
 }

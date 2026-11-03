@@ -49,3 +49,15 @@ export const range = (from: number, n: number) => n <= 1 ? String(from) : `${fro
 export const destLabel = (u: Unit, n: number) => u.dest_names?.[n] || u.dest_hw?.[n] || '';
 export const destFull = (u: Unit, n: number) => `${n}${destLabel(u, n) ? ' · ' + destLabel(u, n) : ''}`;
 export const outFull = (u: Unit, n: number) => `Output ${n}${u.out_names?.[n] || u.out_hw?.[n] ? ' · ' + (u.out_names?.[n] || u.out_hw?.[n]) : ''}`;
+
+// For the Monitor Plan: which of a Job's monitors are driven by hardware, the destinations each of their layouts uses, and (for monitors whose plan is not on screen) the layout currently chosen.
+export type PlanHw = { mons: Record<string, { unit: number; unitName: string; label: string; layouts: Record<number, number[]> }>; sel: Record<string, number> };
+export async function planHardware(tenant: number, jobWalls: number[], saved: Record<string, any>): Promise<PlanHw> {
+  const hw = await loadHardware(tenant); const mons: PlanHw['mons'] = {}, sel: Record<string, number> = {};
+  for (const o of hw.outs) { if (!jobWalls.includes(o.room_wall_id)) continue; const w = hw.walls.find(x => x.id === o.room_wall_id); const m = w?.mons.find(x => x.id === o.monitor_id); const u = hw.units.find(x => x.id === o.unit_id); if (!w || !m || !u) continue;
+    const layouts: Record<number, number[]> = {};
+    for (const l of m.mvs) { const lay = hw.layouts.get(l); if (!lay) continue; const d = hw.dests.find(x => x.room_wall_id === w.id && x.monitor_id === m.id && x.layout_id === l); layouts[l] = d ? destNums(d, lay.n).filter((x): x is number => x != null) : []; }
+    const key = `${w.id}:${m.id}`; mons[key] = { unit: u.id, unitName: u.name, label: `${w.room} › ${m.name}`, layouts };
+    const s = Number(saved?.[String(w.id)]?.mons?.[m.id]); sel[key] = m.mvs.includes(s) ? s : (m.mvs.find(l => hw.layouts.has(l)) ?? 0); }
+  return { mons, sel };
+}
