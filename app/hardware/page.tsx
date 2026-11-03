@@ -5,6 +5,7 @@ import { rows } from '@/lib/db';
 import { loadHardware, taken, range, outFull } from '@/lib/hardware';
 import ImportNames from './ImportNames';
 import CopyHardware from './CopyHardware';
+import ExpandAll from './ExpandAll';
 import { addHwUnit, updateHwUnit, deleteHwUnit, setHwOutput, setHwDest, setHwMonitorStart, autoHwDests, clearHwDests, saveHwNames } from '@/lib/actions';
 import AddDialog from '../AddDialog';
 import Menu from '../Menu';
@@ -34,7 +35,8 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
         <label>Inputs <input name="inputs" type="number" min={1} max={1024} defaultValue={48} /></label><label>Outputs <input name="outputs" type="number" min={1} max={256} defaultValue={4} /></label></AddDialog></div>
       <p className="mut">Multiviewer hardware defines the monitors' MV layouts. Give each unit its inputs and outputs, put it in a Site, Location or Room (any monitor in that Site can use it), then assign each output to a monitor. <Link href="/hardware/usage">Usage report</Link></p>
       {units.length === 0 && <p className="mut">No hardware yet.</p>}
-      {(() => {
+      {units.length > 0 && <div style={{ margin: '8px 0 0' }}><ExpandAll target="#hwtree" /></div>}
+      <div id="hwtree">{(() => {
         // Each unit sits at the branch where its outputs are used: one Room, else the Location they share, else the Site. A unit with no outputs yet sits where it was put.
         const place = (x: any) => { const rs = Array.from(new Set(outs.filter(o => o.unit_id === x.id).map(o => walls.find(w => w.id === o.room_wall_id)).filter(Boolean).map(w => w!.room_id)));
           if (rs.length === 0) return x.room_id ? { k: 'r', id: x.room_id } : x.location_id ? { k: 'l', id: x.location_id } : { k: 's', id: x.site_id };
@@ -47,10 +49,10 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
         const rmCount = (rm: any) => at('r', rm.id).length;
         const locCount = (l: any) => at('l', l.id).length + rooms.filter((r: any) => r.location_id === l.id).reduce((n: number, r: any) => n + rmCount(r), 0);
         return sites.map((st: any) => { const ls = locs.filter((l: any) => l.site_id === st.id); const n = at('s', st.id).length + ls.reduce((m: number, l: any) => m + locCount(l), 0); if (!n) return null;
-          return (<section key={st.id} style={{ margin: '18px 0' }}><h2 style={{ margin: '0 0 6px' }}>{st.name}</h2><Row list={at('s', st.id)} />
-            {ls.filter((l: any) => locCount(l)).map((l: any) => (<div key={l.id} style={{ margin: '10px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><h3 style={{ margin: '0 0 6px' }}>{l.name}</h3><Row list={at('l', l.id)} />
-              {rooms.filter((r: any) => r.location_id === l.id && rmCount(r)).map((r: any) => (<div key={r.id} style={{ margin: '8px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><h4 style={{ margin: '0 0 6px' }}>{r.name}</h4><Row list={at('r', r.id)} /></div>))}</div>))}</section>); });
-      })()}</>);
+          return (<details key={st.id} open style={{ margin: '14px 0' }}><summary style={{ cursor: 'pointer' }}><b style={{ fontSize: '1.25rem' }}>{st.name}</b> <span className="tag">{n}</span></summary><div style={{ marginTop: 6 }}><Row list={at('s', st.id)} />
+            {ls.filter((l: any) => locCount(l)).map((l: any) => (<details key={l.id} open style={{ margin: '10px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><summary style={{ cursor: 'pointer' }}><b style={{ fontSize: '1.1rem' }}>{l.name}</b> <span className="tag">{locCount(l)}</span></summary><div style={{ marginTop: 6 }}><Row list={at('l', l.id)} />
+              {rooms.filter((r: any) => r.location_id === l.id && rmCount(r)).map((r: any) => (<details key={r.id} open style={{ margin: '8px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><summary style={{ cursor: 'pointer' }}><b>{r.name}</b> <span className="tag">{rmCount(r)}</span></summary><div style={{ marginTop: 6 }}><Row list={at('r', r.id)} /></div></details>))}</div></details>))}</div></details>); });
+      })()}</div></>);
   }
   // ---- One unit ----
   const mine = outs.filter(o => o.unit_id === u.id);
