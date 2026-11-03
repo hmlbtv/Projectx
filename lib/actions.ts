@@ -761,7 +761,7 @@ export async function loadPlans(jobId: number): Promise<Record<string, any>> {
 // Copy a saved Monitor Plan (from another Job, including one that has expired) into this Job. Each wall is matched by its place in a Room, or failing that by its Wall Template.
 // Only the monitors' chosen MV layouts and sources that still exist on the wall are kept.
 // Works out what copying another Job's saved plan onto this Job would do, wall by wall, checking it fits (MV layouts allowed, monitors, tiles, sources).
-async function copyPlanCompute(me: Me, job: number, planId: number) {
+async function copyPlanCompute(me: Me, job: number, planId: number, onlyWall = 0) {
   if (!(await canAccessJob(me, job)) || !(await jobOpen(job))) throw new Error('Not found');
   // planId is the Job whose plans are being copied (any Job in the same workspace that this person can open).
   if (!(await canAccessJob(me, planId)) || planId === job) throw new Error('Not found');
@@ -775,7 +775,7 @@ async function copyPlanCompute(me: Me, job: number, planId: number) {
   const arr = (x: any) => (Array.isArray(x?.assets) ? x.assets : []);
   const out: Record<string, any> = {}; const findings: { wall: string; level: string; text: string }[] = [];
   // A plan belongs to its Location: it can only be copied onto walls in that same Location.
-  for (const w of walls) {
+  for (const w of walls.filter((x: any) => !onlyWall || x.id === onlyWall)) {
     const key = (src.data ?? {})[w.id] ? String(w.id) : Object.keys(src.data ?? {}).find(k => wtOf.get(Number(k)) === w.wt && locOf.get(Number(k)) === w.loc && !walls.some((x: any) => String(x.id) === k));
     if (key && locOf.get(Number(key)) !== w.loc) continue;
     const d = key ? src.data[key] : null; if (!d) continue;
@@ -784,13 +784,13 @@ async function copyPlanCompute(me: Me, job: number, planId: number) {
   }
   return { out, findings };
 }
-export async function copyPlanPreview(job: number, planId: number): Promise<{ error?: string; walls?: number; findings?: { wall: string; level: string; text: string }[] }> {
+export async function copyPlanPreview(job: number, planId: number, wall = 0): Promise<{ error?: string; walls?: number; findings?: { wall: string; level: string; text: string }[] }> {
   const me = await requireMe();
-  try { const c = await copyPlanCompute(me, Number(job), Number(planId)); const n = Object.keys(c.out).length; return n ? { walls: n, findings: c.findings } : { error: 'That plan has no walls in common with this Job.' }; } catch { return { error: 'You cannot copy that plan.' }; }
+  try { const c = await copyPlanCompute(me, Number(job), Number(planId), Number(wall)); const n = Object.keys(c.out).length; return n ? { walls: n, findings: c.findings } : { error: 'That plan has nothing to copy onto this wall.' }; } catch { return { error: 'You cannot copy that plan.' }; }
 }
 async function copyPlan_(f: FormData) {
-  const me = await requireMe(); const job = Number(s(f, 'job')), planId = Number(s(f, 'plan'));
-  const { out, findings } = await copyPlanCompute(me, job, planId);
+  const me = await requireMe(); const job = Number(s(f, 'job')), planId = Number(s(f, 'plan')), wall = Number(s(f, 'wall')) || 0;
+  const { out, findings } = await copyPlanCompute(me, job, planId, wall);
   if (!Object.keys(out).length) { redirect(`/plans?job=${job}&copied=none`); } // nothing in a shared Location
   if (findings.some(x => x.level === 'warn') && s(f, 'confirm') !== '1') redirect(`/plans?job=${job}&copied=review`); // differences must be reviewed first
   await saveJobPlans(job, out, me.id);
