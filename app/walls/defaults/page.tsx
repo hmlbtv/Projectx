@@ -10,7 +10,7 @@ export default async function WallDefaults({ searchParams }: { searchParams: Pro
   const me = await requireMe(); if (!isAdmin(me)) redirect('/');
   const { id } = await searchParams; const t = me.tenant_id ?? 0;
   const w = await one('select id, name, data, defaults from wall_templates where id=$1 and tenant_id=$2', [Number(id) || 0, t]); if (!w) notFound();
-  const [pw] = await planWalls([{ id: w.id, name: w.name, data: w.data }], t);
+  const [pw] = await planWalls([{ id: w.id, name: w.name, data: w.data }], t, false);
   const layouts = await rows('select id, name, tiles from mv_layouts where tenant_id is null or tenant_id=$1 order by tenant_id nulls first, id', [t]);
   const lim = (await one('select max_wall_defaults m from tenants where id=$1', [t]))?.m ?? 5;
   return (<><div className="crumbs"><Link href={`/walls?id=${w.id}`} className="btn sec small">← Back to {w.name}</Link></div>

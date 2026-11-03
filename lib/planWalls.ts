@@ -1,14 +1,21 @@
 import { rows } from './db';
 
-// A Wall Template as the Monitor Plan needs it: its assets, and for each monitor the names of the destinations assigned to it (in the Destination Set's order).
-export async function planWalls(list: { id: number; name: string; data: any; defaults?: any }[], tenant: number) {
+// A Wall Template as the Monitor Plan needs it: its assets, and for each monitor and MV layout the names of the hardware destinations its windows take
+// (window 1 is the layout's start destination on the monitor's hardware unit, window 2 the next, and so on).
+export async function planWalls(list: { id: number; name: string; data: any; defaults?: any }[], tenant: number, hardware = true) {
   const assetsOf = (d: any): any[] => (Array.isArray(d?.assets) ? d.assets : []);
-  const ids = Array.from(new Set(list.flatMap(w => assetsOf(w.data).flatMap(a => (Array.isArray(a.props?.dests) ? a.props.dests.map(Number) : [])))));
-  const dn = ids.length ? await rows('select d.id, d.name, d.pos from destinations d join destination_sets s on s.id=d.set_id where s.tenant_id=$1 and d.id = any($2::int[])', [tenant, ids]) : [];
-  const by = new Map<number, { name: string; pos: number }>(dn.map((d: any) => [d.id, { name: d.name, pos: d.pos }]));
+  const ids = list.map(w => w.id);
+  const hw = hardware && ids.length ? await rows<any>('select o.room_wall_id rw, o.monitor_id mon, u.dest_names, u.dest_hw from hw_outputs o join hw_units u on u.id=o.unit_id where u.tenant_id=$1 and o.room_wall_id = any($2::int[])', [tenant, ids]) : [];
+  const ds = hardware && ids.length ? await rows<any>('select room_wall_id rw, monitor_id mon, layout_id lay, first_dest first from hw_dests where room_wall_id = any($1::int[])', [ids]) : [];
+  const lays = ds.length ? await rows<any>('select id, jsonb_array_length(tiles) n from mv_layouts where id = any($1::int[])', [Array.from(new Set(ds.map((d: any) => d.lay)))]) : [];
+  const nOf = new Map<number, number>(lays.map((l: any) => [l.id, l.n]));
   return list.map(w => {
-    const dests: Record<string, string[]> = {};
-    for (const a of assetsOf(w.data)) if (Array.isArray(a.props?.dests)) dests[a.id] = a.props.dests.map(Number).filter((i: number) => by.has(i)).sort((x: number, y: number) => by.get(x)!.pos - by.get(y)!.pos).map((i: number) => by.get(i)!.name);
+    const dests: Record<string, Record<string, string[]>> = {};
+    for (const d of ds.filter((x: any) => x.rw === w.id)) {
+      const u = hw.find((h: any) => h.rw === w.id && h.mon === d.mon); const n = nOf.get(d.lay) ?? 0; if (!u || !n) continue;
+      const names = Array.from({ length: n }, (_, i) => String(u.dest_names?.[d.first + i] || u.dest_hw?.[d.first + i] || ''));
+      if (names.some(Boolean)) (dests[d.mon] ??= {})[d.lay] = names;
+    }
     const act = (Array.isArray(w.defaults) ? w.defaults : []).find((x: any) => x?.active) as { mons?: Record<string, number> } | undefined;
     return { id: w.id, name: w.name, assets: assetsOf(w.data), dests, defaultMons: act?.mons };
   });

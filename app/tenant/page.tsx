@@ -65,7 +65,7 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
       {mine.length === 0 && <p className="mut">No Locations yet.</p>}
       <div className="tiles">{mine.map((l: any) => (<div key={l.id} className="card tile"><Link href={`/tenant?l=${l.id}`} className="tilelink"><b>{l.name}</b><span className="mut">{plural(rms.filter((r: any) => r.location_id === l.id).length, 'Room')}</span><Strip list={rw.filter((x: any) => rms.some((r: any) => r.id === x.room_id && r.location_id === l.id))} /></Link>
         <Menu><Edit table="locations" id={l.id} name={l.name} what="Location" /></Menu></div>))}</div>
-      {adm && <p className="mut" style={{ marginTop: 22 }}>Destination Sets have moved to <Link href="/hardware/destinations">Hardware › Destination Sets</Link>.</p>}</>);
+</>);
   }
   // ---- Home: sites ----
   return (<><div className="pagehead"><h1 style={{ margin: 0 }}>Sites</h1><AddDialog action={addSite} inline label="Add Site" title="New Site" placeholder="Site name" /></div>

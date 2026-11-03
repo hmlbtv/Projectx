@@ -36,7 +36,6 @@ const OWN: Record<string, string> = {
   productions: 'select 1 from productions p join broadcasters b on b.id=p.broadcaster_id where p.id=$1 and b.tenant_id=$2',
   jobs: 'select 1 from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where j.id=$1 and b.tenant_id=$2',
   sourceSets: 'select 1 from source_sets where id=$1 and tenant_id=$2',
-  destSets: 'select 1 from destination_sets where id=$1 and tenant_id=$2',
 };
 async function own(kind: keyof typeof OWN, id: number, me: Me) {
   if (!id || !(await one(OWN[kind], [id, tid(me)]))) throw new Error('Not found');
@@ -429,9 +428,6 @@ async function saveWall_(id: number | null, name: string, assets: any[], _unused
     (clean[i] as any).props = { ...(clean[i] as any).props, text: String(q.text ?? '').slice(0, 300), size: sz >= 6 && sz <= 400 ? sz : 28, bold: !!q.bold, italic: !!q.italic, underline: !!q.underline,
       align: ['left', 'center', 'right'].includes(q.align) ? q.align : 'left', font: ['Sans', 'Serif', 'Mono'].includes(q.font) ? q.font : 'Sans', color: /^#[0-9a-f]{6}$/i.test(String(q.color)) ? q.color : '#e6e9ef' }; });
   assets.forEach((a, i) => { const mp = Math.round(+a.props?.maxPip); if (mp >= 1 && mp <= 64) (clean[i] as any).props = { ...(clean[i] as any).props, maxPip: mp }; });
-  const myDests = new Map<number, number>((await rows('select d.id, d.set_id from destinations d join destination_sets s on s.id=d.set_id where s.tenant_id=$1', [tid(me)])).map((r: any) => [r.id, r.set_id]));
-  assets.forEach((a, i) => { const ds = Math.round(+a.props?.destSet); if (!ds || !Array.isArray(a.props?.dests)) return;
-    const list = Array.from(new Set(a.props.dests.map(Number))).filter((x: any) => myDests.get(x) === ds).slice(0, 64); if (list.length) (clean[i] as any).props = { ...(clean[i] as any).props, destSet: ds, dests: list }; });
   if (id) { await own('myWalls', id, me); await rows('update wall_templates set name=$1,data=$2 where id=$3', [name, JSON.stringify({ assets: clean }), id]); revalidatePath('/walls'); return { id }; }
   const t = (await one('select max_walls_per_broadcaster m, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [tid(me)]))!;
   if (me.role !== 'webappdev' && t.c >= t.m) return { error: `Your plan allows ${t.m} Wall Template${t.m === 1 ? '' : 's'} per workspace (you have ${t.c}). Contact us to upgrade.` };
@@ -636,37 +632,6 @@ async function deleteSourceSet_(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id')); await own('sourceSets', id, me);
   await rows('update jobs set source_set_id=null where source_set_id=$1', [id]); await rows('delete from source_sets where id=$1', [id]); revalidatePath('/sources'); revalidatePath('/productions');
 }
-// ---- Destination Sets: the named outputs (e.g. "UHD 5") of a Site. A monitor in a Wall Template is given some of them, in order, and the multiview windows take those names. ----
-const destNames = (txt: string) => Array.from(new Set(txt.split('\n').map(x => x.trim().slice(0, 60)).filter(Boolean))).slice(0, 200);
-// Keeps each destination's identity (so monitors keep pointing at it): same name keeps its row, a changed line takes over a leftover old row (a rename), extras are added or removed.
-async function syncDests(setId: number, names: string[]) {
-  const old = await rows('select id,name from destinations where set_id=$1 order by pos,id', [setId]) as { id: number; name: string }[];
-  const used = new Set<number>(), pick = new Map<string, number>();
-  for (const n of names) { const o = old.find(x => x.name === n && !used.has(x.id)); if (o) { used.add(o.id); pick.set(n, o.id); } }
-  const spare = old.filter(x => !used.has(x.id));
-  for (let i = 0; i < names.length; i++) {
-    const n = names[i]; let id = pick.get(n);
-    if (!id) { const o = spare.shift(); if (o) { id = o.id; await rows('update destinations set name=$1 where id=$2', [n, id]); } else id = (await one('insert into destinations(set_id,name) values($1,$2) returning id', [setId, n]))!.id; }
-    await rows('update destinations set pos=$1 where id=$2', [i, id]); used.add(id!);
-  }
-  for (const o of old) if (!used.has(o.id)) await rows('delete from destinations where id=$1', [o.id]);
-}
-async function addDestSet_(_: FormState, f: FormData): Promise<FormState> {
-  const me = await adm(); const site = Number(s(f, 'site')); await own('sites', site, me); const name = s(f, 'name');
-  if (!name) return { error: 'Give the Destination Set a name.' };
-  if (((await one('select count(*)::int c from destination_sets where tenant_id=$1', [tid(me)]))!).c >= 200) return { error: 'Destination Set limit reached.' };
-  const r = (await one('insert into destination_sets(tenant_id,site_id,name) values($1,$2,$3) returning id', [tid(me), site, name.slice(0, 80)]))!;
-  await syncDests(r.id, destNames(String(f.get('dests') ?? ''))); revalidatePath('/tenant'); revalidatePath('/walls'); return { ok: 'Added.' };
-}
-async function updateDestSet_(f: FormData) {
-  const me = await adm(); const id = Number(s(f, 'id')); await own('destSets', id, me); const name = s(f, 'name').slice(0, 80);
-  if (name) await rows('update destination_sets set name=$1 where id=$2', [name, id]);
-  await syncDests(id, destNames(String(f.get('dests') ?? ''))); revalidatePath('/tenant'); revalidatePath('/walls');
-}
-async function deleteDestSet_(f: FormData) {
-  const me = await adm(); const id = Number(s(f, 'id')); await own('destSets', id, me);
-  await rows('delete from destination_sets where id=$1', [id]); revalidatePath('/tenant'); revalidatePath('/walls');
-}
 // ---- Hardware: MV units (inputs/outputs), which output drives which monitor in which Room, and where each MV layout starts on the unit. Admin only. ----
 // Where a unit lives: a whole Site ("s:ID"), one Location ("l:ID") or one Room ("r:ID"). It can be used by monitors anywhere in that Site.
 async function hwWhere(me: Me, v: string): Promise<{ site: number | null; loc: number | null; room: number | null }> {
@@ -700,6 +665,13 @@ async function deleteHwUnit_(f: FormData) {
   const r = await one('select id from hw_units where id=$1 and tenant_id=$2', [id, tid(me)]); if (!r) throw new Error('Not found');
   for (const o of outs) await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2', [o.room_wall_id, o.monitor_id]);
   await rows('delete from hw_units where id=$1', [id]); revalidatePath('/hardware'); redirect('/hardware');
+}
+// Names for a unit's destinations and outputs: the hardware's own names and the friendly names people use. Blank clears.
+async function saveHwNames_(f: FormData) {
+  const me = await adm(); const id = Number(s(f, 'id')); const u = await one('select inputs, outputs from hw_units where id=$1 and tenant_id=$2', [id, tid(me)]); if (!u) throw new Error('Not found');
+  const pick = (pre: string, n: number) => { const m: Record<string, string> = {}; for (let i = 1; i <= n; i++) { const v = String(f.get(pre + i) ?? '').trim().slice(0, 60); if (v) m[i] = v; } return m; };
+  await rows('update hw_units set dest_names=$2, dest_hw=$3, out_names=$4, out_hw=$5 where id=$1', [id, JSON.stringify(pick('dn_', u.inputs)), JSON.stringify(pick('dh_', u.inputs)), JSON.stringify(pick('on_', u.outputs)), JSON.stringify(pick('oh_', u.outputs))]);
+  revalidatePath('/hardware'); revalidatePath('/plans'); hwBack(id);
 }
 async function setHwOutput_(f: FormData) {
   const me = await adm(); const unit = Number(s(f, 'unit')), out = Number(s(f, 'out')), target = s(f, 'target');
@@ -978,12 +950,10 @@ export async function setLayoutStandard(...a: Parameters<typeof setLayoutStandar
 export async function deleteLayout(...a: Parameters<typeof deleteLayout_>) { return audited('deleteLayout', deleteLayout_, a) as ReturnType<typeof deleteLayout_>; }
 export async function addBroadcaster(...a: Parameters<typeof addBroadcaster_>) { return audited('addBroadcaster', addBroadcaster_, a) as ReturnType<typeof addBroadcaster_>; }
 export async function addProduction(...a: Parameters<typeof addProduction_>) { return audited('addProduction', addProduction_, a) as ReturnType<typeof addProduction_>; }
-export async function addDestSet(...a: Parameters<typeof addDestSet_>) { return audited('addDestSet', addDestSet_, a) as ReturnType<typeof addDestSet_>; }
-export async function updateDestSet(...a: Parameters<typeof updateDestSet_>) { return audited('updateDestSet', updateDestSet_, a) as ReturnType<typeof updateDestSet_>; }
-export async function deleteDestSet(...a: Parameters<typeof deleteDestSet_>) { return audited('deleteDestSet', deleteDestSet_, a) as ReturnType<typeof deleteDestSet_>; }
 export async function addHwUnit(...a: Parameters<typeof addHwUnit_>) { return audited('addHwUnit', addHwUnit_, a) as ReturnType<typeof addHwUnit_>; }
 export async function updateHwUnit(...a: Parameters<typeof updateHwUnit_>) { return audited('updateHwUnit', updateHwUnit_, a) as ReturnType<typeof updateHwUnit_>; }
 export async function deleteHwUnit(...a: Parameters<typeof deleteHwUnit_>) { return audited('deleteHwUnit', deleteHwUnit_, a) as ReturnType<typeof deleteHwUnit_>; }
+export async function saveHwNames(...a: Parameters<typeof saveHwNames_>) { return audited('saveHwNames', saveHwNames_, a) as ReturnType<typeof saveHwNames_>; }
 export async function setHwOutput(...a: Parameters<typeof setHwOutput_>) { return audited('setHwOutput', setHwOutput_, a) as ReturnType<typeof setHwOutput_>; }
 export async function setHwDest(...a: Parameters<typeof setHwDest_>) { return audited('setHwDest', setHwDest_, a) as ReturnType<typeof setHwDest_>; }
 export async function setHwMonitorStart(...a: Parameters<typeof setHwMonitorStart_>) { return audited('setHwMonitorStart', setHwMonitorStart_, a) as ReturnType<typeof setHwMonitorStart_>; }

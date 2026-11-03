@@ -7,7 +7,7 @@ import { WallArt } from '../walls/WallArt';
 type Tile = { n: number; x: number; y: number; w: number; h: number };
 type Layout = { id: number; name: string; tiles: Tile[] };
 type Asset = { id: string; type: string; name?: string; x: number; y: number; w: number; h: number; props?: any };
-type Wall = { id: number; name: string; assets?: Asset[]; dests?: Record<string, string[]>; defaultMons?: Record<string, number> };
+type Wall = { id: number; name: string; assets?: Asset[]; dests?: Record<string, Record<string, string[]>>; defaultMons?: Record<string, number> };
 type Data = Record<string, { layoutId?: number; assign: Record<string, string>; mons?: Record<string, number>; srcs?: Record<string, Record<string, string>> }>; // srcs: source per MV layout tile, for each monitor
 
 
@@ -89,7 +89,7 @@ export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFu
     <div style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))', gap: 10, alignContent: 'start', justifyContent: 'center', padding: '14px 2px 4px' }}>
       {mvsOf(pa).map(l => { const on = chosen(pa)?.id === l.id; return (<button key={l.id} type="button" onClick={() => { setMon(pa.id, l.id); setPick(null); }} aria-pressed={on}
         style={{ all: 'unset', cursor: 'pointer', boxSizing: 'border-box', display: 'grid', gap: 8, width: '100%', maxWidth: 300, justifySelf: 'center', padding: 6, borderRadius: 12, border: on ? '3px solid #e5352b' : '2px solid var(--line)', background: 'var(--bg)', position: 'relative' }}>
-        <LayoutPic lay={l} names={wl.dests?.[pa.id]} />
+        <LayoutPic lay={l} names={wl.dests?.[pa.id]?.[l.id]} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}><b style={{ fontSize: '.85rem' }}>{l.name}</b><span className="mut" style={{ whiteSpace: 'nowrap' }}>{l.tiles.length} window{l.tiles.length === 1 ? '' : 's'}</span></div>
         {on && <span style={{ position: 'absolute', top: 16, right: 16, background: '#e5352b', color: '#fff', borderRadius: 999, padding: '2px 10px', fontSize: '.8rem', fontWeight: 700 }}>✓ In use</span>}</button>); })}</div></div>);
   const tpa = tilePick ? list.find(a => a.id === tilePick.a) : undefined, curSrc = tilePick ? srcs?.[tilePick.a]?.[tilePick.n] : undefined;
@@ -137,7 +137,7 @@ export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFu
   const wall = (<svg ref={svgRef} viewBox={zbox} width="100%" height={full ? '100%' : undefined} style={printView ? { position: 'absolute', inset: 0, display: 'block', width: '100%', height: '100%', background: '#eef1f5' } : { display: 'block', touchAction: full ? 'none' : undefined, background: '#1b2027', borderRadius: full ? 0 : 8, maxHeight: full ? undefined : '70vh', flex: full ? 1 : undefined, minHeight: 0 }} preserveAspectRatio="xMidYMid meet">
     {(fa ? [fa] : list).map(a => { const lay = isScreen(a.type) ? chosen(a) : undefined, can = editing && !!lay && ((mode === 'layout' && mvsOf(a).length > 1) || (mode === 'source' && scope === 'monitor' && !fa && sources.length > 0));
       return (<g key={a.id}><svg x={a.x} y={a.y} width={a.w} height={a.h} viewBox={`0 0 ${a.w} ${a.h}`}><WallArt a={{ ...a, name: a.name ?? '' }} /></svg>
-        {lay && <LayoutPic lay={lay} names={wl.dests?.[a.id]} picks={srcs?.[a.id]} pos={{ x: a.x + 4, y: a.y + 4, w: a.w - 8, h: a.h - 8 }} />}
+        {lay && <LayoutPic lay={lay} names={wl.dests?.[a.id]?.[lay.id]} picks={srcs?.[a.id]} pos={{ x: a.x + 4, y: a.y + 4, w: a.w - 8, h: a.h - 8 }} />}
         {lay && who && colors && (() => { const bw = a.w - 8, bh = a.h - 8, sc = Math.min(bw / 1920, bh / 1080), ox = a.x + 4 + (bw - 1920 * sc) / 2, oy = a.y + 4 + (bh - 1080 * sc) / 2, ml = who[`m:${a.id}`];
           return (<>{ml && colors[ml] && <rect x={a.x + 1} y={a.y + 1} width={a.w - 2} height={a.h - 2} fill="none" stroke={colors[ml]} strokeWidth="3" strokeDasharray="14 10" opacity=".9" />}
             {lay.tiles.map(t => { const u = who[`s:${a.id}:${t.n}`]; return u && colors[u] ? <rect key={t.n} x={ox + t.x * sc + 3} y={oy + t.y * sc + 3} width={t.w * sc - 6} height={t.h * sc - 6} fill="none" stroke={colors[u]} strokeWidth="3.5" opacity=".9" /> : null; })}</>); })()}

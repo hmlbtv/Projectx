@@ -30,7 +30,7 @@ export default async function Root({ children }: { children: React.ReactNode }) 
       <NavMenu account={<><div style={{ color: '#9aa4b2', fontSize: 13, padding: '2px 14px' }}>Signed in as {me.name} <span className="tag">{me.role}</span></div><Link href="/account" className="nl">Account settings</Link><form action={signOut}><button className="signout">Sign out</button></form></>} links={[
         ...(isAdmin(me) ? [{ href: '/tenant', label: 'Sites' }] : []),
         ...(canManage(me) ? [{ href: '/team', label: 'Team' }, { href: '/productions', label: 'Productions' }, { href: '/sources', label: 'Source Sets' }, { href: '/contacts', label: 'Contacts' }] : []),
-        ...(isAdmin(me) ? [{ label: 'Hardware', children: [{ href: '/hardware', label: 'MV Hardware' }, { href: '/hardware/destinations', label: 'Destination Sets' }, { href: '/hardware/usage', label: 'Usage report' }] }] : []),
+        ...(isAdmin(me) ? [{ label: 'Hardware', children: [{ href: '/hardware', label: 'MV Hardware' }, { href: '/hardware/usage', label: 'Usage report' }] }] : []),
         ...(isAdmin(me) ? [{ label: 'Designers', children: [{ href: '/walls', label: 'Wall Designer' }, { href: '/layouts', label: 'MV Designer' }, { href: '/tiles', label: 'Tile Designer' }] }] : []),
         ...(me.role === 'onetime' ? [] : [{ href: '/plans', label: 'Monitor Plans' }, { href: '/archive', label: 'Archive' }]),
         { href: '/shared', label: 'Shared with me' },

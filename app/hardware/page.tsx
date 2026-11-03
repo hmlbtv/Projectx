@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireMe, isAdmin } from '@/lib/session';
 import { rows } from '@/lib/db';
-import { loadHardware, taken, range } from '@/lib/hardware';
-import { addHwUnit, updateHwUnit, deleteHwUnit, setHwOutput, setHwDest, setHwMonitorStart, autoHwDests, clearHwDests } from '@/lib/actions';
+import { loadHardware, taken, range, outFull } from '@/lib/hardware';
+import ImportNames from './ImportNames';
+import { addHwUnit, updateHwUnit, deleteHwUnit, setHwOutput, setHwDest, setHwMonitorStart, autoHwDests, clearHwDests, saveHwNames } from '@/lib/actions';
 import AddDialog from '../AddDialog';
 import Menu from '../Menu';
 export const dynamic = 'force-dynamic';
@@ -29,7 +30,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
       <AddDialog action={addHwUnit} inline label="Add Hardware" title="New hardware unit" placeholder="Name (e.g. MV Frame 1)">
         <input name="model" placeholder="Make / model (optional)" /><Where />
         <label>Inputs <input name="inputs" type="number" min={1} max={1024} defaultValue={48} /></label><label>Outputs <input name="outputs" type="number" min={1} max={256} defaultValue={4} /></label></AddDialog></div>
-      <p className="mut">Multiviewer hardware defines the monitors' MV layouts. Give each unit its inputs and outputs, put it in a Site, Location or Room (any monitor in that Site can use it), then assign each output to a monitor. <Link href="/hardware/usage">Usage report</Link> · <Link href="/hardware/destinations">Destination Sets</Link></p>
+      <p className="mut">Multiviewer hardware defines the monitors' MV layouts. Give each unit its inputs and outputs, put it in a Site, Location or Room (any monitor in that Site can use it), then assign each output to a monitor. <Link href="/hardware/usage">Usage report</Link></p>
       {units.length === 0 && <p className="mut">No hardware yet.</p>}
       <div className="tiles">{units.map(x => { const o = outs.filter(y => y.unit_id === x.id); const used = taken(x.id, outs, dests, layouts); const set = new Set<number>(); used.forEach(r => { for (let i = r.from; i <= r.to; i++) set.add(i); });
         return (<div key={x.id} className="card tile"><Link href={`/hardware?id=${x.id}`} className="tilelink"><b>{x.name}</b><span className="mut">{x.model ? x.model + ' · ' : ''}{whereOf(x)}</span>
@@ -54,10 +55,21 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
         <form action={autoHwDests} className="row"><input type="hidden" name="unit" value={u.id} /><label>Auto-assign from <input name="start" type="number" min={1} defaultValue={1} style={{ width: 80 }} /></label><button className="sec small">Auto-assign all monitors</button></form>
         <form action={clearHwDests}><input type="hidden" name="unit" value={u.id} /><button className="sec small">Clear all destinations</button></form></div>
       <p className="mut" style={{ fontSize: '.85rem', margin: '6px 0 0' }}>Auto-assign stacks the monitors in output order. Each monitor takes as many destinations as its biggest MV layout, and all of its layouts start at its first one (a full-screen layout sits on the first destination).</p></div>
+    <h2 style={{ margin: '18px 0 6px' }}>Destination and output names</h2>
+    <div className="card"><div className="row" style={{ justifyContent: 'space-between' }}><span className="mut">Friendly names are what people see in Monitor Plans. The hardware name is the unit's own name for it. Names belong to this unit only.</span><ImportNames id={u.id} /></div>
+      <details style={{ marginTop: 8 }}><summary>Edit names here</summary>
+        <form action={saveHwNames} className="stack" style={{ marginTop: 8 }}><input type="hidden" name="id" value={u.id} /><button className="sec small" style={{ justifySelf: 'start' }}>Save names</button>
+          <b>Destinations (inputs)</b>
+          <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'auto 1fr 1fr', alignItems: 'center' }}><span /><span className="mut">Hardware name</span><span className="mut">Friendly name</span>
+            {Array.from({ length: u.inputs }, (_, i) => i + 1).map(n => (<div key={n} style={{ display: 'contents' }}><span style={{ textAlign: 'right' }}>{n}</span><input name={'dh_' + n} defaultValue={u.dest_hw?.[n] ?? ''} maxLength={60} aria-label={`Destination ${n} hardware name`} /><input name={'dn_' + n} defaultValue={u.dest_names?.[n] ?? ''} maxLength={60} aria-label={`Destination ${n} friendly name`} /></div>))}</div>
+          <b>Outputs</b>
+          <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'auto 1fr 1fr', alignItems: 'center' }}>
+            {Array.from({ length: u.outputs }, (_, i) => i + 1).map(n => (<div key={n} style={{ display: 'contents' }}><span style={{ textAlign: 'right' }}>{n}</span><input name={'oh_' + n} defaultValue={u.out_hw?.[n] ?? ''} maxLength={60} aria-label={`Output ${n} hardware name`} /><input name={'on_' + n} defaultValue={u.out_names?.[n] ?? ''} maxLength={60} aria-label={`Output ${n} friendly name`} /></div>))}</div>
+          <button className="sec small" style={{ justifySelf: 'start' }}>Save names</button></form></details></div>
     <h2 style={{ margin: '18px 0 6px' }}>Outputs</h2>
     {siteWalls.every(w => w.mons.length === 0) && <p className="mut">No monitors in Wall Templates placed in Rooms of this Site yet.</p>}
     <div style={{ display: 'grid', gap: 8 }}>{Array.from({ length: u.outputs }, (_, i) => i + 1).map(n => { const o = mine.find(x => x.out_no === n); const w = o ? wallOf(o.room_wall_id) : null; const m = w?.mons.find(x => x.id === o!.monitor_id);
-      return (<div key={n} className="card"><div className="row" style={{ justifyContent: 'space-between' }}><b>Output {n}</b>
+      return (<div key={n} className="card"><div className="row" style={{ justifyContent: 'space-between' }}><b>{outFull(u, n)}</b>
         <form action={setHwOutput} className="row"><input type="hidden" name="unit" value={u.id} /><input type="hidden" name="out" value={n} />
           <select name="target" defaultValue={o ? `${o.room_wall_id}:${o.monitor_id}` : ''} aria-label={`Monitor for output ${n}`}><option value="">Not assigned</option>
             {siteWalls.filter(x => x.mons.length).map(x => (<optgroup key={x.id} label={`${x.location} › ${x.room} › ${x.name}`}>{x.mons.map(mm => { const at = where(x.id, mm.id); const other = at && !(at.unit_id === u.id && at.out_no === n); return <option key={mm.id} value={`${x.id}:${mm.id}`}>{mm.name}{other ? ` (now on ${units.find(z => z.id === at!.unit_id)?.name} out ${at!.out_no})` : ''}</option>; })}</optgroup>))}</select>

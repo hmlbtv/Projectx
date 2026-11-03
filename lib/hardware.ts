@@ -7,7 +7,8 @@ export type Mon = { id: string; name: string; mvs: number[] };
 export const monitorsOf = (data: any): Mon[] => (Array.isArray(data?.assets) ? data.assets : []).filter((a: any) => isScreen(a.type) && a.id != null)
   .map((a: any, i: number) => ({ id: String(a.id), name: String(a.name || `Monitor ${i + 1}`), mvs: (Array.isArray(a.props?.mvs) ? a.props.mvs : []).map(Number).filter(Boolean) }));
 
-export type Unit = { id: number; site_id: number | null; location_id: number | null; room_id: number | null; name: string; model: string; inputs: number; outputs: number };
+export type Names = Record<string, string>;
+export type Unit = { dest_names: Names; out_names: Names; dest_hw: Names; out_hw: Names; id: number; site_id: number | null; location_id: number | null; room_id: number | null; name: string; model: string; inputs: number; outputs: number };
 export type Out = { unit_id: number; out_no: number; room_wall_id: number; monitor_id: string };
 export type RW = { id: number; site_id: number; name: string; room: string; location: string; site: string; mons: Mon[] };
 export type Lay = { id: number; name: string; n: number };
@@ -15,7 +16,7 @@ export type Dest = { room_wall_id: number; monitor_id: string; layout_id: number
 
 export async function loadHardware(tenant: number) {
   const [units, outs, rw, lays, dests] = await Promise.all([
-    rows<Unit>('select id, site_id, location_id, room_id, name, model, inputs, outputs from hw_units where tenant_id=$1 order by name, id', [tenant]),
+    rows<Unit>('select id, site_id, location_id, room_id, name, model, inputs, outputs, dest_names, out_names, dest_hw, out_hw from hw_units where tenant_id=$1 order by name, id', [tenant]),
     rows<Out>('select o.unit_id, o.out_no, o.room_wall_id, o.monitor_id from hw_outputs o join hw_units u on u.id=o.unit_id where u.tenant_id=$1 order by o.unit_id, o.out_no', [tenant]),
     rows<any>('select rw.id, rw.name, s.id site_id, r.name room, l.name location, s.name site, w.data from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id join wall_templates w on w.id=rw.wall_template_id where s.tenant_id=$1 order by s.name, l.name, r.name, rw.name', [tenant]),
     rows<any>('select id, name, tiles from mv_layouts where tenant_id=$1 or tenant_id is null', [tenant]),
@@ -35,3 +36,8 @@ export function taken(unit: number, outs: Out[], dests: Dest[], layouts: Map<num
   return r;
 }
 export const range = (from: number, n: number) => n <= 1 ? String(from) : `${from}–${from + n - 1}`;
+
+// What a destination or output is called: the friendly name given in TelePlanner, else the hardware's own name, else its number.
+export const destLabel = (u: Unit, n: number) => u.dest_names?.[n] || u.dest_hw?.[n] || '';
+export const destFull = (u: Unit, n: number) => `${n}${destLabel(u, n) ? ' · ' + destLabel(u, n) : ''}`;
+export const outFull = (u: Unit, n: number) => `Output ${n}${u.out_names?.[n] || u.out_hw?.[n] ? ' · ' + (u.out_names?.[n] || u.out_hw?.[n]) : ''}`;

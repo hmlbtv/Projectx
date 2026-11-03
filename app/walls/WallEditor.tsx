@@ -14,22 +14,6 @@ const isScreen = (t: string) => /^(mon|monitor|bvm|pvm)/.test(t);
 
 // Pick which Multiview templates a monitor can show (chosen from this list later, in the Monitor Plan).
 type Filt = { q: string; sort: string; max: number | null };
-export type DSet = { id: number; name: string; site: string; dests: { id: number; name: string }[] };
-function Dests({ a, dsets, setProps }: { a: DAsset; dsets: DSet[]; setProps: (p: Record<string, any>) => void }) {
-  const ref = useRef<HTMLDialogElement>(null); const set = dsets.find(d => d.id === a.props?.destSet); const have: number[] = a.props?.dests ?? [];
-  const [pick, setPick] = useState<number[]>(have);
-  const chosen = set ? set.dests.filter(d => have.includes(d.id)) : []; // window 1, 2, 3… follow the order of the set
-  if (dsets.length === 0) return <p className="mut dz-help" style={{ margin: '8px 0 0' }}>No Destination Sets yet. Add them on the Site page.</p>;
-  return (<div style={{ marginTop: 10, borderTop: '1px solid var(--line)', paddingTop: 8 }}><b style={{ fontSize: '.85rem' }}>Destinations</b>
-    <select aria-label="Destination Set" value={set?.id ?? ''} style={{ width: '100%', margin: '6px 0' }} onChange={e => setProps({ destSet: Number(e.target.value) || undefined, dests: undefined })}><option value="">No Destination Set</option>{dsets.map(d => <option key={d.id} value={d.id}>{d.site} › {d.name}</option>)}</select>
-    {set && <>{chosen.length === 0 ? <p className="mut dz-help" style={{ margin: '0 0 6px' }}>No destinations assigned.</p> : <ol style={{ margin: '0 0 8px', paddingLeft: 22, fontSize: '.85rem' }}>{chosen.map(d => <li key={d.id}>{d.name}</li>)}</ol>}
-      <button type="button" className="sec small" onClick={() => { setPick(have); ref.current?.showModal(); }}>Assign destinations</button>
-      <dialog ref={ref} className="dlg" style={{ width: 'min(420px,calc(100vw - 24px))' }}>
-        <h3 style={{ margin: '0 0 4px' }}>Destinations for this monitor</h3><p className="mut dz-help" style={{ margin: '0 0 8px' }}>{set.name}. Multiview windows take these names in order: window 1 is the first ticked one in the set, and so on. {a.props?.maxPip ? `Max PiP is ${a.props.maxPip}.` : ''}</p>
-        <div style={{ maxHeight: '45vh', overflow: 'auto', display: 'grid', gap: 4 }}>{set.dests.map(d => <label key={d.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, display: 'flex' }}><input type="checkbox" style={{ margin: 0 }} checked={pick.includes(d.id)} onChange={e => setPick(e.target.checked ? [...pick, d.id] : pick.filter(x => x !== d.id))} />{d.name}</label>)}</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}><button type="button" className="sec small" onClick={() => setPick(set.dests.map(d => d.id))}>Tick all</button><button type="button" className="sec small" onClick={() => setPick([])}>Untick all</button><button type="button" className="sec small" onClick={() => ref.current?.close()}>Cancel</button><button type="button" onClick={() => { setProps({ dests: pick.length ? pick : undefined }); ref.current?.close(); }}>Apply</button></div>
-      </dialog></>}</div>);
-}
 function MvPick({ a, mvs, setProps, filt, setFilt, copied, setCopied, touch, setTouch }: { touch: boolean; setTouch: (v: boolean) => void; copied: number[] | null; setCopied: (c: number[] | null) => void; a: DAsset; mvs: MvOpt[]; setProps: (p: Record<string, any>) => void; filt: Filt; setFilt: (f: Filt) => void }) {
   const ref = useRef<HTMLDialogElement>(null); const have: number[] = a.props?.mvs ?? [];
   const top = Math.max(1, ...mvs.map(m => m.n)); const [pick, setPick] = useState<number[]>(have); // search, sort and Max PiP are remembered for as long as the wall is open in the editor
@@ -75,7 +59,7 @@ function MvPick({ a, mvs, setProps, filt, setFilt, copied, setCopied, touch, set
 }
 
 // The Wall Designer: drag monitors, Sony BVM/PVM monitors, speakers and timecode clocks onto a 6.4 m x 3.6 m wall. Same tools as the other designers.
-export default function WallEditor({ id, initialName, initial, notice, mvs, dsets, backQuery }: { backQuery?: string; dsets: DSet[]; id: number | null; initialName: string; initial: DAsset[]; notice?: React.ReactNode; mvs: MvOpt[] }) {
+export default function WallEditor({ id, initialName, initial, notice, mvs, backQuery }: { backQuery?: string; id: number | null; initialName: string; initial: DAsset[]; notice?: React.ReactNode; mvs: MvOpt[] }) {
   // Saved walls open in view mode (cropped to the monitors, multiview templates can be assigned). Edit mode gives the full canvas and the Arrange/Add tools, but no multiview assignment.
   const [edit, setEdit] = useState(id === null || initial.length === 0);
   // Search, sort and Max PiP for the multiview dialog are kept for this browser tab (so they survive saving, switching walls and reloads).
@@ -88,7 +72,7 @@ export default function WallEditor({ id, initialName, initial, notice, mvs, dset
   // The canvas is 1600 x 900 to start with, and grows (to the right) as monitors are added; a saved wall opens at least as big as its items.
   const [world, setWorld] = useState(() => ({ w: Math.max(WALL_W, Math.ceil(Math.max(0, ...initial.map(a => a.x + a.w)) / 100) * 100), h: Math.max(WALL_H, Math.ceil(Math.max(0, ...initial.map(a => a.y + a.h)) / 100) * 100) }));
   return (<><Editor backQuery={backQuery} touch={touchOn && copied ? { on: a => { if (!isScreen(a.type)) return null; const keep = copied.filter(id => { const m = mvs.find(x => x.id === id); return m && (!a.props?.maxPip || m.n <= a.props.maxPip); }); return { mvs: keep.length ? keep : undefined }; }, off: () => setTouchOn(false) } : undefined} onWorld={setWorld} onAction={(_, add) => setPicker(() => add)}  viewOnly={!edit} zoomable headerExtra={<>{id ? <a href={`/walls/defaults?id=${id}`} className="btn sec small" title="Choose the MV layout each monitor starts with">Default configuration</a> : null}<button type="button" className={'small' + (edit ? '' : ' sec')} aria-pressed={edit} title={edit ? 'Finish editing: shrink the canvas and go back to assigning multiview templates' : 'Edit the wall: add, move and arrange monitors and other items'} onClick={() => setEdit(!edit)}>{edit ? 'Done editing' : 'Edit'}</button></>}  kind="Wall Template" canvasName="wall" backHref="/walls" world={world} palette={WALL_PALETTE} rotatable notice={notice} renderAsset={a => (isScreen(a.type) && !a.props?.mvs?.length ? <div style={{ position: 'relative', width: '100%', height: '100%' }} title="No MV layout assigned yet"><WallArt a={a} /><div style={{ position: 'absolute', inset: 0, background: 'rgba(245,158,11,.30)', border: '2px dashed #f59e0b', boxSizing: 'border-box', borderRadius: 3, pointerEvents: 'none' }} /></div> : <WallArt a={a} />)}
-    extras={(a, setProps) => !edit && isScreen(a.type) ? <><MvPick key={a.id} a={a} mvs={mvs} setProps={setProps} filt={filt} setFilt={setFilt} copied={copied} setCopied={setCopied} touch={touchOn} setTouch={setTouchOn} /><Dests key={'d' + a.id} a={a} dsets={dsets} setProps={setProps} /></> : null}
+    extras={(a, setProps) => !edit && isScreen(a.type) ? <><MvPick key={a.id} a={a} mvs={mvs} setProps={setProps} filt={filt} setFilt={setFilt} copied={copied} setCopied={setCopied} touch={touchOn} setTouch={setTouchOn} /></> : null}
     id={id} initialName={initialName} initial={initial}
     backdrop={<svg viewBox={`0 0 ${world.w} ${world.h}`} width="100%" height="100%" style={{ display: 'block', pointerEvents: 'none' }}><rect width={world.w} height={world.h} fill="#1b2027" /><rect x={0} y={world.h - 6} width={world.w} height={6} fill="#2c333d" /></svg>}
     onSave={a => saveWall(a.asNew ? null : a.id, a.name, a.assets)} />

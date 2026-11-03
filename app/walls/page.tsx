@@ -18,8 +18,7 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
   const rooms_p = rows(`select r.id, s.id sid, l.id lid, s.name sname, l.name lname, r.name from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name,l.name,r.name`, [t]);
   const used_p = rows(`select rw.wall_template_id w, rw.room_id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1`, [t]);
   const mvs_p = rows('select id, name, (tenant_id is null) standard, jsonb_array_length(tiles)::int n, tiles from mv_layouts where tenant_id is null or tenant_id=$1 order by (tenant_id is null), name', [t]);
-  const dsets_p = rows(`select ds.id, ds.name, st.name site, coalesce((select json_agg(json_build_object('id', d.id, 'name', d.name) order by d.pos, d.id) from destinations d where d.set_id=ds.id), '[]'::json) dests from destination_sets ds join sites st on st.id=ds.site_id where ds.tenant_id=$1 order by st.name, ds.name`, [t]);
-  const [list, lim0, rooms, used, mvs0, dsets] = await Promise.all([list_p, lim_p, rooms_p, used_p, mvs_p, dsets_p]); // queries run together
+  const [list, lim0, rooms, used, mvs0] = await Promise.all([list_p, lim_p, rooms_p, used_p, mvs_p]); // queries run together
   const lim = lim0!; const mvs = (mvs0 as any[]).map(m => ({ ...m, tiles: (m.tiles ?? []).map((x: any) => ({ x: x.x, y: x.y, w: x.w, h: x.h })) }));
   const sites = Array.from(new Map(rooms.map((r: any) => [r.sid, { id: r.sid, name: r.sname }])).values()) as any[];
   const locs = Array.from(new Map(rooms.map((r: any) => [r.lid, { id: r.lid, sid: r.sid, lname: r.lname }])).values()) as any[];
@@ -33,7 +32,7 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
     const notice = (<div className="card" style={{ margin: '0 0 8px' }}>
       <b>Used in: </b>{mine.length === 0 ? <span className="mut">no Rooms yet. Save the template, then add it to a Room from the library menu (⋯) or the Room page.</span> : mine.map((r: any) => <form key={r.id} action={wallFromRoom} style={{ display: 'inline' }}><input type="hidden" name="wall" value={cur.id} /><input type="hidden" name="room" value={r.id} /><span className="tag">{label(r)} <button className="del" style={{ padding: '0 6px', marginLeft: 4 }} title="Remove from this Room (Jobs using it there lose it)" aria-label={`Remove from ${label(r)}`}>×</button></span></form>)}
       {mine.length > 1 && <p style={{ margin: '6px 0 0', color: '#b45309' }}><b>Note:</b> a Wall Template can be in only one Room, but this one is in {mine.length} from before. Remove it from the extra Rooms (the × above) to keep just one.</p>}</div>);
-    return <WallEditor key={String(cur.id)} id={cur.id} initialName={cur.name} initial={cur.data.assets} notice={notice} mvs={mvs} dsets={dsets} backQuery={keep.toString() ? '?' + keep.toString() : ''} />;
+    return <WallEditor key={String(cur.id)} id={cur.id} initialName={cur.name} initial={cur.data.assets} notice={notice} mvs={mvs} backQuery={keep.toString() ? '?' + keep.toString() : ''} />;
   }
   const isMon = (x: any) => /^(mon|monitor|bvm|pvm)/.test(String(x.type));
   const nMon = (w: any) => (w.data.assets || []).filter(isMon).length;
