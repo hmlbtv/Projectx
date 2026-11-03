@@ -673,6 +673,18 @@ async function saveHwNames_(f: FormData) {
   await rows('update hw_units set dest_names=$2, dest_hw=$3, out_names=$4, out_hw=$5 where id=$1', [id, JSON.stringify(pick('dn_', u.inputs)), JSON.stringify(pick('dh_', u.inputs)), JSON.stringify(pick('on_', u.outputs)), JSON.stringify(pick('oh_', u.outputs))]);
   revalidatePath('/hardware'); revalidatePath('/plans'); hwBack(id);
 }
+// Copies a unit (settings and names). Output assignments and destination numbers are not copied: a monitor can only be on one output.
+async function copyHwUnit_(_: FormState, f: FormData): Promise<FormState> {
+  const me = await adm(); const src = await one('select id from hw_units where id=$1 and tenant_id=$2', [Number(s(f, 'id')), tid(me)]); if (!src) return { error: 'Not found.' };
+  const name = s(f, 'name').slice(0, 80); if (!name) return { error: 'Give the copy a name.' };
+  const w = await hwWhere(me, s(f, 'where')); if (!w.site) return { error: 'Choose where the unit is (a Site, Location or Room).' };
+  if (((await one('select count(*)::int c from hw_units where tenant_id=$1', [tid(me)]))!).c >= 200) return { error: 'Hardware unit limit reached.' };
+  const inputs = intIn(s(f, 'inputs'), 1, 1024, 16), outputs = intIn(s(f, 'outputs'), 1, 256, 4);
+  const pick = (pre: string, n: number) => { const m: Record<string, string> = {}; for (let i = 1; i <= n; i++) { const v = String(f.get(pre + i) ?? '').trim().slice(0, 60); if (v) m[i] = v; } return m; };
+  const r = (await one('insert into hw_units(tenant_id,site_id,location_id,room_id,name,model,inputs,outputs,dest_names,dest_hw,out_names,out_hw) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) returning id',
+    [tid(me), w.site, w.loc, w.room, name, s(f, 'model').slice(0, 80), inputs, outputs, JSON.stringify(pick('dn_', inputs)), JSON.stringify(pick('dh_', inputs)), JSON.stringify(pick('on_', outputs)), JSON.stringify(pick('oh_', outputs))]))!;
+  revalidatePath('/hardware'); return { ok: 'Copied.', link: `/hardware?id=${r.id}` };
+}
 async function setHwOutput_(f: FormData) {
   const me = await adm(); const unit = Number(s(f, 'unit')), out = Number(s(f, 'out')), target = s(f, 'target');
   const { units, walls, outs } = await loadHardware(tid(me)); const u = units.find(x => x.id === unit); if (!u) throw new Error('Not found');
@@ -954,6 +966,7 @@ export async function addHwUnit(...a: Parameters<typeof addHwUnit_>) { return au
 export async function updateHwUnit(...a: Parameters<typeof updateHwUnit_>) { return audited('updateHwUnit', updateHwUnit_, a) as ReturnType<typeof updateHwUnit_>; }
 export async function deleteHwUnit(...a: Parameters<typeof deleteHwUnit_>) { return audited('deleteHwUnit', deleteHwUnit_, a) as ReturnType<typeof deleteHwUnit_>; }
 export async function saveHwNames(...a: Parameters<typeof saveHwNames_>) { return audited('saveHwNames', saveHwNames_, a) as ReturnType<typeof saveHwNames_>; }
+export async function copyHwUnit(...a: Parameters<typeof copyHwUnit_>) { return audited('copyHwUnit', copyHwUnit_, a) as ReturnType<typeof copyHwUnit_>; }
 export async function setHwOutput(...a: Parameters<typeof setHwOutput_>) { return audited('setHwOutput', setHwOutput_, a) as ReturnType<typeof setHwOutput_>; }
 export async function setHwDest(...a: Parameters<typeof setHwDest_>) { return audited('setHwDest', setHwDest_, a) as ReturnType<typeof setHwDest_>; }
 export async function setHwMonitorStart(...a: Parameters<typeof setHwMonitorStart_>) { return audited('setHwMonitorStart', setHwMonitorStart_, a) as ReturnType<typeof setHwMonitorStart_>; }

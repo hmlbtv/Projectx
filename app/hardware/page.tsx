@@ -4,6 +4,7 @@ import { requireMe, isAdmin } from '@/lib/session';
 import { rows } from '@/lib/db';
 import { loadHardware, taken, range, outFull } from '@/lib/hardware';
 import ImportNames from './ImportNames';
+import CopyHardware from './CopyHardware';
 import { addHwUnit, updateHwUnit, deleteHwUnit, setHwOutput, setHwDest, setHwMonitorStart, autoHwDests, clearHwDests, saveHwNames } from '@/lib/actions';
 import AddDialog from '../AddDialog';
 import Menu from '../Menu';
@@ -24,6 +25,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
     {sites.map((s: any) => (<optgroup key={s.id} label={s.name}><option value={'s:' + s.id}>{s.name} (whole Site)</option>
       {locs.filter((l: any) => l.site_id === s.id).flatMap((l: any) => [<option key={'l' + l.id} value={'l:' + l.id}>{s.name} › {l.name}</option>, ...rooms.filter((r: any) => r.location_id === l.id).map((r: any) => <option key={'r' + r.id} value={'r:' + r.id}>{s.name} › {l.name} › {r.name}</option>)])}</optgroup>))}</select>);
 
+  const whereOpts = sites.flatMap((s: any) => [{ value: 's:' + s.id, label: `${s.name} (whole Site)` }, ...locs.filter((l: any) => l.site_id === s.id).flatMap((l: any) => [{ value: 'l:' + l.id, label: `${s.name} › ${l.name}` }, ...rooms.filter((r: any) => r.location_id === l.id).map((r: any) => ({ value: 'r:' + r.id, label: `${s.name} › ${l.name} › ${r.name}` }))])]);
   const u = q.id ? units.find(x => String(x.id) === q.id) : null;
   if (!u) {
     return (<><div className="pagehead"><h1 style={{ margin: 0 }}>MV Hardware</h1>
@@ -53,11 +55,12 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 8 }} aria-label="Input usage">{Array.from({ length: u.inputs }, (_, i) => i + 1).map(n => <span key={n} title={used.has(n) ? 'In use' : 'Free'} style={{ minWidth: 26, textAlign: 'center', fontSize: '.72rem', padding: '2px 0', borderRadius: 4, background: used.has(n) ? '#1d6b3a' : 'transparent', border: '1px solid var(--line)', color: used.has(n) ? '#fff' : undefined }}>{n}</span>)}</div>
       <div className="row" style={{ marginTop: 10 }}>
         <form action={autoHwDests} className="row"><input type="hidden" name="unit" value={u.id} /><label>Auto-assign from <input name="start" type="number" min={1} defaultValue={1} style={{ width: 80 }} /></label><button className="sec small">Auto-assign all monitors</button></form>
-        <form action={clearHwDests}><input type="hidden" name="unit" value={u.id} /><button className="sec small">Clear all destinations</button></form></div>
+        <form action={clearHwDests}><input type="hidden" name="unit" value={u.id} /><button className="sec small">Clear all destinations</button></form>
+        <CopyHardware key={u.id} u={{ id: u.id, name: u.name, model: u.model, inputs: u.inputs, outputs: u.outputs, where: u.room_id ? 'r:' + u.room_id : u.location_id ? 'l:' + u.location_id : 's:' + u.site_id, dest_names: u.dest_names ?? {}, dest_hw: u.dest_hw ?? {}, out_names: u.out_names ?? {}, out_hw: u.out_hw ?? {} }} where={whereOpts} /></div>
       <p className="mut" style={{ fontSize: '.85rem', margin: '6px 0 0' }}>Auto-assign stacks the monitors in output order. Each monitor takes as many destinations as its biggest MV layout, and all of its layouts start at its first one (a full-screen layout sits on the first destination).</p></div>
     <h2 style={{ margin: '18px 0 6px' }}>Destination and output names</h2>
     <div className="card"><div className="row" style={{ justifyContent: 'space-between' }}><span className="mut">Friendly names are what people see in Monitor Plans. The hardware name is the unit's own name for it. Names belong to this unit only.</span><ImportNames id={u.id} /></div>
-      <details style={{ marginTop: 8 }}><summary>Edit names here</summary>
+      <details key={u.id} style={{ marginTop: 8 }}><summary>Edit names here</summary>
         <form action={saveHwNames} className="stack" style={{ marginTop: 8 }}><input type="hidden" name="id" value={u.id} /><button className="sec small" style={{ justifySelf: 'start' }}>Save names</button>
           <b>Destinations (inputs)</b>
           <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'auto 1fr 1fr', alignItems: 'center' }}><span /><span className="mut">Hardware name</span><span className="mut">Friendly name</span>
