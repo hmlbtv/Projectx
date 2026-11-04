@@ -690,16 +690,16 @@ async function setHwOutput_(f: FormData) {
   const { units, walls, outs } = await loadHardware(tid(me)); const u = units.find(x => x.id === unit); if (!u) throw new Error('Not found');
   if (!(out >= 1 && out <= u.outputs)) return hwBack(unit, 'That output does not exist on this unit.');
   const prev = outs.find(o => o.unit_id === unit && o.out_no === out);
-  if (!target) { if (prev) { await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2', [prev.room_wall_id, prev.monitor_id]); await rows('delete from hw_outputs where unit_id=$1 and out_no=$2', [unit, out]); } revalidatePath('/hardware'); return hwBack(unit); }
+  if (!target) { if (prev) { await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2', [prev.room_wall_id, prev.monitor_id]); await rows('delete from hw_outputs where unit_id=$1 and out_no=$2', [unit, out]); } revalidatePath('/hardware'); return; }
   const [rwS, monId] = [target.slice(0, target.indexOf(':')), target.slice(target.indexOf(':') + 1)]; const rw = walls.find(w => String(w.id) === rwS && w.site_id === u.site_id); const mon = rw?.mons.find(m => m.id === monId);
   if (!rw || !mon) return hwBack(unit, 'That monitor was not found in this unit\'s Site.');
   const had = outs.find(o => o.room_wall_id === rw.id && o.monitor_id === mon.id);
-  if (had && had.unit_id === unit && had.out_no === out) return hwBack(unit);
+  if (had && had.unit_id === unit && had.out_no === out) return;
   if (prev) await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2', [prev.room_wall_id, prev.monitor_id]); // the monitor that lost this output loses its destinations
   if (had && had.unit_id !== unit) await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2', [rw.id, mon.id]); // moved to a different unit: its old numbers no longer apply
   await rows('delete from hw_outputs where (room_wall_id=$1 and monitor_id=$2) or (unit_id=$3 and out_no=$4)', [rw.id, mon.id, unit, out]);
   await rows('insert into hw_outputs(unit_id,out_no,room_wall_id,monitor_id) values($1,$2,$3,$4)', [unit, out, rw.id, mon.id]);
-  revalidatePath('/hardware'); hwBack(unit);
+  revalidatePath("/hardware");
 }
 // Checks the destinations chosen for the tiles of one layout on one monitor: each must exist on the unit and none repeated in the layout.
 // Different monitors (and a monitor's own layouts) may share destinations: only the layouts chosen in a Monitor Plan must not clash, and the plan highlights that.

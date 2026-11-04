@@ -102,7 +102,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
           <button className="sec small">Save</button></form></div>
         {o && !m && <p className="mut" style={{ margin: '6px 0 0' }}>The assigned monitor no longer exists on its wall.</p>}
         {o && m && w && (<div style={{ marginTop: 8 }}><div className="mut" style={{ fontSize: '.85rem' }}>{w.location} › {w.room} › {w.name} › {m.name}</div>
-          {m.mvs.length === 0 ? <p className="mut" style={{ margin: '4px 0' }}>This monitor has no MV layouts chosen in its Wall Template.</p> : (<>
+          {m.mvs.length === 0 ? <p className="mut" style={{ margin: '4px 0' }}>This monitor has no MV layouts chosen in its Wall Template.</p> : (<><details style={{ marginTop: 6 }}><summary><b>MV layouts</b> <span className="mut">({m.mvs.filter(l => layouts.has(l)).length}) · set destinations</span></summary>
             <div style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: 'minmax(0,1fr)' }}>{m.mvs.filter(l => layouts.has(l)).map(l => { const lay = layouts.get(l)!; const d = dests.find(x => x.room_wall_id === w.id && x.monitor_id === m.id && x.layout_id === l) as Dest | undefined;
               const nums = d ? destNums(d, lay.n) : Array.from({ length: lay.n }, () => null as number | null); const others = new Set<number>(); taken(u.id, outs, dests, layouts, { rw: w.id, mon: m.id }).forEach(r => r.nums.forEach(v => others.add(v)));
               return (<div key={l}><form action={setHwDest} className="row" style={{ margin: 0 }}><input type="hidden" name="unit" value={u.id} /><input type="hidden" name="rw" value={w.id} /><input type="hidden" name="mon" value={m.id} /><input type="hidden" name="layout" value={l} />
@@ -115,5 +115,5 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
                       <select name={'t_' + (i + 1)} defaultValue={v ?? ''} aria-label={`${lay.name} tile ${i + 1} destination`}><option value="">No destination</option>{Array.from({ length: u.inputs }, (_, k) => k + 1).map(k => <option key={k} value={k} >{k}{destLabel(u, k) ? ' · ' + destLabel(u, k) : ''}{others.has(k) ? ' (also on another monitor)' : ''}</option>)}</select></div>))}</div>
                     <button className="sec small" style={{ justifySelf: 'start' }}>Save tiles</button></form></details></div>); })}</div>
             <form action={setHwMonitorStart} className="row" style={{ marginTop: 6 }}><input type="hidden" name="unit" value={u.id} /><input type="hidden" name="rw" value={w.id} /><input type="hidden" name="mon" value={m.id} />
-              <label className="mut">All layouts of this monitor start at <input name="first" type="number" min={1} max={u.inputs} required style={{ width: 80 }} /></label><button className="sec small">Set all</button></form></>)}</div>)}</div>); })}</div></>);
+              <label className="mut">All layouts of this monitor start at <input name="first" type="number" min={1} max={u.inputs} required style={{ width: 80 }} /></label><button className="sec small">Set all</button></form></details></>)}</div>)}</div>); })}</div></>);
 }
