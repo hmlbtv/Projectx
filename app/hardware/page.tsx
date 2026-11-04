@@ -96,7 +96,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
     {siteWalls.every(w => w.mons.length === 0) && <p className="mut">No monitors in Wall Templates placed in Rooms of this Site yet.</p>}
     <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'minmax(0,1fr)' }}>{Array.from({ length: u.outputs }, (_, i) => i + 1).map(n => { const o = mine.find(x => x.out_no === n); const w = o ? wallOf(o.room_wall_id) : null; const m = w?.mons.find(x => x.id === o!.monitor_id);
       return (<div key={n} className="card"><div className="row" style={{ justifyContent: 'space-between' }}><b>{outFull(u, n)}</b>
-        <form action={setHwOutput} className="row"><input type="hidden" name="unit" value={u.id} /><input type="hidden" name="out" value={n} />
+        <form key={`${u.id}-${n}-${o ? o.room_wall_id + ':' + o.monitor_id : ''}`} action={setHwOutput} className="row"><input type="hidden" name="unit" value={u.id} /><input type="hidden" name="out" value={n} />
           <select name="target" defaultValue={o ? `${o.room_wall_id}:${o.monitor_id}` : ''} aria-label={`Monitor for output ${n}`}><option value="">Not assigned</option>
             {siteWalls.filter(x => x.mons.length).map(x => (<optgroup key={x.id} label={`${x.location} › ${x.room} › ${x.name}`}>{x.mons.map(mm => { const at = where(x.id, mm.id); const other = at && !(at.unit_id === u.id && at.out_no === n); return <option key={mm.id} value={`${x.id}:${mm.id}`}>{mm.name}{other ? ` (now on ${units.find(z => z.id === at!.unit_id)?.name} out ${at!.out_no})` : ''}</option>; })}</optgroup>))}</select>
           <button className="sec small">Save</button></form></div>
