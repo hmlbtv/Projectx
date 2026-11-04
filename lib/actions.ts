@@ -671,7 +671,7 @@ async function saveHwNames_(f: FormData) {
   const me = await adm(); const id = Number(s(f, 'id')); const u = await one('select inputs, outputs from hw_units where id=$1 and tenant_id=$2', [id, tid(me)]); if (!u) throw new Error('Not found');
   const pick = (pre: string, n: number) => { const m: Record<string, string> = {}; for (let i = 1; i <= n; i++) { const v = String(f.get(pre + i) ?? '').trim().slice(0, 60); if (v) m[i] = v; } return m; };
   await rows('update hw_units set dest_names=$2, dest_hw=$3, out_names=$4, out_hw=$5 where id=$1', [id, JSON.stringify(pick('dn_', u.inputs)), JSON.stringify(pick('dh_', u.inputs)), JSON.stringify(pick('on_', u.outputs)), JSON.stringify(pick('oh_', u.outputs))]);
-  revalidatePath('/hardware'); revalidatePath('/plans'); hwBack(id);
+  revalidatePath('/hardware'); revalidatePath('/plans');
 }
 // Copies a unit (settings and names). Output assignments and destination numbers are not copied: a monitor can only be on one output.
 async function copyHwUnit_(_: FormState, f: FormData): Promise<FormState> {
@@ -723,16 +723,16 @@ async function saveDest(rw: number, mon: string, layout: number, nums: (number |
 // A start number: the layout's tiles take that destination and the next ones in turn. Blank clears the layout.
 async function setHwDest_(f: FormData) {
   const me = await adm(); const ctx = await loadHardware(tid(me)); const rw = Number(s(f, 'rw')), mon = s(f, 'mon'), lay = Number(s(f, 'layout')), txt = s(f, 'first'), unit = Number(s(f, 'unit'));
-  if (!txt) { if (ctx.outs.some(o => o.room_wall_id === rw && o.monitor_id === mon)) await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2 and layout_id=$3', [rw, mon, lay]); revalidatePath('/hardware'); return hwBack(unit); }
+  if (!txt) { if (ctx.outs.some(o => o.room_wall_id === rw && o.monitor_id === mon)) await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2 and layout_id=$3', [rw, mon, lay]); revalidatePath('/hardware'); return; }
   const n = ctx.layouts.get(lay)?.n ?? 0; const nums = consec(Number(txt), n); const c = checkDest(ctx, rw, mon, lay, nums); if (c.err) return hwBack(unit || c.unit, c.err);
-  await saveDest(rw, mon, lay, nums); revalidatePath('/hardware'); hwBack(unit || c.unit);
+  await saveDest(rw, mon, lay, nums); revalidatePath('/hardware');
 }
 // Each tile of one layout picks its own destination (fields t_1, t_2, ...; empty = none).
 async function setHwTiles_(f: FormData) {
   const me = await adm(); const ctx = await loadHardware(tid(me)); const rw = Number(s(f, 'rw')), mon = s(f, 'mon'), lay = Number(s(f, 'layout')), unit = Number(s(f, 'unit'));
   const n = ctx.layouts.get(lay)?.n ?? 0; const nums = Array.from({ length: n }, (_, i) => { const v = String(f.get('t_' + (i + 1)) ?? '').trim(); return v ? Number(v) : null; });
   const c = checkDest(ctx, rw, mon, lay, nums); if (c.err) return hwBack(unit || c.unit, c.err);
-  await saveDest(rw, mon, lay, nums); revalidatePath('/hardware'); revalidatePath('/plans'); hwBack(unit || c.unit);
+  await saveDest(rw, mon, lay, nums); revalidatePath('/hardware'); revalidatePath('/plans');
 }
 // Every MV layout of one monitor starts at the same number (a full-screen layout then sits on the first destination of the multi-tile one).
 async function setHwMonitorStart_(f: FormData) {
@@ -740,7 +740,7 @@ async function setHwMonitorStart_(f: FormData) {
   const m = ctx.walls.find(w => w.id === rw)?.mons.find(x => x.id === mon); if (!m) return hwBack(unit, 'That monitor was not found.');
   const ls = m.mvs.filter(l => ctx.layouts.has(l)); for (const l of ls) { const c = checkDest(ctx, rw, mon, l, consec(first, ctx.layouts.get(l)!.n)); if (c.err) return hwBack(unit || c.unit, c.err); }
   for (const l of ls) await saveDest(rw, mon, l, consec(first, ctx.layouts.get(l)!.n));
-  revalidatePath('/hardware'); hwBack(unit);
+  revalidatePath('/hardware');
 }
 // Packs the unit's monitors one after another in output order: a monitor takes as many destinations as its biggest layout, and all its layouts start at its first one.
 async function autoHwDests_(f: FormData) {
@@ -753,12 +753,12 @@ async function autoHwDests_(f: FormData) {
   }
   for (const o of ctx.outs.filter(x => x.unit_id === unit)) await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2', [o.room_wall_id, o.monitor_id]);
   for (const p of plan) await saveDest(p.rw, p.mon, p.layout, consec(p.first, ctx.layouts.get(p.layout)!.n));
-  revalidatePath('/hardware'); hwBack(unit);
+  revalidatePath('/hardware');
 }
 async function clearHwDests_(f: FormData) {
   const me = await adm(); const unit = Number(s(f, 'unit')); const { units, outs } = await loadHardware(tid(me)); if (!units.some(x => x.id === unit)) throw new Error('Not found');
   for (const o of outs.filter(x => x.unit_id === unit)) await rows('delete from hw_dests where room_wall_id=$1 and monitor_id=$2', [o.room_wall_id, o.monitor_id]);
-  revalidatePath('/hardware'); hwBack(unit);
+  revalidatePath('/hardware');
 }
 // Archive: copy an old Job into a new one for the same Production, with its walls and Monitor Plans but no dates.
 async function copyJobToNew_(f: FormData) {
