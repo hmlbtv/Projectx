@@ -12,7 +12,8 @@ import { requireMe, canManage, isAdmin } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Menu from '../Menu';
-import { addBroadcaster, addProduction, addJob, removeJobUser, assignWall, unassignWall, assignWalls, unassignWalls, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob, copyJobToNew } from '@/lib/actions';
+import DefPick from './DefPick';
+import { addBroadcaster, addProduction, addJob, removeJobUser, assignWall, setWallDef, unassignWall, assignWalls, unassignWalls, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob, copyJobToNew } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
 export default async function Productions({ searchParams }: { searchParams: Promise<{ b?: string; p?: string; j?: string; v?: string; from?: string; cd?: string; cv?: string }> }) {
@@ -44,6 +45,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   if (jobId) {
     const j = js.find((x: any) => x.id === jobId); if (!j) redirect('/productions');
     const p = ps.find((x: any) => x.id === j.production_id)!; const b = bs.find((x: any) => x.id === p.broadcaster_id)!;
+    const jobPlans = await rows('select room_wall_id, data from job_wall_plans where job_id=$1', [j.id]);
     const inUse = (id: number) => rw.some((x: any) => x.job_id === j.id && x.id === id);
     // Add or remove every wall under a Site, Location or Room in one click.
     const Bulk = ({ ids, what }: { ids: number[]; what: string }) => { if (ids.length === 0) return null; const todo = ids.filter(i => !inUse(i)); const all = todo.length === 0;
@@ -67,9 +69,16 @@ export default async function Productions({ searchParams }: { searchParams: Prom
                 {lr.map((r: any) => { const ws = allWalls.filter((w: any) => w.room === r.room && w.loc === r.loc && w.site === r.site); const used = ws.filter((w: any) => rw.some((x: any) => x.job_id === j.id && x.id === w.id));
                   return (<details key={r.rid} open={used.length > 0} style={{ marginLeft: 16 }}><summary style={{ cursor: 'pointer' }}>{r.room} <span className="mut">· {used.length} of {ws.length} in use</span></summary>{ws.length > 1 && <Bulk ids={ws.map((w: any) => w.id as number)} what={r.room} />}
                     {ws.length === 0 && <p className="mut" style={{ marginLeft: 16 }}>No Wall Templates in this Room.</p>}
-                    {ws.map((w: any) => { const on = used.some((u: any) => u.id === w.id);
-                      return (<form key={w.id} action={on ? unassignWall : assignWall} className="row" style={{ marginLeft: 16, margin: '2px 0 2px 16px' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="wall" value={w.id} />
-                        <span>{w.name}</span>{on && <span className="tag">in use</span>}{!on && Array.isArray(w.defaults) && w.defaults.length > 0 && <select name="def" defaultValue={(w.defaults.find((x: any) => x.active) ?? { id: 'none' }).id} aria-label={`Starting configuration for ${w.name}`} title="The default configuration the Monitor Plan starts from" style={{ maxWidth: 220 }}>{w.defaults.map((x: any) => <option key={x.id} value={x.id}>{x.name}{x.active ? ' (active default)' : ''}</option>)}<option value="none">No default (first layout on each monitor)</option></select>}<button className={on ? 'del' : 'sec'} style={{ minHeight: 0, padding: '2px 10px' }}>{on ? 'Remove' : 'Use in this Job'}</button></form>); })}</details>); })}</details>); })}</details>); })}</div>
+                    {ws.map((w: any) => { const on = used.some((u: any) => u.id === w.id); const defs: any[] = Array.isArray(w.defaults) ? w.defaults : []; const plan = on ? jobPlans.find((x: any) => x.room_wall_id === w.id)?.data : undefined;
+                      const same = (a: any, b: any) => JSON.stringify(a ?? {}) === JSON.stringify(b ?? {});
+                      const cur = !on ? 'none' : plan ? (defs.find((x: any) => same(x.mons, plan.mons))?.id ?? (same(plan.mons, {}) ? 'none' : 'custom')) : (defs.find((x: any) => x.active)?.id ?? 'none');
+                      const locked = !!plan && (Object.keys(plan.assign ?? {}).length > 0 || Object.keys(plan.srcs ?? {}).length > 0);
+                      return (<div key={w.id} style={{ margin: '4px 0 4px 16px', padding: '6px 10px', border: '1px solid var(--line, #2a313b)', borderRadius: 6, background: on ? 'rgba(80,160,255,.07)' : 'transparent' }}>
+                        <form action={on ? unassignWall : assignWall} style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="wall" value={w.id} />
+                          <span><b>{w.name}</b> {on && <span className="tag">in use</span>}</span>
+                          <button className={on ? 'del' : 'sec'} style={{ minHeight: 0, padding: '2px 10px' }}>{on ? 'Remove' : 'Use in this Job'}</button></form>
+                        {on && (defs.length > 0 ? <div style={{ marginTop: 6 }}><DefPick action={setWallDef} job={j.id} wall={w.id} value={cur} options={defs.map((x: any) => ({ id: x.id, name: x.name, active: x.active }))} locked={locked} /></div> : <div className="mut" style={{ marginTop: 4, fontSize: 13 }}>This Wall Template has no default layouts.</div>)}
+                      </div>); })}</details>); })}</details>); })}</details>); })}</div>
       </div></>);
   }
 

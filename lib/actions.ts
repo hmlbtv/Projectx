@@ -889,17 +889,28 @@ async function deleteBroadcaster_(f: FormData) {
 }
 // A Wall Template sits in a Room (Sites page); a Job is then given the specific walls it will plan.
 const OWN_RW = 'select 1 from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where rw.id=$1 and s.tenant_id=$2';
+async function seedWallDefault(job: number, wall: number, pick: string, userId: number, replace: boolean) {
+  const wt = await one('select wt.defaults from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id where rw.id=$1', [wall]);
+  const defs = (Array.isArray(wt?.defaults) ? wt!.defaults : []) as { id?: string; active?: boolean; mons?: Record<string, number> }[];
+  const cur = await one('select data from job_wall_plans where job_id=$1 and room_wall_id=$2', [job, wall]);
+  if (cur) { if (!replace) return; const d = cur.data ?? {}; if (Object.keys(d.assign ?? {}).length || Object.keys(d.srcs ?? {}).length) throw new Error('This Monitor Plan already has sources, so its starting layout can no longer be changed'); }
+  const d = pick && pick !== 'none' ? defs.find(x => x?.id === pick) : pick === 'none' ? undefined : defs.find(x => x?.active);
+  if (pick && pick !== 'none' && !d) return;
+  if (!pick && !d) return;
+  await saveJobPlans(job, { [String(wall)]: { assign: {}, mons: d?.mons ?? {} } }, userId, wall);
+}
+async function setWallDef_(f: FormData) {
+  const me = await mgr(); const job = Number(s(f,'job')), wall = Number(s(f,'wall')); await own('jobs', job, me);
+  if (!wall || !(await one(OWN_RW, [wall, tid(me)])) || !(await one('select 1 from job_walls where job_id=$1 and room_wall_id=$2', [job, wall]))) throw new Error('Not found');
+  await seedWallDefault(job, wall, s(f, 'def') || 'none', me.id, true);
+  revalidatePath('/productions'); revalidatePath('/plans');
+}
 async function assignWall_(f: FormData) {
   const me = await mgr(); const job = Number(s(f,'job')), wall = Number(s(f,'wall')); await own('jobs', job, me);
   if (!wall || !(await one(OWN_RW, [wall, tid(me)]))) throw new Error('Not found');
   await rows('insert into job_walls(job_id,room_wall_id) values($1,$2) on conflict do nothing', [job, wall]);
-  // Start this wall's Monitor Plan from the chosen default configuration of its Wall Template ('none' = each monitor on its first layout). An existing plan is never overwritten.
-  const pick = s(f, 'def');
-  if (pick && !(await one('select 1 from job_wall_plans where job_id=$1 and room_wall_id=$2', [job, wall]))) {
-    const wt = await one('select wt.defaults from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id where rw.id=$1', [wall]);
-    const d = (Array.isArray(wt?.defaults) ? wt!.defaults : []).find((x: any) => x?.id === pick) as { mons?: Record<string, number> } | undefined;
-    if (d || pick === 'none') await saveJobPlans(job, { [String(wall)]: { assign: {}, mons: d?.mons ?? {} } }, me.id, wall);
-  }
+  // Start this wall's Monitor Plan from the chosen default configuration ('none' = each monitor on its first layout; nothing chosen = the Wall Template's active default). An existing plan is never overwritten here.
+  await seedWallDefault(job, wall, s(f, 'def'), me.id, false);
   revalidatePath('/productions'); revalidatePath('/plans');
 }
 // Add (or take away) many walls at once: everything in a Site, Location or Room.
@@ -908,6 +919,7 @@ async function assignWalls_(f: FormData) {
   const me = await mgr(); const job = Number(s(f,'job')); await own('jobs', job, me);
   const ok = wallIds(f).length ? (await rows('select rw.id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites st on st.id=l.site_id where rw.id = any($1::int[]) and st.tenant_id=$2', [wallIds(f), tid(me)])).map((x: any) => x.id) : [];
   if (ok.length) await rows('insert into job_walls(job_id,room_wall_id) select $1, unnest($2::int[]) on conflict do nothing', [job, ok]);
+  for (const w of ok) await seedWallDefault(job, w, '', me.id, false);
   revalidatePath('/productions'); revalidatePath('/plans');
 }
 async function unassignWalls_(f: FormData) {
@@ -1097,6 +1109,7 @@ export async function deleteJob(...a: Parameters<typeof deleteJob_>) { return au
 export async function assignWall(...a: Parameters<typeof assignWall_>) { return audited('assignWall', assignWall_, a) as ReturnType<typeof assignWall_>; }
 export async function assignWalls(...a: Parameters<typeof assignWalls_>) { return audited('assignWalls', assignWalls_, a) as ReturnType<typeof assignWalls_>; }
 export async function unassignWalls(...a: Parameters<typeof unassignWalls_>) { return audited('unassignWalls', unassignWalls_, a) as ReturnType<typeof unassignWalls_>; }
+export async function setWallDef(...a: Parameters<typeof setWallDef_>) { return audited('setWallDef', setWallDef_, a) as ReturnType<typeof setWallDef_>; }
 export async function unassignWall(...a: Parameters<typeof unassignWall_>) { return audited('unassignWall', unassignWall_, a) as ReturnType<typeof unassignWall_>; }
 export async function copyPlan(...a: Parameters<typeof copyPlan_>) { return audited('copyPlan', copyPlan_, a) as ReturnType<typeof copyPlan_>; }
 export async function savePlan(...a: Parameters<typeof savePlan_>) { return audited('savePlan', savePlan_, a) as ReturnType<typeof savePlan_>; }
