@@ -15,7 +15,7 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
   const { id, q: q0, f: fl, site: st0, loc: lc0, room: rm0, sort: so, view: vw } = await searchParams; const t = me.tenant_id ?? 0, q = (q0 ?? '').trim().slice(0, 80);
   const list_p = rows('select w.* from wall_templates w where w.tenant_id=$1 order by w.name', [t]);
   const lim_p = one('select max_walls_per_broadcaster m, plan, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [t]);
-  const rooms_p = rows(`select r.id, s.id sid, l.id lid, s.name sname, l.name lname, r.name from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name,l.name,r.name`, [t]);
+  const rooms_p = rows(`select r.id, s.id sid, l.id lid, s.name sname, l.name lname, r.name from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name,l.name,r.whole desc,r.name`, [t]);
   const used_p = rows(`select rw.wall_template_id w, rw.room_id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1`, [t]);
   const mvs_p = rows('select id, name, (tenant_id is null) standard, jsonb_array_length(tiles)::int n, tiles from mv_layouts where tenant_id is null or tenant_id=$1 order by (tenant_id is null), name', [t]);
   const [list, lim0, rooms, used, mvs0] = await Promise.all([list_p, lim_p, rooms_p, used_p, mvs_p]); // queries run together
@@ -50,16 +50,16 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
   const th = (labelT: string, asc: string, desc: string) => { const on = sort === asc || sort === desc, next = sort === asc ? desc : asc;
     return <th><Link href={`/walls?${qs(view, next)}`} className={on ? 'on' : ''}>{labelT}{on ? (sort === asc ? ' ▲' : ' ▼') : ''}</Link></th>; };
   const open = (wid: number) => `/walls?id=${wid}${keep.toString() ? '&' + keep.toString() : ''}`;
-  const where = (mine: any[]) => mine.length === 0 ? <span className="mut">Not used in any Room</span> : <>{mine.map((r: any) => <span key={r.id} className="tag">{label(r)}</span>)}</>;
+  const where = (mine: any[]) => mine.length === 0 ? <span className="mut">Not used in any Room or Location</span> : <>{mine.map((r: any) => <span key={r.id} className="tag">{label(r)}</span>)}</>;
   const menuOf = (w: any, mine: any[]) => { const on = new Set(mine.map((r: any) => r.id)); return (
-    <Menu><b>Apply to a Room</b>
+    <Menu><b>Apply to a Room or a whole Location</b>
             {rooms.length === 0 ? <span className="mut">No Rooms yet. Add Rooms on the Sites page.</span> :
             <form action={setWallRooms} className="stack"><input type="hidden" name="wall" value={w.id} />
               <div style={{ maxHeight: 260, overflow: 'auto', minWidth: 240 }}><label style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'flex-start', textAlign: 'left', fontWeight: 400, padding: '2px 0' }}><input type="radio" name="room" value="" defaultChecked={on.size === 0} style={{ margin: 0 }} />No Room</label>{sites.map((s: any) => { const sr = rooms.filter((r: any) => r.sid === s.id); const sOn = sr.filter((r: any) => on.has(r.id)).length;
                 return (<details key={s.id} open={sOn > 0}><summary style={{ cursor: 'pointer', fontWeight: 600 }}>{s.name} <span className="mut" style={{ fontWeight: 400 }}>{sOn ? `${sOn} of ${sr.length}` : sr.length}</span></summary>
                   <div style={{ marginLeft: 14 }}>{locs.filter((l: any) => l.sid === s.id).map((l: any) => { const lr = sr.filter((r: any) => r.lid === l.id); const lOn = lr.filter((r: any) => on.has(r.id)).length;
                     return (<details key={l.id} open={lOn > 0}><summary style={{ cursor: 'pointer' }}>{l.lname} <span className="mut">{lOn ? `${lOn} of ${lr.length}` : lr.length}</span></summary>
-                      <div style={{ marginLeft: 14 }}>{lr.map((r: any) => <label key={r.id} style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'flex-start', textAlign: 'left', fontWeight: 400, padding: '2px 0' }}><input type="radio" name="room" value={r.id} defaultChecked={on.has(r.id)} style={{ margin: 0 }} />{r.name}</label>)}</div></details>); })}</div></details>); })}</div>
+                      <div style={{ marginLeft: 14 }}>{lr.map((r: any) => <label key={r.id} style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'flex-start', textAlign: 'left', fontWeight: 400, padding: '2px 0' }}><input type="radio" name="room" value={r.id} defaultChecked={on.has(r.id)} style={{ margin: 0 }} />{r.whole ? 'Whole location (any Room in it)' : r.name}</label>)}</div></details>); })}</div>
               <span className="mut">A Wall Template can be in only one Room. Choosing a different Room (or No Room) removes it from the old one, and from Jobs using it there.</span><button className="sec">Save</button></form>}
             <form action={deleteWall} className="del-row"><input type="hidden" name="id" value={w.id} /><span className="mut">Delete this Wall Template? It is removed from any Room and Job using it.</span><button className="del">Yes, delete</button></form></Menu> ); };
   return (<><div className="pagehead"><h1 style={{ margin: 0 }}>Wall Template library</h1><Link href="/walls?id=new" className="btn small">+ New Wall Template</Link></div>
