@@ -260,3 +260,4 @@ dialog.se-dlg{width:min(900px,94vw);max-width:94vw;padding:14px;overflow-x:hidde
 .addrow.inline button{white-space:nowrap}
 .inlmenu .dots{position:relative;right:auto;top:auto;flex:0 0 auto}
 .inlmenu .pop{right:0}
+.rackfr{scroll-margin-top:90px}.rackfr:target{outline:3px solid var(--acc);outline-offset:2px}
