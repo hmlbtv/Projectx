@@ -7,6 +7,7 @@ import type { Dest } from '@/lib/hardware';
 import ImportNames from './ImportNames';
 import CopyHardware from './CopyHardware';
 import ExpandAll from './ExpandAll';
+import AutoNames from './AutoNames';
 import { addHwUnit, updateHwUnit, deleteHwUnit, setHwOutput, setHwDest, setHwMonitorStart, setHwTiles, autoHwDests, clearHwDests, saveHwNames } from '@/lib/actions';
 import AddDialog from '../AddDialog';
 import Menu from '../Menu';
@@ -87,6 +88,15 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
       <details key={u.id} style={{ marginTop: 8 }}><summary>Edit names here</summary>
         <form action={saveHwNames} className="stack" style={{ marginTop: 8 }}><input type="hidden" name="id" value={u.id} /><button className="sec small" style={{ justifySelf: 'start' }}>Save names</button>
           <b>Destinations (inputs)</b>
+          {(() => {
+            // Hardware name: frame name / slot / input number. Friendly name: the monitor and tile the destination is on (e.g. Prod 14-1). Where one destination is on several tiles, the first output's first layout wins.
+            const fr = frames.find((f: any) => f.id === u.frame_id);
+            const hwN: string[] = Array.from({ length: u.inputs }, (_, i) => fr && u.slot ? `${fr.name}/${u.slot}/${i + 1}` : '');
+            const fnN: (string | null)[] = Array.from({ length: u.inputs }, () => null); const dupSet = new Set<number>();
+            for (const o of mine) { const w = wallOf(o.room_wall_id), m = w?.mons.find(x => x.id === o.monitor_id); if (!w || !m) continue;
+              for (const l of m.mvs) { const lay = layouts.get(l), d = dests.find(x => x.room_wall_id === w.id && x.monitor_id === m.id && x.layout_id === l); if (!lay || !d) continue;
+                destNums(d, lay.n).forEach((v, i) => { if (v == null || v < 1 || v > u.inputs) return; const nm = `${m.name}-${i + 1}`; if (fnN[v - 1] == null) fnN[v - 1] = nm; else if (!fnN[v - 1]!.startsWith(m.name + '-')) dupSet.add(v); }); } }
+            return <AutoNames hw={hwN} fn={fnN} dup={dupSet.size} noFrame={!fr} />; })()}
           <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'auto 1fr 1fr', alignItems: 'center' }}><span /><span className="mut">Hardware name</span><span className="mut">Friendly name</span>
             {Array.from({ length: u.inputs }, (_, i) => i + 1).map(n => (<div key={n} style={{ display: 'contents' }}><span style={{ textAlign: 'right' }}>{n}</span><input name={'dh_' + n} defaultValue={u.dest_hw?.[n] ?? ''} maxLength={60} aria-label={`Destination ${n} hardware name`} /><input name={'dn_' + n} defaultValue={u.dest_names?.[n] ?? ''} maxLength={60} aria-label={`Destination ${n} friendly name`} /></div>))}</div>
           <b>Outputs</b>
