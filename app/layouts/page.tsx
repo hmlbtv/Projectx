@@ -1,3 +1,4 @@
+import RememberFilter from './RememberFilter';
 import { rows } from '@/lib/db';
 import { requireMe, isAdmin } from '@/lib/session';
 import { redirect } from 'next/navigation';
@@ -40,6 +41,7 @@ export default async function Layouts({ searchParams }: { searchParams: Promise<
       <AddDialog inline action={saveLayout} label="Add MV Layout" title="New MV Layout" placeholder="Layout name"><label className="mut">Number of tiles<input name="count" type="number" min="1" max="36" defaultValue="4" /></label>
         {me.role === 'webappdev' && <label style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><input type="checkbox" name="standard" value="1" style={{ minHeight: 0, width: 'auto' }} /> Standard (all tenants)</label>}</AddDialog></div>
     <p className="mut">Standard 16:9 frame. Standard layouts are set by the site admin and shared with every tenant. Custom layouts are private to your Tenant and only Admin/Manager can make them. Click a layout to edit it and put Tiles on its monitors.</p>
+    <RememberFilter />
     <form method="get" className="lay-bar">
       <input type="search" name="q" defaultValue={q} placeholder="Search layouts" aria-label="Search layouts" />
       <select name="f" defaultValue={f} aria-label="Filter"><option value="all">All layouts</option><option value="standard">Standard only</option><option value="mine">My tenant only</option><option value="tiles">With tiles on windows</option><option value="notiles">No tiles yet</option></select>
