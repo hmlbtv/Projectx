@@ -19,5 +19,13 @@ export default function RememberFilter() {
       }
     } catch { /* storage unavailable: nothing is remembered */ }
   }, [router]);
+  // Remember how far down the list was when a layout is opened, and go back to the same place when the list returns.
+  useEffect(() => {
+    const SK = 'teleplanner.layouts.scroll', p = new URLSearchParams(window.location.search);
+    const click = (e: MouseEvent) => { const a = (e.target as HTMLElement).closest?.('a[href*="/layouts?id="]'); if (a) { try { sessionStorage.setItem(SK, String(window.scrollY)); } catch { /* ignore */ } } };
+    document.addEventListener('click', click, true);
+    if (!p.has('id')) { try { const y = Number(sessionStorage.getItem(SK)); if (y > 0) { sessionStorage.removeItem(SK); [0, 80, 250, 600].forEach(t => setTimeout(() => window.scrollTo(0, y), t)); } } catch { /* ignore */ } }
+    return () => document.removeEventListener('click', click, true);
+  }, []);
   return null;
 }
