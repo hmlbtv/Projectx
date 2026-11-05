@@ -29,6 +29,6 @@ export default function ConfirmDelete() {
   return (<dialog ref={ref} className="dlg" onClose={() => { pending.current = null; }}>
     <h3 style={{ margin: '0 0 8px', color: 'var(--bad)' }}>Are you sure?</h3>
     <p style={{ margin: '0 0 16px' }}>{msg}</p>
-    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}><button type="button" className="sec" autoFocus onClick={() => ref.current?.close()}>Cancel</button><button type="button" className="del" style={{ background: 'var(--bad)', color: '#fff' }} onClick={go}>{label}</button></div>
+    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}><button type="button" className="sec" autoFocus onClick={() => ref.current?.close()}>Cancel</button><button type="button" data-noconfirm className="del" style={{ background: 'var(--bad)', color: '#fff' }} onClick={go}>{label}</button></div>
   </dialog>);
 }
