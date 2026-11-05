@@ -199,7 +199,7 @@ main>div[style*="space-between"]+p{margin-top:10px}
 @media(max-width:700px){.dz-ic button{min-height:44px}}
 
 /* Header: one tidy row, then the menu button as soon as the links would start to wrap */
-.navlinks{flex-wrap:nowrap;min-width:0}.navright{flex:none;white-space:nowrap}.navright button,.navright .btn{white-space:nowrap}
+.navlinks{flex:1 1 0;flex-wrap:wrap;min-width:0;row-gap:2px;justify-content:flex-start}.navright{flex:none;white-space:nowrap}.navright button,.navright .btn{white-space:nowrap}
 @media(max-width:1500px){.navlinks .nl,.navlinks .ngbtn{padding:6px 9px;font-size:.93rem}nav{gap:6px 10px}.navright .who{max-width:150px;overflow:hidden;text-overflow:ellipsis}}
 @media(max-width:1340px){.navlinks,.navright{display:none}.burger{display:block}}
 .dzi.bad{outline:2px dashed #e5352b;z-index:3}
