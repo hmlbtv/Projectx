@@ -151,7 +151,7 @@ export default function Editor(p: Props) {
       const k = p.stampKey ?? 'stamp'; apply(items.map(i => { if (i.id !== a.id) return i; const pr = { ...i.props }; if (brush.id === 0) delete pr[k]; else pr[k] = brush.id; return { ...i, props: pr }; })); setSel([a.id]); if (!brush.keep) setBrush(null); return;
     }
     stage.current?.setPointerCapture(e.pointerId);
-    const ids = e.shiftKey ? Array.from(new Set([...sel, a.id])) : sel.includes(a.id) ? sel : [a.id];
+    const ids = e.shiftKey || e.ctrlKey || e.metaKey ? Array.from(new Set([...sel, a.id])) : sel.includes(a.id) ? sel : [a.id];
     setSel(ids); drag.current = { mode: 'move', primary: a.id, sx: e.clientX, sy: e.clientY, orig: items, ids, pushed: false };
   }
   function startResize(e: React.PointerEvent, a: DAsset, hd: string) {
@@ -453,9 +453,13 @@ export default function Editor(p: Props) {
         {p.nameList && !readOnly && (() => { const nl = p.nameList!, L = items.filter(nl.test).sort((x, y) => x.y - y.y || x.x - y.x); if (!L.length) return null;
           return (<Sec id="names" title={nl.title} badge={<span className="tag">{L.length}</span>} open={openSec.names ?? true} toggle={toggleSec}>
             <div style={{ display: 'grid', gap: 4 }}>{L.map((a, i) => (<div key={a.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <button type="button" className={sel.includes(a.id) ? '' : 'sec'} style={{ minWidth: 30, padding: '2px 6px' }} onClick={() => setSel([a.id])} aria-label={`Select ${a.name || nl.prefix + ' ' + (i + 1)}`}>{i + 1}</button>
+              <button type="button" className={sel.includes(a.id) ? '' : 'sec'} style={{ minWidth: 30, padding: '2px 6px' }} onClick={e => setSel(e.shiftKey || e.ctrlKey || e.metaKey ? Array.from(new Set([...sel, a.id])) : [a.id])} aria-label={`Select ${a.name || nl.prefix + ' ' + (i + 1)}`}>{i + 1}</button>
               <input value={a.name} maxLength={60} placeholder={`${nl.prefix} ${i + 1}`} aria-label={`${nl.prefix} ${i + 1} name`} style={{ flex: 1, minWidth: 0 }} onFocus={push} onChange={e => apply(items.map(x => x.id === a.id ? { ...x, name: e.target.value } : x), false)} /></div>))}</div>
-            <button type="button" className="sec small" style={{ marginTop: 6 }} onClick={() => { const m = new Map(L.map((a, i) => [a.id, `${nl.prefix} ${i + 1}`])); apply(items.map(x => m.has(x.id) ? { ...x, name: m.get(x.id)! } : x)); }}>Auto-name top to bottom, left to right</button>
+            {(() => { const order = sel.map(id => L.find(x => x.id === id)).filter(Boolean) as DAsset[];
+              const run = () => { const first = order[0]; const m0 = /^(.*?)(\d+)(\D*)$/.exec(first.name || ''); const base = m0 ? m0[1] : (first.name ? first.name.trimEnd() + ' ' : nl.prefix + ' '), start = m0 ? Number(m0[2]) : 1, pad = m0 ? m0[2].length : 1, tail = m0 ? m0[3] : '';
+                const m = new Map(order.map((a, i) => [a.id, base + String(start + i).padStart(pad, '0') + tail])); apply(items.map(x => m.has(x.id) ? { ...x, name: m.get(x.id)! } : x)); };
+              return <><button type="button" className="sec small" style={{ marginTop: 6 }} disabled={order.length < 2} onClick={run} title="Click the first monitor, which has the start name and number (for example Prod 1), then Ctrl-click the others in the order you want. This counts the number up by one for each.">Auto-name selected, counting up</button>
+                <p className="mut" style={{ margin: '4px 0 0', fontSize: '.8rem' }}>Select the first monitor (it keeps its name and number), then Ctrl-click the others in order. Each gets the next number.</p></>; })()}
           </Sec>); })()}
         {!readOnly && <Sec id="add" title="Add" open={openSec.add} toggle={toggleSec}>
           {palette.some(x => x.group) ? [...new Set(palette.map(x => x.group ?? ''))].map(g => (<div key={g}><div className="dz-help mut">{g}</div><div className="dz-pal">{palette.filter(x => (x.group ?? '') === g).map(pi => <button key={pi.type} className="sec small" onClick={() => pi.action ? p.onAction?.(pi, over => add({ ...pi, ...over })) : add(pi)}>+ {pi.label}</button>)}</div></div>))
