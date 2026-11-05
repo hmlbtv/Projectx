@@ -458,7 +458,7 @@ export default function Editor(p: Props) {
             {(() => { const order = sel.map(id => L.find(x => x.id === id)).filter(Boolean) as DAsset[];
               const run = () => { const first = order[0]; const m0 = /^(.*?)(\d+)(\D*)$/.exec(first.name || ''); const base = m0 ? m0[1] : (first.name ? first.name.trimEnd() + ' ' : nl.prefix + ' '), start = m0 ? Number(m0[2]) : 1, pad = m0 ? m0[2].length : 1, tail = m0 ? m0[3] : '';
                 const m = new Map(order.map((a, i) => [a.id, base + String(start + i).padStart(pad, '0') + tail])); apply(items.map(x => m.has(x.id) ? { ...x, name: m.get(x.id)! } : x)); };
-              return <><button type="button" className="sec small" style={{ marginTop: 6 }} disabled={order.length < 2} onClick={run} title="Click the first monitor, which has the start name and number (for example Prod 1), then Ctrl-click the others in the order you want. This counts the number up by one for each.">Auto-name selected, counting up</button>
+              return <><button type="button" className="sec small" style={{ marginTop: 6 }} disabled={order.length < 2} onClick={run} title="Click the first monitor, which has the start name and number (for example Prod 1), then Ctrl-click the others in the order you want. This counts the number up by one for each.">Select name inc</button>
                 <p className="mut" style={{ margin: '4px 0 0', fontSize: '.8rem' }}>Select the first monitor (it keeps its name and number), then Ctrl-click the others in order. Each gets the next number.</p></>; })()}
           </Sec>); })()}
         {!readOnly && <Sec id="add" title="Add" open={openSec.add} toggle={toggleSec}>
