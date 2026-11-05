@@ -17,6 +17,23 @@ function csv(text: string): string[][] {
   if (cell || row.length) { row.push(cell); out.push(row); } return out;
 }
 const str = (v: unknown) => (v == null ? '' : String(v)).trim();
+async function importOne(me: any, setId: number, grid: unknown[][]) {
+  const t = me.tenant_id; const ex = (await rows<{ id: number; name: string; sources: string[]; categories: Record<string, string> }>('select id, name, sources, categories from source_sets where id=$1 and tenant_id=$2', [setId, t]))[0];
+  if (!ex) return NextResponse.json({ error: 'That Source Set was not found.' }, { status: 404 });
+  const hi = grid.findIndex(r => r.some(c => /^(source|name|input)/i.test(str(c)) && !/^(source\s*set|set)/i.test(str(c)))); if (hi < 0) return NextResponse.json({ error: 'No "Source" column found. Download the sheet for this Source Set and use its columns: Category, Source.' }, { status: 400 });
+  const H = grid[hi], cr = H.findIndex(c => /^(source|name|input)/i.test(str(c)) && !/^(source\s*set|set)/i.test(str(c))), cc = H.findIndex((c, i) => i !== cr && /^categor/i.test(str(c)));
+  const list: string[] = []; const cats: Record<string, string> = {}; let skipped = 0;
+  grid.slice(hi + 1, hi + 1 + MAX_ROWS).forEach(r => { const src = str(r[cr]).slice(0, 120), cat = cc >= 0 ? str(r[cc]).slice(0, 60) : ''; if (!src) { if (cat) skipped++; return; } if (!list.some(x => x.toLowerCase() === src.toLowerCase())) list.push(src); if (cat) cats[src] = cat; });
+  if (!list.length) return NextResponse.json({ error: 'No sources found in that file.' }, { status: 400 });
+  const cur = Array.isArray(ex.sources) ? ex.sources : [], fresh = list.filter(x => !cur.some(c => c.toLowerCase() === x.toLowerCase())).slice(0, Math.max(0, MAX_PER_SET - cur.length));
+  const notAdded = list.filter(x => !cur.some(c => c.toLowerCase() === x.toLowerCase())).length - fresh.length;
+  const all = [...cur, ...fresh], newCats: Record<string, string> = { ...(ex.categories ?? {}) }; let recat = 0;
+  for (const [n, c] of Object.entries(cats)) { const real = all.find(x => x.toLowerCase() === n.toLowerCase()); if (real && newCats[real] !== c) { newCats[real] = c; recat++; } }
+  if (fresh.length || recat) await rows('update source_sets set sources=$1, categories=$2 where id=$3 and tenant_id=$4', [JSON.stringify(all), JSON.stringify(newCats), ex.id, t]);
+  await record(t, me.id, me.name, 'importSources', `${ex.name}: ${fresh.length} sources added`);
+  revalidatePath('/sources'); revalidatePath('/productions');
+  return NextResponse.json({ created: 0, updated: fresh.length || recat ? 1 : 0, addedSources: fresh.length, skipped, notAdded });
+}
 export async function POST(req: Request) {
   const me = await getMe(); if (!me || !me.tenant_id || !canManage(me) || !sameOrigin(req)) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
   const len = Number(req.headers.get('content-length')); if (!len || len > MAX_BYTES + 65536) return NextResponse.json({ error: 'That file is too big (2 MB maximum).' }, { status: 413 });
@@ -28,6 +45,8 @@ export async function POST(req: Request) {
     else if (/\.csv$/i.test(file.name)) grid = csv(buf.toString('utf8').replace(/^﻿/, ''));
     else return NextResponse.json({ error: 'Only Excel (.xlsx) or CSV files can be imported. Older .xls files: open and Save As .xlsx first.' }, { status: 400 });
   } catch { return NextResponse.json({ error: 'Could not read that file. Is it a valid .xlsx or .csv?' }, { status: 400 }); }
+  // Import into one Source Set (from its card): the Source Set column is not needed, and the rows can only go into that set.
+  const setId = Number(f.get('set')); if (setId) return importOne(me, setId, grid);
   const hi = grid.findIndex(r => r.some(c => /^(source\s*set|set)/i.test(str(c)))); if (hi < 0) return NextResponse.json({ error: 'No "Source Set" column found. Use the template: Source Set, Category, Source.' }, { status: 400 });
   const cs = grid[hi].findIndex(c => /^(source\s*set|set)/i.test(str(c))), cc = grid[hi].findIndex((c, i) => i !== cs && /^categor/i.test(str(c))), cr = grid[hi].findIndex((c, i) => i !== cs && i !== cc && /^(source|name|input)/i.test(str(c)));
   if (cr < 0) return NextResponse.json({ error: 'No "Source" column found. Use the template: Source Set, Category, Source.' }, { status: 400 });
