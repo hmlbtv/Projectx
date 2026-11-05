@@ -368,6 +368,7 @@ export default function Editor(p: Props) {
     <div className="dz-main">
       <div className="dz-left">
         {!readOnly && <div className="dz-tools" role="toolbar" aria-label="Arrange">
+          <div className="dz-tg"><button type="button" className="sec small" title="Undo (Ctrl+Z)" aria-label="Undo" onClick={undo} disabled={!hist.current.past.length}>↶</button><button type="button" className="sec small" title="Redo (Ctrl+Y)" aria-label="Redo" onClick={redo} disabled={!hist.current.future.length}>↷</button></div>
           <span className="dz-tgl" title={`Align to the first selected`}></span>
           <div className="dz-tg">{([['left', 'Align left edges'], ['center', 'Centre horizontally (a vertical column)'], ['right', 'Align right edges'], ['top', 'Align top edges'], ['middle', 'Centre vertically (a horizontal row)'], ['bottom', 'Align bottom edges']] as const).map(([k, tip]) => <button key={k} className="sec small" title={tip} aria-label={tip} onClick={() => align(k)}><Icon k={k} /></button>)}</div>
           <span className="dz-tgl" title="Where the next added item goes, beside the selected one"></span>
