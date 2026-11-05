@@ -642,11 +642,20 @@ async function hwWhere(me: Me, v: string): Promise<{ site: number | null; loc: n
 }
 const hwBack = (unit: number, msg?: string): never => redirect(`/hardware?id=${unit}${msg ? '&err=' + encodeURIComponent(msg) : ''}`);
 const intIn = (v: string, lo: number, hi: number, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= lo && n <= hi ? n : d; };
+// Rack position: rack name, the unit's lowest rack unit (RU 1 is the bottom) and its height in RU.
+const rackIn = (f: FormData): [string, number | null, number] => { const ru = s(f, 'rack_ru'); return [s(f, 'rack').slice(0, 60), ru ? intIn(ru, 1, 100, 1) : null, intIn(s(f, 'rack_h'), 1, 60, 1)]; };
+async function saveHwCards_(f: FormData) {
+  const me = await adm(); const id = Number(s(f, 'id')); const u = await one('select id from hw_units where id=$1 and tenant_id=$2', [id, tid(me)]); if (!u) throw new Error('Not found');
+  const cards: { slot: number; name: string; type: string }[] = [];
+  for (let i = 0; i < 64; i++) { const name = String(f.get('cn_' + i) ?? '').trim().slice(0, 60), slot = intIn(String(f.get('cs_' + i) ?? ''), 1, 99, 0), type = String(f.get('ct_' + i) ?? ''); if (!name && !slot) continue; cards.push({ slot: slot || cards.length + 1, name: name || 'Card', type: ['Input', 'Output', 'Other'].includes(type) ? type : 'Other' }); }
+  cards.sort((a, b) => a.slot - b.slot);
+  await rows('update hw_units set cards=$2 where id=$1', [id, JSON.stringify(cards)]); revalidatePath('/hardware');
+}
 async function addHwUnit_(_: FormState, f: FormData): Promise<FormState> {
   const me = await adm(); const name = s(f, 'name').slice(0, 80); if (!name) return { error: 'Give the unit a name.' };
   const w = await hwWhere(me, s(f, 'where')); if (!w.site) return { error: 'Choose where the unit is (a Site, Location or Room).' };
   if (((await one('select count(*)::int c from hw_units where tenant_id=$1', [tid(me)]))!).c >= 200) return { error: 'Hardware unit limit reached.' };
-  await rows('insert into hw_units(tenant_id,site_id,location_id,room_id,name,model,inputs,outputs) values($1,$2,$3,$4,$5,$6,$7,$8)', [tid(me), w.site, w.loc, w.room, name, s(f, 'model').slice(0, 80), intIn(s(f, 'inputs'), 1, 1024, 16), intIn(s(f, 'outputs'), 1, 256, 4)]);
+  await rows('insert into hw_units(tenant_id,site_id,location_id,room_id,name,model,inputs,outputs,rack,rack_ru,rack_h) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [tid(me), w.site, w.loc, w.room, name, s(f, 'model').slice(0, 80), intIn(s(f, 'inputs'), 1, 1024, 16), intIn(s(f, 'outputs'), 1, 256, 4), ...rackIn(f)]);
   revalidatePath('/hardware'); return { ok: 'Added.' };
 }
 async function updateHwUnit_(f: FormData) {
@@ -656,7 +665,7 @@ async function updateHwUnit_(f: FormData) {
   const mo = (await one('select coalesce(max(out_no),0)::int m from hw_outputs where unit_id=$1', [id]))!.m;
   const { dests, outs, layouts } = await loadHardware(tid(me)); const used = taken(id, outs, dests, layouts); const mi = used.reduce((m, r) => Math.max(m, r.to), 0);
   const inputs = Math.max(mi, intIn(s(f, 'inputs'), 1, 1024, 16)), outputs = Math.max(mo, intIn(s(f, 'outputs'), 1, 256, 4)); // never below what is already in use
-  await rows('update hw_units set name=coalesce(nullif($2,\'\'),name), model=$3, site_id=coalesce($4,site_id), location_id=case when $4::int is null then location_id else $7::int end, room_id=case when $4::int is null then room_id else $8::int end, inputs=$5, outputs=$6 where id=$1', [id, s(f, 'name').slice(0, 80), s(f, 'model').slice(0, 80), w.site, inputs, outputs, w.loc, w.room]);
+  await rows('update hw_units set name=coalesce(nullif($2,\'\'),name), model=$3, site_id=coalesce($4,site_id), location_id=case when $4::int is null then location_id else $7::int end, room_id=case when $4::int is null then room_id else $8::int end, inputs=$5, outputs=$6, rack=$9, rack_ru=$10, rack_h=$11 where id=$1', [id, s(f, 'name').slice(0, 80), s(f, 'model').slice(0, 80), w.site, inputs, outputs, w.loc, w.room, ...rackIn(f)]);
   revalidatePath('/hardware');
 }
 async function deleteHwUnit_(f: FormData) {
@@ -681,8 +690,8 @@ async function copyHwUnit_(_: FormState, f: FormData): Promise<FormState> {
   if (((await one('select count(*)::int c from hw_units where tenant_id=$1', [tid(me)]))!).c >= 200) return { error: 'Hardware unit limit reached.' };
   const inputs = intIn(s(f, 'inputs'), 1, 1024, 16), outputs = intIn(s(f, 'outputs'), 1, 256, 4);
   const pick = (pre: string, n: number) => { const m: Record<string, string> = {}; for (let i = 1; i <= n; i++) { const v = String(f.get(pre + i) ?? '').trim().slice(0, 60); if (v) m[i] = v; } return m; };
-  const r = (await one('insert into hw_units(tenant_id,site_id,location_id,room_id,name,model,inputs,outputs,dest_names,dest_hw,out_names,out_hw) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) returning id',
-    [tid(me), w.site, w.loc, w.room, name, s(f, 'model').slice(0, 80), inputs, outputs, JSON.stringify(pick('dn_', inputs)), JSON.stringify(pick('dh_', inputs)), JSON.stringify(pick('on_', outputs)), JSON.stringify(pick('oh_', outputs))]))!;
+  const r = (await one('insert into hw_units(tenant_id,site_id,location_id,room_id,name,model,inputs,outputs,dest_names,dest_hw,out_names,out_hw,cards) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,(select cards from hw_units where id=$13)) returning id',
+    [tid(me), w.site, w.loc, w.room, name, s(f, 'model').slice(0, 80), inputs, outputs, JSON.stringify(pick('dn_', inputs)), JSON.stringify(pick('dh_', inputs)), JSON.stringify(pick('on_', outputs)), JSON.stringify(pick('oh_', outputs)), Number(s(f, 'id'))]))!;
   revalidatePath('/hardware'); return { ok: 'Copied.', link: `/hardware?id=${r.id}` };
 }
 async function setHwOutput_(f: FormData) {
@@ -983,6 +992,7 @@ export async function deleteHwUnit(...a: Parameters<typeof deleteHwUnit_>) { ret
 export async function saveHwNames(...a: Parameters<typeof saveHwNames_>) { return audited('saveHwNames', saveHwNames_, a) as ReturnType<typeof saveHwNames_>; }
 export async function copyHwUnit(...a: Parameters<typeof copyHwUnit_>) { return audited('copyHwUnit', copyHwUnit_, a) as ReturnType<typeof copyHwUnit_>; }
 export async function setHwTiles(...a: Parameters<typeof setHwTiles_>) { return audited('setHwTiles', setHwTiles_, a) as ReturnType<typeof setHwTiles_>; }
+export async function saveHwCards(...a: Parameters<typeof saveHwCards_>) { return audited('saveHwCards', saveHwCards_, a) as ReturnType<typeof saveHwCards_>; }
 export async function setHwOutput(...a: Parameters<typeof setHwOutput_>) { return audited('setHwOutput', setHwOutput_, a) as ReturnType<typeof setHwOutput_>; }
 export async function setHwDest(...a: Parameters<typeof setHwDest_>) { return audited('setHwDest', setHwDest_, a) as ReturnType<typeof setHwDest_>; }
 export async function setHwMonitorStart(...a: Parameters<typeof setHwMonitorStart_>) { return audited('setHwMonitorStart', setHwMonitorStart_, a) as ReturnType<typeof setHwMonitorStart_>; }

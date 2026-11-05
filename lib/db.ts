@@ -136,6 +136,10 @@ alter table hw_units add column if not exists dest_names jsonb not null default 
 alter table hw_units add column if not exists out_names jsonb not null default '{}';
 alter table hw_units add column if not exists dest_hw jsonb not null default '{}';
 alter table hw_units add column if not exists out_hw jsonb not null default '{}';
+alter table hw_units add column if not exists rack text not null default '';
+alter table hw_units add column if not exists rack_ru int;
+alter table hw_units add column if not exists rack_h int not null default 1;
+alter table hw_units add column if not exists cards jsonb not null default '[]';
 create index if not exists ix_hw_units_tenant on hw_units(tenant_id);
 create table if not exists hw_outputs(unit_id int not null references hw_units(id) on delete cascade, out_no int not null, room_wall_id int not null references room_walls(id) on delete cascade, monitor_id text not null, primary key(unit_id, out_no), unique(room_wall_id, monitor_id));
 create table if not exists hw_dests(room_wall_id int not null references room_walls(id) on delete cascade, monitor_id text not null, layout_id int not null, first_dest int not null, primary key(room_wall_id, monitor_id, layout_id));

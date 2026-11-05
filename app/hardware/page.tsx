@@ -7,7 +7,7 @@ import type { Dest } from '@/lib/hardware';
 import ImportNames from './ImportNames';
 import CopyHardware from './CopyHardware';
 import ExpandAll from './ExpandAll';
-import { addHwUnit, updateHwUnit, deleteHwUnit, setHwOutput, setHwDest, setHwMonitorStart, setHwTiles, autoHwDests, clearHwDests, saveHwNames } from '@/lib/actions';
+import { addHwUnit, updateHwUnit, deleteHwUnit, setHwOutput, setHwDest, setHwMonitorStart, setHwTiles, saveHwCards, autoHwDests, clearHwDests, saveHwNames } from '@/lib/actions';
 import AddDialog from '../AddDialog';
 import Menu from '../Menu';
 export const dynamic = 'force-dynamic';
@@ -27,12 +27,13 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
     {sites.map((s: any) => (<optgroup key={s.id} label={s.name}><option value={'s:' + s.id}>{s.name} (whole Site)</option>
       {locs.filter((l: any) => l.site_id === s.id).flatMap((l: any) => [<option key={'l' + l.id} value={'l:' + l.id}>{s.name} › {l.name}</option>, ...rooms.filter((r: any) => r.location_id === l.id).map((r: any) => <option key={'r' + r.id} value={'r:' + r.id}>{s.name} › {l.name} › {r.name}</option>)])}</optgroup>))}</select>);
 
+  const RackFields = ({ cur }: { cur?: any }) => (<div className="row" style={{ margin: 0 }}><input name="rack" defaultValue={cur?.rack ?? ''} placeholder="Rack (e.g. Rack A)" aria-label="Rack" style={{ flex: '1 1 140px' }} /><label>Position (RU) <input name="rack_ru" type="number" min={1} max={100} defaultValue={cur?.rack_ru ?? ''} placeholder="bottom RU" style={{ width: 90 }} /></label><label>Height (RU) <input name="rack_h" type="number" min={1} max={60} defaultValue={cur?.rack_h ?? 1} style={{ width: 70 }} /></label></div>);
   const whereOpts = sites.flatMap((s: any) => [{ value: 's:' + s.id, label: `${s.name} (whole Site)` }, ...locs.filter((l: any) => l.site_id === s.id).flatMap((l: any) => [{ value: 'l:' + l.id, label: `${s.name} › ${l.name}` }, ...rooms.filter((r: any) => r.location_id === l.id).map((r: any) => ({ value: 'r:' + r.id, label: `${s.name} › ${l.name} › ${r.name}` }))])]);
   const u = q.id ? units.find(x => String(x.id) === q.id) : null;
   if (!u) {
     return (<><div className="pagehead"><h1 style={{ margin: 0 }}>MV Hardware</h1>
       <AddDialog action={addHwUnit} inline label="Add Hardware" title="New hardware unit" placeholder="Name (e.g. MV Frame 1)">
-        <input name="model" placeholder="Make / model (optional)" /><Where />
+        <input name="model" placeholder="Make / model (optional)" /><Where /><RackFields />
         <label>Inputs <input name="inputs" type="number" min={1} max={1024} defaultValue={48} /></label><label>Outputs <input name="outputs" type="number" min={1} max={256} defaultValue={4} /></label></AddDialog></div>
       <p className="mut">Multiviewer hardware defines the monitors' MV layouts. Give each unit its inputs and outputs, put it in a Site, Location or Room (any monitor in that Site can use it), then assign each output to a monitor. <Link href="/hardware/usage">Usage report</Link></p>
       {units.length === 0 && <p className="mut">No hardware yet.</p>}
@@ -62,8 +63,8 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
   const where = (rwId: number, monId: string) => outs.find(o => o.room_wall_id === rwId && o.monitor_id === monId);
   const wallOf = (id: number) => walls.find(w => w.id === id);
   return (<><div className="crumbs"><Link href="/hardware" className="btn sec small">← All hardware</Link></div>
-    <div className="card tile head"><div><div className="mut">{whereOf(u)}</div><h1 style={{ margin: 0 }}>{u.name}</h1><div className="mut">{u.model ? u.model + ' · ' : ''}{u.inputs} inputs · {u.outputs} outputs</div></div>
-      <Menu><b>Edit hardware</b><form action={updateHwUnit} className="stack"><input type="hidden" name="id" value={u.id} /><input name="name" defaultValue={u.name} required /><input name="model" defaultValue={u.model} placeholder="Make / model" /><Where cur={u} />
+    <div className="card tile head"><div><div className="mut">{whereOf(u)}</div><h1 style={{ margin: 0 }}>{u.name}</h1><div className="mut">{u.model ? u.model + ' · ' : ''}{u.rack ? <><Link href="/hardware/racks">{u.rack}{u.rack_ru ? ` · RU ${u.rack_ru}${u.rack_h > 1 ? `–${u.rack_ru + u.rack_h - 1}` : ''}` : ''}</Link> · </> : ''}{u.inputs} inputs · {u.outputs} outputs</div></div>
+      <Menu><b>Edit hardware</b><form action={updateHwUnit} className="stack"><input type="hidden" name="id" value={u.id} /><input name="name" defaultValue={u.name} required /><input name="model" defaultValue={u.model} placeholder="Make / model" /><Where cur={u} /><RackFields cur={u} />
         <label>Inputs <input name="inputs" type="number" min={Math.max(1, usedRanges.reduce((m, r) => Math.max(m, r.to), 0))} max={1024} defaultValue={u.inputs} /></label>
         <label>Outputs <input name="outputs" type="number" min={Math.max(1, ...mine.map(o => o.out_no))} max={256} defaultValue={u.outputs} /></label><button className="sec">Save</button></form>
         <form action={deleteHwUnit} className="del-row"><input type="hidden" name="id" value={u.id} /><span className="mut">Delete this unit? Its outputs and destination numbers are removed.</span><button className="del">Yes, delete</button></form></Menu></div>
@@ -92,6 +93,11 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
       const items: Item[] = mine.flatMap(o => { const w = wallOf(o.room_wall_id), m = w?.mons.find(x => x.id === o.monitor_id); if (!w || !m) return []; return m.mvs.filter(l => layouts.has(l)).map(l => { const d = dests.find(x => x.room_wall_id === w.id && x.monitor_id === m.id && x.layout_id === l); return { key: w.id + ':' + m.id, mon: `${w.room} · ${m.name}`, layout: layouts.get(l)!.name, nums: d ? destNums(d, layouts.get(l)!.n).filter((x): x is number => x != null) : [] }; }); });
       const clashes: string[] = []; for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) { const a = items[i], b = items[j]; if (a.key === b.key) continue; const both = a.nums.filter(n => b.nums.includes(n)); if (both.length) clashes.push(`${a.mon} (${a.layout}) with ${b.mon} (${b.layout}): destination ${fmtNums(both)}`); }
       return (<details className="card acc" style={{ margin: '18px 0 6px' }}><summary><b>Layout compatibility</b> <span className="mut">{clashes.length === 0 ? 'no clashes' : `${clashes.length} combination${clashes.length === 1 ? '' : 's'} can't be on together`}</span></summary>{clashes.length === 0 ? <p className="mut" style={{ margin: '6px 0 0' }}>No two monitors on this unit share a destination, so any layout choices work together.</p> : (<><p className="mut" style={{ margin: '6px 0 0' }}>These layout choices cannot be on together in a Monitor Plan (the plan highlights them, but still allows them):</p><ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{clashes.map((c, i) => <li key={i}>{c}</li>)}</ul></>)}</details>); })()}
+    <details className="card acc"><summary><b>Cards</b> <span className="mut">{u.cards.length ? `${u.cards.length} in this unit` : 'none listed'} · shown in Rack view</span></summary>
+      <form action={saveHwCards} className="stack" style={{ marginTop: 8 }}><input type="hidden" name="id" value={u.id} />
+        {Array.from({ length: Math.min(64, u.cards.length + 2) }, (_, i) => u.cards[i] ?? null).map((c, i) => (<div key={i} className="row" style={{ margin: 0 }}><input name={'cs_' + i} type="number" min={1} max={99} defaultValue={c?.slot ?? ''} placeholder="Slot" aria-label="Slot" style={{ width: 70 }} /><input name={'cn_' + i} defaultValue={c?.name ?? ''} placeholder="Card name (e.g. 12G input card)" aria-label="Card name" style={{ flex: '1 1 160px' }} />
+          <select name={'ct_' + i} defaultValue={c?.type ?? 'Input'} aria-label="Card type"><option>Input</option><option>Output</option><option>Other</option></select></div>))}
+        <span className="mut">Clear a card's slot and name to remove it. Save, then add more rows.</span><button className="sec small" style={{ justifySelf: 'start' }}>Save cards</button></form></details>
     <h2 style={{ margin: '18px 0 6px' }}>Outputs</h2>
     {siteWalls.every(w => w.mons.length === 0) && <p className="mut">No monitors in Wall Templates placed in Rooms of this Site yet.</p>}
     <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'minmax(0,1fr)' }}>{Array.from({ length: u.outputs }, (_, i) => i + 1).map(n => { const o = mine.find(x => x.out_no === n); const w = o ? wallOf(o.room_wall_id) : null; const m = w?.mons.find(x => x.id === o!.monitor_id);
