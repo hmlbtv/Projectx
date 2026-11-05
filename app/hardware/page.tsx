@@ -6,7 +6,7 @@ import { loadHardware, taken, destNums, fmtNums, destLabel, outFull } from '@/li
 import type { Dest } from '@/lib/hardware';
 import ImportNames from './ImportNames';
 import CopyHardware from './CopyHardware';
-import ExpandAll from './ExpandAll';
+import TreeControls from './TreeControls';
 import AutoNames from './AutoNames';
 import { addHwUnit, updateHwUnit, deleteHwUnit, setHwOutput, setHwDest, setHwMonitorStart, setHwTiles, autoHwDests, clearHwDests, saveHwNames } from '@/lib/actions';
 import AddDialog from '../AddDialog';
@@ -40,7 +40,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
         <label>Inputs <input name="inputs" type="number" min={1} max={1024} defaultValue={48} /></label><label>Outputs <input name="outputs" type="number" min={1} max={256} defaultValue={4} /></label></AddDialog></div>
       <p className="mut">Multiviewer hardware defines the monitors' MV layouts. Give each unit its inputs and outputs, put it in a Site, Location or Room (any monitor in that Site can use it), then assign each output to a monitor. <Link href="/hardware/usage">Usage report</Link></p>
       {units.length === 0 && <p className="mut">No hardware yet.</p>}
-      {units.length > 0 && <div style={{ margin: '8px 0 0' }}><ExpandAll target="#hwtree" /></div>}
+      {units.length > 0 && <div style={{ margin: '8px 0 0' }}><TreeControls target="#hwtree" store="teleplanner.hw" views /></div>}
       <div id="hwtree">{(() => {
         // Each unit sits at the branch where its outputs are used: one Room, else the Location they share, else the Site. A unit with no outputs yet sits where it was put.
         const place = (x: any) => { const rs = Array.from(new Set(outs.filter(o => o.unit_id === x.id).map(o => walls.find(w => w.id === o.room_wall_id)).filter(Boolean).map(w => w!.room_id)));
@@ -50,17 +50,17 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
         const at = (k: string, id: number) => units.filter(x => { const p = place(x); return p.k === k && p.id === id; });
         const Card = ({ x }: { x: any }) => { const o = outs.filter(y => y.unit_id === x.id); const used = taken(x.id, outs, dests, layouts); const set = new Set<number>(); used.forEach(r => r.nums.forEach(i => set.add(i)));
           const fr = frames.find((f: any) => f.id === x.frame_id); const rk = fr && racks.find((r: any) => r.id === fr.rack_id);
-          return (<div className="card tile" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}><Link href={`/hardware?id=${x.id}`} className="tilelink" style={{ minHeight: 0 }}><b>{x.name}</b><span className="mut">{x.model ? x.model + ' · ' : ''}{o.length}/{x.outputs} outputs · {set.size}/{x.inputs} inputs used</span></Link>
+          return (<div className="card tile hwcard" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}><div className="hwline"><Link href={`/hardware?id=${x.id}`}><b>{x.name}</b></Link><span className="mut">{x.model ? x.model + ' · ' : ''}{o.length}/{x.outputs} out · {set.size}/{x.inputs} in · {fr ? `${rk ? rk.name + ' › ' : ''}${fr.name} › slot ${x.slot}` : 'not in a frame'}</span></div><div className="hwfull" style={{ display: 'contents' }}><Link href={`/hardware?id=${x.id}`} className="tilelink" style={{ minHeight: 0 }}><b>{x.name}</b><span className="mut">{x.model ? x.model + ' · ' : ''}{o.length}/{x.outputs} outputs · {set.size}/{x.inputs} inputs used</span></Link>
             {(() => { const ms = o.map(y => { const w = walls.find(z => z.id === y.room_wall_id), m = w?.mons.find(z => z.id === y.monitor_id); return { n: y.out_no, text: m ? `${m.name}` : 'missing monitor', full: w ? `${w.room} › ${w.name} › ${m?.name ?? 'missing monitor'}` : '' }; }); const shown = ms.slice(0, 6);
               return <div className="mut" style={{ fontSize: '.85rem' }}>{ms.length === 0 ? 'No monitors assigned' : <>{shown.map((m, i) => <span key={m.n} title={m.full}>{i ? ' · ' : ''}Out {m.n}: {m.text}</span>)}{ms.length > shown.length ? ` · +${ms.length - shown.length} more` : ''}</>}</div>; })()}
-            <Link href={fr ? `/hardware/racks#frame-${fr.id}` : '/hardware/racks'} className="mut" style={{ fontSize: '.85rem', textDecoration: 'underline' }} title="Show in Rack view">{whereOf(x)} · {fr ? `${rk ? rk.name + ' › ' : ''}${fr.name} › slot ${x.slot}` : 'not in a frame'}</Link></div>); };
+            <Link href={fr ? `/hardware/racks#frame-${fr.id}` : '/hardware/racks'} className="mut" style={{ fontSize: '.85rem', textDecoration: 'underline' }} title="Show in Rack view">{whereOf(x)} · {fr ? `${rk ? rk.name + ' › ' : ''}${fr.name} › slot ${x.slot}` : 'not in a frame'}</Link></div></div>); };
         const Row = ({ list }: { list: any[] }) => list.length ? <div className="tiles">{list.map(x => <Card key={x.id} x={x} />)}</div> : null;
         const rmCount = (rm: any) => at('r', rm.id).length;
         const locCount = (l: any) => at('l', l.id).length + rooms.filter((r: any) => r.location_id === l.id).reduce((n: number, r: any) => n + rmCount(r), 0);
         return sites.map((st: any) => { const ls = locs.filter((l: any) => l.site_id === st.id); const n = at('s', st.id).length + ls.reduce((m: number, l: any) => m + locCount(l), 0); if (!n) return null;
-          return (<details key={st.id} open style={{ margin: '14px 0' }}><summary style={{ cursor: 'pointer' }}><b style={{ fontSize: '1.25rem' }}>{st.name}</b> <span className="tag">{n}</span></summary><div style={{ marginTop: 6 }}><Row list={at('s', st.id)} />
-            {ls.filter((l: any) => locCount(l)).map((l: any) => (<details key={l.id} open style={{ margin: '10px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><summary style={{ cursor: 'pointer' }}><b style={{ fontSize: '1.1rem' }}>{l.name}</b> <span className="tag">{locCount(l)}</span></summary><div style={{ marginTop: 6 }}><Row list={at('l', l.id)} />
-              {rooms.filter((r: any) => r.location_id === l.id && rmCount(r)).map((r: any) => (<details key={r.id} open style={{ margin: '8px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><summary style={{ cursor: 'pointer' }}><b>{r.name}</b> <span className="tag">{rmCount(r)}</span></summary><div style={{ marginTop: 6 }}><Row list={at('r', r.id)} /></div></details>))}</div></details>))}</div></details>); });
+          return (<details key={st.id} data-k={'s' + st.id} style={{ margin: '14px 0' }}><summary style={{ cursor: 'pointer' }}><b style={{ fontSize: '1.25rem' }}>{st.name}</b> <span className="tag">{n}</span></summary><div style={{ marginTop: 6 }}><Row list={at('s', st.id)} />
+            {ls.filter((l: any) => locCount(l)).map((l: any) => (<details key={l.id} data-k={'l' + l.id} style={{ margin: '10px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><summary style={{ cursor: 'pointer' }}><b style={{ fontSize: '1.1rem' }}>{l.name}</b> <span className="tag">{locCount(l)}</span></summary><div style={{ marginTop: 6 }}><Row list={at('l', l.id)} />
+              {rooms.filter((r: any) => r.location_id === l.id && rmCount(r)).map((r: any) => (<details key={r.id} data-k={'r' + r.id} style={{ margin: '8px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><summary style={{ cursor: 'pointer' }}><b>{r.name}</b> <span className="tag">{rmCount(r)}</span></summary><div style={{ marginTop: 6 }}><Row list={at('r', r.id)} /></div></details>))}</div></details>))}</div></details>); });
       })()}</div></>);
   }
   // ---- One unit ----

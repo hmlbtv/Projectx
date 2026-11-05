@@ -261,3 +261,12 @@ dialog.se-dlg{width:min(900px,94vw);max-width:94vw;padding:14px;overflow-x:hidde
 .inlmenu .dots{position:relative;right:auto;top:auto;flex:0 0 auto}
 .inlmenu .pop{right:0}
 .rackfr{scroll-margin-top:90px}.rackfr:target{outline:3px solid var(--acc);outline-offset:2px}
+
+/* MV Hardware: Cards or List view */
+.hwline{display:none}
+#hwtree[data-view=list] .tiles{display:block}
+#hwtree[data-view=list] .hwcard{margin:0;padding:5px 10px;border-radius:8px;box-shadow:none}
+#hwtree[data-view=list] .hwcard+.hwcard,#hwtree[data-view=list] .tiles .hwcard{margin-top:3px}
+#hwtree[data-view=list] .hwcard .hwfull{display:none}
+#hwtree[data-view=list] .hwcard .hwline{display:flex;gap:10px;align-items:baseline;white-space:nowrap;overflow:hidden}
+#hwtree[data-view=list] .hwcard .hwline span{overflow:hidden;text-overflow:ellipsis;font-size:.85rem}
