@@ -642,30 +642,32 @@ async function hwWhere(me: Me, v: string): Promise<{ site: number | null; loc: n
 }
 const hwBack = (unit: number, msg?: string): never => redirect(`/hardware?id=${unit}${msg ? '&err=' + encodeURIComponent(msg) : ''}`);
 const intIn = (v: string, lo: number, hi: number, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= lo && n <= hi ? n : d; };
-// Rack position: rack name, the unit's lowest rack unit (RU 1 is the bottom) and its height in RU.
-const rackIn = (f: FormData): [string, number | null, number] => { const ru = s(f, 'rack_ru'); return [s(f, 'rack').slice(0, 60), ru ? intIn(ru, 1, 100, 1) : null, intIn(s(f, 'rack_h'), 1, 60, 1)]; };
-async function saveHwCards_(f: FormData) {
-  const me = await adm(); const id = Number(s(f, 'id')); const u = await one('select id from hw_units where id=$1 and tenant_id=$2', [id, tid(me)]); if (!u) throw new Error('Not found');
-  const cards: { slot: number; name: string; type: string }[] = [];
-  for (let i = 0; i < 64; i++) { const name = String(f.get('cn_' + i) ?? '').trim().slice(0, 60), slot = intIn(String(f.get('cs_' + i) ?? ''), 1, 99, 0), type = String(f.get('ct_' + i) ?? ''); if (!name && !slot) continue; cards.push({ slot: slot || cards.length + 1, name: name || 'Card', type: ['Input', 'Output', 'Other'].includes(type) ? type : 'Other' }); }
-  cards.sort((a, b) => a.slot - b.slot);
-  await rows('update hw_units set cards=$2 where id=$1', [id, JSON.stringify(cards)]); revalidatePath('/hardware');
+// Where a unit sits: which Frame and which slot of it. A slot holds one MV unit or one other card.
+async function frameIn(me: Me, f: FormData, unitId: number | null): Promise<[number | null, number | null] | string> {
+  const fid = Number(s(f, 'frame')); if (!fid) return [null, null];
+  const fr = await one('select id, slots, slot_cards, name from hw_frames where id=$1 and tenant_id=$2', [fid, tid(me)]); if (!fr) return 'That frame was not found.';
+  const slot = intIn(s(f, 'slot'), 1, 64, 0); if (!slot || slot > fr.slots) return `Choose a slot from 1 to ${fr.slots} for ${fr.name}.`;
+  const other = await one('select name from hw_units where frame_id=$1 and slot=$2 and ($3::int is null or id<>$3)', [fid, slot, unitId]); if (other) return `Slot ${slot} of ${fr.name} already holds ${other.name}.`;
+  const sc = (fr.slot_cards ?? {})[slot]; if (sc) return `Slot ${slot} of ${fr.name} holds the card "${sc.name}". Clear it in the frame's menu first.`;
+  return [fid, slot];
 }
 async function addHwUnit_(_: FormState, f: FormData): Promise<FormState> {
   const me = await adm(); const name = s(f, 'name').slice(0, 80); if (!name) return { error: 'Give the unit a name.' };
   const w = await hwWhere(me, s(f, 'where')); if (!w.site) return { error: 'Choose where the unit is (a Site, Location or Room).' };
   if (((await one('select count(*)::int c from hw_units where tenant_id=$1', [tid(me)]))!).c >= 200) return { error: 'Hardware unit limit reached.' };
-  await rows('insert into hw_units(tenant_id,site_id,location_id,room_id,name,model,inputs,outputs,rack,rack_ru,rack_h) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [tid(me), w.site, w.loc, w.room, name, s(f, 'model').slice(0, 80), intIn(s(f, 'inputs'), 1, 1024, 16), intIn(s(f, 'outputs'), 1, 256, 4), ...rackIn(f)]);
+  const fs = await frameIn(me, f, null); if (typeof fs === 'string') return { error: fs };
+  await rows('insert into hw_units(tenant_id,site_id,location_id,room_id,name,model,inputs,outputs,frame_id,slot) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [tid(me), w.site, w.loc, w.room, name, s(f, 'model').slice(0, 80), intIn(s(f, 'inputs'), 1, 1024, 16), intIn(s(f, 'outputs'), 1, 256, 4), ...fs]);
   revalidatePath('/hardware'); return { ok: 'Added.' };
 }
 async function updateHwUnit_(f: FormData) {
   const me = await adm(); const id = Number(s(f, 'id')); const u = await one('select id from hw_units where id=$1 and tenant_id=$2', [id, tid(me)]); if (!u) throw new Error('Not found');
   const w = await hwWhere(me, s(f, 'where')); const cur = (await one('select site_id from hw_units where id=$1', [id]))!;
   if (w.site && w.site !== cur.site_id && (await one('select 1 from hw_outputs where unit_id=$1', [id]))) return hwBack(id, 'This unit has outputs assigned in its current Site. Clear them before moving it to another Site.');
+  const fs = await frameIn(me, f, id); if (typeof fs === 'string') return hwBack(id, fs);
   const mo = (await one('select coalesce(max(out_no),0)::int m from hw_outputs where unit_id=$1', [id]))!.m;
   const { dests, outs, layouts } = await loadHardware(tid(me)); const used = taken(id, outs, dests, layouts); const mi = used.reduce((m, r) => Math.max(m, r.to), 0);
   const inputs = Math.max(mi, intIn(s(f, 'inputs'), 1, 1024, 16)), outputs = Math.max(mo, intIn(s(f, 'outputs'), 1, 256, 4)); // never below what is already in use
-  await rows('update hw_units set name=coalesce(nullif($2,\'\'),name), model=$3, site_id=coalesce($4,site_id), location_id=case when $4::int is null then location_id else $7::int end, room_id=case when $4::int is null then room_id else $8::int end, inputs=$5, outputs=$6, rack=$9, rack_ru=$10, rack_h=$11 where id=$1', [id, s(f, 'name').slice(0, 80), s(f, 'model').slice(0, 80), w.site, inputs, outputs, w.loc, w.room, ...rackIn(f)]);
+  await rows('update hw_units set name=coalesce(nullif($2,\'\'),name), model=$3, site_id=coalesce($4,site_id), location_id=case when $4::int is null then location_id else $7::int end, room_id=case when $4::int is null then room_id else $8::int end, inputs=$5, outputs=$6, frame_id=$9, slot=$10 where id=$1', [id, s(f, 'name').slice(0, 80), s(f, 'model').slice(0, 80), w.site, inputs, outputs, w.loc, w.room, ...fs]);
   revalidatePath('/hardware');
 }
 async function deleteHwUnit_(f: FormData) {
@@ -690,8 +692,8 @@ async function copyHwUnit_(_: FormState, f: FormData): Promise<FormState> {
   if (((await one('select count(*)::int c from hw_units where tenant_id=$1', [tid(me)]))!).c >= 200) return { error: 'Hardware unit limit reached.' };
   const inputs = intIn(s(f, 'inputs'), 1, 1024, 16), outputs = intIn(s(f, 'outputs'), 1, 256, 4);
   const pick = (pre: string, n: number) => { const m: Record<string, string> = {}; for (let i = 1; i <= n; i++) { const v = String(f.get(pre + i) ?? '').trim().slice(0, 60); if (v) m[i] = v; } return m; };
-  const r = (await one('insert into hw_units(tenant_id,site_id,location_id,room_id,name,model,inputs,outputs,dest_names,dest_hw,out_names,out_hw,cards) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,(select cards from hw_units where id=$13)) returning id',
-    [tid(me), w.site, w.loc, w.room, name, s(f, 'model').slice(0, 80), inputs, outputs, JSON.stringify(pick('dn_', inputs)), JSON.stringify(pick('dh_', inputs)), JSON.stringify(pick('on_', outputs)), JSON.stringify(pick('oh_', outputs)), Number(s(f, 'id'))]))!;
+  const r = (await one('insert into hw_units(tenant_id,site_id,location_id,room_id,name,model,inputs,outputs,dest_names,dest_hw,out_names,out_hw) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) returning id',
+    [tid(me), w.site, w.loc, w.room, name, s(f, 'model').slice(0, 80), inputs, outputs, JSON.stringify(pick('dn_', inputs)), JSON.stringify(pick('dh_', inputs)), JSON.stringify(pick('on_', outputs)), JSON.stringify(pick('oh_', outputs))]))!;
   revalidatePath('/hardware'); return { ok: 'Copied.', link: `/hardware?id=${r.id}` };
 }
 async function setHwOutput_(f: FormData) {
@@ -709,6 +711,49 @@ async function setHwOutput_(f: FormData) {
   await rows('delete from hw_outputs where (room_wall_id=$1 and monitor_id=$2) or (unit_id=$3 and out_no=$4)', [rw.id, mon.id, unit, out]);
   await rows('insert into hw_outputs(unit_id,out_no,room_wall_id,monitor_id) values($1,$2,$3,$4)', [unit, out, rw.id, mon.id]);
   revalidatePath("/hardware");
+}
+// Racks and Frames (physical hardware, shown in Rack view). A Rack sits in a Site, Location or Room; a Frame sits in a Rack; MV units sit in a Frame's slots.
+async function addHwRack_(_: FormState, f: FormData): Promise<FormState> {
+  const me = await adm(); const name = s(f, 'name').slice(0, 60); if (!name) return { error: 'Give the rack a name.' };
+  const w = await hwWhere(me, s(f, 'where')); if (!w.site) return { error: 'Choose where the rack is (a Site, Location or Room).' };
+  if (((await one('select count(*)::int c from hw_racks where tenant_id=$1', [tid(me)]))!).c >= 200) return { error: 'Rack limit reached.' };
+  await rows('insert into hw_racks(tenant_id,site_id,location_id,room_id,name,ru) values($1,$2,$3,$4,$5,$6)', [tid(me), w.site, w.loc, w.room, name, intIn(s(f, 'ru'), 1, 100, 42)]);
+  revalidatePath('/hardware/racks'); return { ok: 'Added.' };
+}
+async function updateHwRack_(f: FormData) {
+  const me = await adm(); const id = Number(s(f, 'id')); if (!(await one('select 1 from hw_racks where id=$1 and tenant_id=$2', [id, tid(me)]))) throw new Error('Not found');
+  const w = await hwWhere(me, s(f, 'where'));
+  await rows('update hw_racks set name=coalesce(nullif($2,\'\'),name), site_id=coalesce($3,site_id), location_id=case when $3::int is null then location_id else $4::int end, room_id=case when $3::int is null then room_id else $5::int end, ru=$6 where id=$1', [id, s(f, 'name').slice(0, 60), w.site, w.loc, w.room, intIn(s(f, 'ru'), 1, 100, 42)]);
+  revalidatePath('/hardware/racks'); revalidatePath('/hardware');
+}
+async function deleteHwRack_(f: FormData) {
+  const me = await adm(); const id = Number(s(f, 'id')); if (!(await one('select 1 from hw_racks where id=$1 and tenant_id=$2', [id, tid(me)]))) throw new Error('Not found');
+  await rows('delete from hw_racks where id=$1', [id]); revalidatePath('/hardware/racks'); revalidatePath('/hardware'); // its frames stay, unracked
+}
+async function frameFields(me: Me, f: FormData, id: number | null) {
+  const rk = Number(s(f, 'rack')); if (rk && !(await one('select 1 from hw_racks where id=$1 and tenant_id=$2', [rk, tid(me)]))) return null;
+  const top = id ? (await one('select coalesce(max(slot),0)::int m from hw_units where frame_id=$1', [id]))!.m : 0;
+  const slots = Math.max(top, intIn(s(f, 'slots'), 1, 64, 1)); const ru = s(f, 'rack_ru');
+  const sc: Record<string, { name: string; type: string }> = {};
+  for (let i = 1; i <= slots; i++) { const n = String(f.get('sc_' + i) ?? '').trim().slice(0, 60); if (n) sc[i] = { name: n, type: 'Other' }; }
+  return { rack: rk || null, name: s(f, 'name').slice(0, 80), model: s(f, 'model').slice(0, 80), serial: s(f, 'serial').slice(0, 80), notes: s(f, 'notes').slice(0, 300), slots, rack_ru: rk && ru ? intIn(ru, 1, 100, 1) : null, rack_h: intIn(s(f, 'rack_h'), 1, 60, 1), sc };
+}
+async function addHwFrame_(_: FormState, f: FormData): Promise<FormState> {
+  const me = await adm(); const v = await frameFields(me, f, null); if (!v) return { error: 'That rack was not found.' }; if (!v.name) return { error: 'Give the frame a name.' };
+  if (((await one('select count(*)::int c from hw_frames where tenant_id=$1', [tid(me)]))!).c >= 500) return { error: 'Frame limit reached.' };
+  await rows('insert into hw_frames(tenant_id,rack_id,name,model,serial,slots,rack_ru,rack_h,notes,slot_cards) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [tid(me), v.rack, v.name, v.model, v.serial, v.slots, v.rack_ru, v.rack_h, v.notes, JSON.stringify(v.sc)]);
+  revalidatePath('/hardware/racks'); return { ok: 'Added.' };
+}
+async function updateHwFrame_(f: FormData) {
+  const me = await adm(); const id = Number(s(f, 'id')); if (!(await one('select 1 from hw_frames where id=$1 and tenant_id=$2', [id, tid(me)]))) throw new Error('Not found');
+  const v = await frameFields(me, f, id); if (!v) throw new Error('Not found');
+  const occupied = (await rows<{ slot: number }>('select slot from hw_units where frame_id=$1', [id])).map(r => r.slot); for (const o of occupied) delete v.sc[o]; // a slot with an MV unit has no other card
+  await rows('update hw_frames set rack_id=$2, name=coalesce(nullif($3,\'\'),name), model=$4, serial=$5, slots=$6, rack_ru=$7, rack_h=$8, notes=$9, slot_cards=$10 where id=$1', [id, v.rack, v.name, v.model, v.serial, v.slots, v.rack_ru, v.rack_h, v.notes, JSON.stringify(v.sc)]);
+  revalidatePath('/hardware/racks'); revalidatePath('/hardware');
+}
+async function deleteHwFrame_(f: FormData) {
+  const me = await adm(); const id = Number(s(f, 'id')); if (!(await one('select 1 from hw_frames where id=$1 and tenant_id=$2', [id, tid(me)]))) throw new Error('Not found');
+  await rows('delete from hw_frames where id=$1', [id]); revalidatePath('/hardware/racks'); revalidatePath('/hardware'); // its MV units stay, no longer in a frame
 }
 // Checks the destinations chosen for the tiles of one layout on one monitor: each must exist on the unit and none repeated in the layout.
 // Different monitors (and a monitor's own layouts) may share destinations: only the layouts chosen in a Monitor Plan must not clash, and the plan highlights that.
@@ -992,7 +1037,12 @@ export async function deleteHwUnit(...a: Parameters<typeof deleteHwUnit_>) { ret
 export async function saveHwNames(...a: Parameters<typeof saveHwNames_>) { return audited('saveHwNames', saveHwNames_, a) as ReturnType<typeof saveHwNames_>; }
 export async function copyHwUnit(...a: Parameters<typeof copyHwUnit_>) { return audited('copyHwUnit', copyHwUnit_, a) as ReturnType<typeof copyHwUnit_>; }
 export async function setHwTiles(...a: Parameters<typeof setHwTiles_>) { return audited('setHwTiles', setHwTiles_, a) as ReturnType<typeof setHwTiles_>; }
-export async function saveHwCards(...a: Parameters<typeof saveHwCards_>) { return audited('saveHwCards', saveHwCards_, a) as ReturnType<typeof saveHwCards_>; }
+export async function addHwRack(...a: Parameters<typeof addHwRack_>) { return audited('addHwRack', addHwRack_, a) as ReturnType<typeof addHwRack_>; }
+export async function updateHwRack(...a: Parameters<typeof updateHwRack_>) { return audited('updateHwRack', updateHwRack_, a) as ReturnType<typeof updateHwRack_>; }
+export async function deleteHwRack(...a: Parameters<typeof deleteHwRack_>) { return audited('deleteHwRack', deleteHwRack_, a) as ReturnType<typeof deleteHwRack_>; }
+export async function addHwFrame(...a: Parameters<typeof addHwFrame_>) { return audited('addHwFrame', addHwFrame_, a) as ReturnType<typeof addHwFrame_>; }
+export async function updateHwFrame(...a: Parameters<typeof updateHwFrame_>) { return audited('updateHwFrame', updateHwFrame_, a) as ReturnType<typeof updateHwFrame_>; }
+export async function deleteHwFrame(...a: Parameters<typeof deleteHwFrame_>) { return audited('deleteHwFrame', deleteHwFrame_, a) as ReturnType<typeof deleteHwFrame_>; }
 export async function setHwOutput(...a: Parameters<typeof setHwOutput_>) { return audited('setHwOutput', setHwOutput_, a) as ReturnType<typeof setHwOutput_>; }
 export async function setHwDest(...a: Parameters<typeof setHwDest_>) { return audited('setHwDest', setHwDest_, a) as ReturnType<typeof setHwDest_>; }
 export async function setHwMonitorStart(...a: Parameters<typeof setHwMonitorStart_>) { return audited('setHwMonitorStart', setHwMonitorStart_, a) as ReturnType<typeof setHwMonitorStart_>; }

@@ -140,6 +140,12 @@ alter table hw_units add column if not exists rack text not null default '';
 alter table hw_units add column if not exists rack_ru int;
 alter table hw_units add column if not exists rack_h int not null default 1;
 alter table hw_units add column if not exists cards jsonb not null default '[]';
+create table if not exists hw_racks(id serial primary key, tenant_id int not null references tenants(id) on delete cascade, site_id int references sites(id) on delete set null, location_id int references locations(id) on delete set null, room_id int references rooms(id) on delete set null, name text not null, ru int not null default 42);
+create index if not exists ix_hw_racks_tenant on hw_racks(tenant_id);
+create table if not exists hw_frames(id serial primary key, tenant_id int not null references tenants(id) on delete cascade, rack_id int references hw_racks(id) on delete set null, name text not null, model text not null default '', serial text not null default '', slots int not null default 1, rack_ru int, rack_h int not null default 1, notes text not null default '', slot_cards jsonb not null default '{}');
+create index if not exists ix_hw_frames_tenant on hw_frames(tenant_id);
+alter table hw_units add column if not exists frame_id int references hw_frames(id) on delete set null;
+alter table hw_units add column if not exists slot int;
 create index if not exists ix_hw_units_tenant on hw_units(tenant_id);
 create table if not exists hw_outputs(unit_id int not null references hw_units(id) on delete cascade, out_no int not null, room_wall_id int not null references room_walls(id) on delete cascade, monitor_id text not null, primary key(unit_id, out_no), unique(room_wall_id, monitor_id));
 create table if not exists hw_dests(room_wall_id int not null references room_walls(id) on delete cascade, monitor_id text not null, layout_id int not null, first_dest int not null, primary key(room_wall_id, monitor_id, layout_id));
@@ -159,7 +165,7 @@ function oneAndFive() {
 }
 
 // Bump this when the start-up code below (not SCHEMA) changes and must run again.
-const MIGRATION_REV = 'r2';
+const MIGRATION_REV = 'r3';
 type Client = { query: (sql: string, params?: any[]) => Promise<{ rows: any[] }>; exec: (sql: string) => Promise<any> };
 
 async function init(): Promise<Client> {
@@ -196,6 +202,15 @@ async function init(): Promise<Client> {
     if (hadTiles) for (const r of (await client.query('select id,assets from mv_tiles')).rows) await client.query('update mv_tiles set assets=$1 where id=$2', [JSON.stringify(sc(r.assets || [])), r.id]);
   }
   await client.query("insert into settings(key,value) values('canvas','1080') on conflict (key) do nothing");
+  // One-time: a rack name typed on a hardware unit becomes a real Rack, and the unit sits in its own Frame (slot 1). Its old card list moves to the Frame's other slots.
+  for (const u of (await client.query("select id, tenant_id, site_id, location_id, room_id, name, model, rack, rack_ru, rack_h, cards from hw_units where frame_id is null and rack<>''")).rows) {
+    let rk = (await client.query('select id from hw_racks where tenant_id=$1 and site_id is not distinct from $2 and lower(name)=lower($3)', [u.tenant_id, u.site_id, u.rack])).rows[0];
+    if (!rk) rk = (await client.query('insert into hw_racks(tenant_id,site_id,location_id,room_id,name) values($1,$2,$3,$4,$5) returning id', [u.tenant_id, u.site_id, u.location_id, u.room_id, u.rack])).rows[0];
+    const cards: any[] = Array.isArray(u.cards) ? u.cards : []; const sc: Record<string, any> = {}; for (const c of cards) if (c.slot && c.slot !== 1) sc[c.slot] = { name: c.name, type: c.type };
+    const slots = Math.max(1, ...cards.map((c: any) => c.slot || 1));
+    const fr = (await client.query('insert into hw_frames(tenant_id,rack_id,name,model,slots,rack_ru,rack_h,slot_cards) values($1,$2,$3,$4,$5,$6,$7,$8) returning id', [u.tenant_id, rk.id, u.name, u.model, slots, u.rack_ru, u.rack_h, JSON.stringify(sc)])).rows[0];
+    await client.query('update hw_units set frame_id=$2, slot=1 where id=$1', [u.id, fr.id]);
+  }
   // Layouts are called N-way, not N up.
   await client.exec("update mv_layouts set name=regexp_replace(name,'^([0-9]+) up\\M','\\1-way') where name ~ '^[0-9]+ up\\M'");
   await bootstrap(client);

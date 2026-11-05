@@ -251,3 +251,10 @@ dialog.se-dlg{width:min(900px,94vw);max-width:94vw;padding:14px;overflow-x:hidde
 .card form.row select{flex:1 1 180px}
 .card details,.card form{max-width:100%}
 .card details select{width:100%}
+
+/* Rack view: a frame with its menu open sits above the frames around it */
+.rackfr:has(details.dots[open]){z-index:40}
+.rackfr .fh .dots{position:relative;right:auto;top:auto;flex:0 0 auto}
+.rackfr .fh .dots>summary{width:24px;height:16px;font-size:1.1rem;border-radius:5px}
+.rackfr .fh .pop{right:0}
+.addrow.inline button{white-space:nowrap}
