@@ -25,7 +25,7 @@ export default function ConfirmDelete() {
     document.addEventListener('click', onClick, true);
     return () => document.removeEventListener('click', onClick, true);
   }, []);
-  const go = () => { const b = pending.current; ref.current?.close(); pending.current = null; if (!b) return; bypass.current = true; try { b.click(); } finally { bypass.current = false; } };
+  const go = () => { const b = pending.current; ref.current?.close(); pending.current = null; if (!b) return; bypass.current = true; try { if (b.form && b.type !== 'button') b.form.requestSubmit(b); else b.click(); } finally { bypass.current = false; } };
   return (<dialog ref={ref} className="dlg" onClose={() => { pending.current = null; }}>
     <h3 style={{ margin: '0 0 8px', color: 'var(--bad)' }}>Are you sure?</h3>
     <p style={{ margin: '0 0 16px' }}>{msg}</p>

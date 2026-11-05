@@ -8,6 +8,8 @@ import Menu from '../Menu';
 import TileEditor from './TileEditor';
 export const dynamic = 'force-dynamic';
 
+// One Save for everything in the tile's ⋯ menu: the name, and (site admin) whether it is Standard.
+async function saveProps(f: FormData) { 'use server'; if (f.get('name')) await renameTile(f); if (f.get('std_form')) await setTileStandard(f); }
 export default async function Tiles({ searchParams }: { searchParams: Promise<{ id?: string; q?: string }> }) {
   const me = await requireMe(); if (!isAdmin(me)) redirect('/');
   const { id, q } = await searchParams; const t = me.tenant_id ?? 0, top = me.role === 'webappdev';
@@ -31,8 +33,8 @@ export default async function Tiles({ searchParams }: { searchParams: Promise<{ 
       return (<div key={x.id} className="card dcard"><Link href={`/tiles?id=${x.id}`} className="tilelink"><TileArt assets={x.assets} width="100%" /><b>{x.name}</b>
           <span><span className="tag">{std ? 'standard' : 'custom'}</span><span className="tag">{x.assets.length} asset{x.assets.length === 1 ? '' : 's'}</span></span></Link>
         <Menu>
-          {canEdit && <><b>Rename</b><form action={renameTile} className="stack"><input type="hidden" name="id" value={x.id} /><input name="name" defaultValue={x.name} required /><button className="sec">Save</button></form></>}
-          {top && <form action={setTileStandard} className="stack"><input type="hidden" name="id" value={x.id} /><label className="dz-flag"><input type="checkbox" name="standard" value="1" defaultChecked={std} /> Standard (all tenants)</label><button className="sec">Save</button></form>}
+          {(canEdit || top) && <form action={saveProps} className="stack"><b>Tile properties</b><input type="hidden" name="id" value={x.id} />{canEdit && <input name="name" defaultValue={x.name} required />}
+            {top && <><input type="hidden" name="std_form" value="1" /><label className="dz-flag"><input type="checkbox" name="standard" value="1" defaultChecked={std} /> Standard (all tenants)</label></>}<button className="sec">Save</button></form>}
           <form action={copyTile}><input type="hidden" name="id" value={x.id} /><button className="sec">Copy</button></form>
           {canEdit && <form action={deleteTile} className="del-row"><input type="hidden" name="id" value={x.id} /><span className="mut">Delete this tile?</span><button className="del">Yes, delete</button></form>}
         </Menu></div>); })}</div></>);
