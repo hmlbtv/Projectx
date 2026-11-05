@@ -373,11 +373,11 @@ export async function deleteTenant(f: FormData) {
 
 // ---- Tenant Tree (Admin + Manager) ----
 async function addSite_(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); if (s(f,'name')) await rows('insert into sites(tenant_id,name) values($1,$2)', [tid(me), s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }
-async function addLocation_(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); const p = Number(s(f,'parent')); await own('sites', p, me); if (s(f,'name')) await rows('insert into locations(site_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }
+async function addLocation_(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); const p = Number(s(f,'parent')); await own('sites', p, me); if (s(f,'name')) { const l = await one('insert into locations(site_id,name) values($1,$2) returning id', [p, s(f,'name')]); await rows("insert into rooms(location_id,name,whole) values($1,'Whole location',true)", [l!.id]); } revalidatePath('/tenant'); return { ok: 'Added.' }; }
 async function addRoom_(_: FormState, f: FormData): Promise<FormState> { const me = await mgr(); const p = Number(s(f,'parent')); await own('locations', p, me); if (s(f,'name')) await rows('insert into rooms(location_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/tenant'); return { ok: 'Added.' }; }
 async function renameNode_(f: FormData) {
   const me = await mgr(); const t = s(f,'table'); if (!['sites','locations','rooms'].includes(t)) return;
-  const id = Number(s(f,'id')); await own(t as any, id, me);
+  const id = Number(s(f,'id')); await own(t as any, id, me); if (t === 'rooms' && (await one('select 1 from rooms where id=$1 and whole', [id]))) return; // the built-in Whole location Room can't be renamed or deleted
   await rows(`update ${t} set name=$1 where id=$2`, [s(f,'name'), id]); revalidatePath('/tenant');
 }
 async function addRoomWall_(_: FormState, f: FormData): Promise<FormState> {
@@ -396,7 +396,7 @@ async function renameRoomWall_(f: FormData) {
 async function deleteNode_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
   const t = s(f,'table'); if (!['sites','locations','rooms'].includes(t)) return;
-  const id = Number(s(f,'id')); await own(t as any, id, me);
+  const id = Number(s(f,'id')); await own(t as any, id, me); if (t === 'rooms' && (await one('select 1 from rooms where id=$1 and whole', [id]))) return; // the built-in Whole location Room can't be renamed or deleted
   const roomsSql = t === 'rooms' ? 'select $1::int' : t === 'locations' ? 'select id from rooms where location_id=$1' : 'select r.id from rooms r join locations l on l.id=r.location_id where l.site_id=$1';
   await rows(`delete from job_rooms where room_id in (${roomsSql})`, [id]);
   await rows(`delete from comments where room_id in (${roomsSql})`, [id]).catch(() => {});
@@ -986,7 +986,7 @@ async function loadDemoData_() {
   const b = (await one('insert into broadcasters(tenant_id,name) values($1,$2) returning id', [t, 'Demo Broadcaster']))!;
   const p = (await one('insert into productions(broadcaster_id,name) values($1,$2) returning id', [b.id, 'Evening News']))!;
   const site = (await one('insert into sites(tenant_id,name) values($1,$2) returning id', [t, 'Main Studios']))!;
-  const loc = (await one('insert into locations(site_id,name) values($1,$2) returning id', [site.id, 'Building A']))!;
+  const loc = (await one('insert into locations(site_id,name) values($1,$2) returning id', [site.id, 'Building A']))!; await rows("insert into rooms(location_id,name,whole) values($1,'Whole location',true)", [loc.id]);
   const room = (await one('insert into rooms(location_id,name) values($1,$2) returning id', [loc.id, 'Studio 1 Gallery']))!;
   const assets = Array.from({ length: 6 }, (_, i) => ({ id: 'm' + (i + 1), type: 'monitor', name: 'MON ' + (i + 1), x: 20 + (i % 3) * 340, y: 20 + Math.floor(i / 3) * 200, w: 320, h: 180 }));
   const wt = (await one('insert into wall_templates(tenant_id,site_id,name,data) values($1,$2,$3,$4) returning id', [t, site.id, 'Main Wall', JSON.stringify({ assets })]))!;

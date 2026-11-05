@@ -13,7 +13,7 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
   const t = me.tenant_id ?? 0; const q = await searchParams; const adm = isAdmin(me);
   const sites_p = rows('select * from sites where tenant_id=$1 order by name', [t]);
   const locs_p = rows('select l.* from locations l join sites s on s.id=l.site_id where s.tenant_id=$1 order by l.name', [t]);
-  const rms_p = rows('select r.* from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by r.name', [t]);
+  const rms_p = rows('select r.* from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by r.whole desc, r.name', [t]);
   const walls_p = rows('select id,name,site_id from wall_templates where tenant_id=$1 order by name', [t]);
   const rw_p = rows('select rw.*, w.name wall, w.data wdata from room_walls rw join wall_templates w on w.id=rw.wall_template_id join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by rw.name', [t]);
   const [sites, locs, rms, walls, rw] = await Promise.all([sites_p, locs_p, rms_p, walls_p, rw_p]); // run the page's queries together instead of one after another
@@ -33,7 +33,7 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
     const r = rms.find((x: any) => x.id === rid); if (!r) redirect('/tenant');
     const l = locs.find((x: any) => x.id === r.location_id)!; const s = sites.find((x: any) => x.id === l.site_id)!; const mine = rw.filter((x: any) => x.room_id === r.id); const siteWalls = walls.filter((w: any) => !rw.some((m: any) => m.wall_template_id === w.id)); // a Wall Template can be in only one Room
     return (<><Bar back={`/tenant?l=${l.id}`} />
-      <Head crumb={`${s.name} › ${l.name}`} title={r.name} sub={`Room · ${plural(mine.length, 'Wall Template')}`}><Edit table="rooms" id={r.id} name={r.name} what="Room" /></Head>
+      <Head crumb={`${s.name} › ${l.name}`} title={r.name} sub={`${r.whole ? 'Whole Location' : 'Room'} · ${plural(mine.length, 'Wall Template')}`}>{!r.whole && <Edit table="rooms" id={r.id} name={r.name} what="Room" />}</Head>
       {walls.length === 0 ? <p className="mut">No Wall Templates built yet. {isAdmin(me) ? <><Link href="/walls">Build one in the Wall Designer</Link>, then add it here.</> : 'Ask an Admin to build one in the Wall Designer.'}</p> : siteWalls.length === 0 ? <p className="mut">Every Wall Template in your library is already in a Room (a Wall Template can be in only one Room).</p> :
         <AddDialog action={addRoomWall} label="Add Wall Template" title="Choose a Wall Template from your library" noName><input type="hidden" name="room" value={r.id} />
           <select name="wall">{siteWalls.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></AddDialog>}
@@ -48,11 +48,11 @@ export default async function Sites({ searchParams }: { searchParams: Promise<{ 
     const l = locs.find((x: any) => x.id === lid); if (!l) redirect('/tenant');
     const s = sites.find((x: any) => x.id === l.site_id)!; const mine = rms.filter((x: any) => x.location_id === l.id);
     return (<><Bar back={`/tenant?s=${s.id}`} />
-      <Head crumb={s.name} title={l.name} sub={`Location · ${plural(mine.length, 'Room')}`}><Edit table="locations" id={l.id} name={l.name} what="Location" /></Head>
+      <Head crumb={s.name} title={l.name} sub={`Location · ${plural(mine.filter((x: any) => !x.whole).length, 'Room')}`}><Edit table="locations" id={l.id} name={l.name} what="Location" /></Head>
       <AddDialog action={addRoom} label="Add Room" title="New Room" placeholder="Room name"><input type="hidden" name="parent" value={l.id} /></AddDialog>
-      {mine.length === 0 && <p className="mut">No Rooms yet.</p>}
+      {mine.filter((x: any) => !x.whole).length === 0 && <p className="mut">No Rooms yet. Wall Templates can also go straight into “Whole location”.</p>}
       <div className="tiles">{mine.map((r: any) => (<div key={r.id} className="card tile"><Link href={`/tenant?r=${r.id}`} className="tilelink"><b>{r.name}</b><span className="mut">{plural(rw.filter((x: any) => x.room_id === r.id).length, 'Wall Template')}</span><Strip list={rw.filter((x: any) => x.room_id === r.id)} /></Link>
-        <Menu><Edit table="rooms" id={r.id} name={r.name} what="Room" /></Menu></div>))}</div></>);
+        {!r.whole && <Menu><Edit table="rooms" id={r.id} name={r.name} what="Room" /></Menu>}</div>))}</div></>);
   }
   // ---- Site: locations ----
   const sid = Number(q.s) || 0;

@@ -15,6 +15,7 @@ create table if not exists sessions(id text primary key, user_id int not null re
 create table if not exists sites(id serial primary key, tenant_id int not null, name text not null);
 create table if not exists locations(id serial primary key, site_id int not null references sites(id) on delete cascade, name text not null);
 create table if not exists rooms(id serial primary key, location_id int not null references locations(id) on delete cascade, name text not null);
+alter table rooms add column if not exists whole boolean not null default false;
 create table if not exists wall_templates(id serial primary key, tenant_id int, name text not null, data jsonb not null default '{"assets":[]}');
 create table if not exists mv_layouts(id serial primary key, tenant_id int, name text not null, tiles jsonb not null);
 create table if not exists room_walls(id serial primary key, room_id int not null references rooms(id) on delete cascade, wall_template_id int not null references wall_templates(id), name text not null);
@@ -202,6 +203,8 @@ async function init(): Promise<Client> {
     if (hadTiles) for (const r of (await client.query('select id,assets from mv_tiles')).rows) await client.query('update mv_tiles set assets=$1 where id=$2', [JSON.stringify(sc(r.assets || [])), r.id]);
   }
   await client.query("insert into settings(key,value) values('canvas','1080') on conflict (key) do nothing");
+  // Every Location has one built-in 'Whole location' Room, so a Wall Template can be assigned to the Location itself and not only to a Room in it.
+  await client.query("insert into rooms(location_id,name,whole) select l.id,'Whole location',true from locations l where not exists (select 1 from rooms r where r.location_id=l.id and r.whole)");
   // One-time: a rack name typed on a hardware unit becomes a real Rack, and the unit sits in its own Frame (slot 1). Its old card list moves to the Frame's other slots.
   for (const u of (await client.query("select id, tenant_id, site_id, location_id, room_id, name, model, rack, rack_ru, rack_h, cards from hw_units where frame_id is null and rack<>''")).rows) {
     let rk = (await client.query('select id from hw_racks where tenant_id=$1 and site_id is not distinct from $2 and lower(name)=lower($3)', [u.tenant_id, u.site_id, u.rack])).rows[0];
@@ -262,7 +265,7 @@ async function seedDemo(db: Client) {
   ];
   for (const [e,n,r] of users) await q('insert into users(email,name,role,tenant_id,password_hash) values($1,$2,$3,$4,$5)',[e,n,r,t,h]);
   const site = (await q("insert into sites(tenant_id,name) values($1,'London Studios') returning id",[t]))[0].id;
-  const loc = (await q("insert into locations(site_id,name) values($1,'Gallery Floor') returning id",[site]))[0].id;
+  const loc = (await q("insert into locations(site_id,name) values($1,'Gallery Floor') returning id",[site]))[0].id; await q("insert into rooms(location_id,name,whole) values($1,'Whole location',true)",[loc]);
   const room = (await q("insert into rooms(location_id,name) values($1,'Gallery A') returning id",[loc]))[0].id;
   const mon = (id:string,x:number,y:number)=>({id,type:'monitor',name:'Monitor '+id,x,y,w:320,h:180});
   const wall = {assets:[mon('1',0,0),mon('2',320,0),mon('3',0,180),mon('4',320,180)]};
