@@ -730,6 +730,26 @@ async function deleteHwRack_(f: FormData) {
   const me = await adm(); const id = Number(s(f, 'id')); if (!(await one('select 1 from hw_racks where id=$1 and tenant_id=$2', [id, tid(me)]))) throw new Error('Not found');
   await rows('delete from hw_racks where id=$1', [id]); revalidatePath('/hardware/racks'); revalidatePath('/hardware'); // its frames stay, unracked
 }
+// Adds an MV unit ("card") straight into an empty slot of a Frame from Rack view, either new or copied from another card in the same frame.
+// It takes the frame's details (frame, slot, model and, unless another place is chosen, the rack's location). Location and monitor can be left blank.
+async function addHwCard_(_: FormState, f: FormData): Promise<FormState> {
+  const me = await adm(); const name = s(f, 'name').slice(0, 80); if (!name) return { error: 'Give the card a name.' };
+  const fid = Number(s(f, 'frame')); const fr = await one('select f.id, f.model, r.site_id, r.location_id, r.room_id from hw_frames f left join hw_racks r on r.id=f.rack_id where f.id=$1 and f.tenant_id=$2', [fid, tid(me)]); if (!fr) return { error: 'That frame was not found.' };
+  const fs = await frameIn(me, f, null); if (typeof fs === 'string') return { error: fs };
+  if (((await one('select count(*)::int c from hw_units where tenant_id=$1', [tid(me)]))!).c >= 200) return { error: 'Hardware unit limit reached.' };
+  const w = s(f, 'where') ? await hwWhere(me, s(f, 'where')) : { site: fr.site_id, loc: fr.location_id, room: fr.room_id };
+  if (!w.site) return { error: 'This frame is not in a rack with a location, so choose where the card is.' };
+  let model = fr.model, inputs = intIn(s(f, 'inputs'), 1, 1024, 48), outputs = intIn(s(f, 'outputs'), 1, 256, 4); let names = ['{}', '{}', '{}', '{}'];
+  if (s(f, 'mode') === 'copy') { const src = await one('select model, inputs, outputs, dest_names, dest_hw, out_names, out_hw from hw_units where id=$1 and tenant_id=$2 and frame_id=$3', [Number(s(f, 'source')), tid(me), fid]); if (!src) return { error: 'Choose a card in this frame to copy.' };
+    model = src.model; inputs = intIn(s(f, 'inputs'), 1, 1024, src.inputs); outputs = intIn(s(f, 'outputs'), 1, 256, src.outputs);
+    const cut = (o: Record<string, string>, n: number) => Object.fromEntries(Object.entries(o ?? {}).filter(([k]) => Number(k) <= n)); names = [JSON.stringify(cut(src.dest_names, inputs)), JSON.stringify(cut(src.dest_hw, inputs)), JSON.stringify(cut(src.out_names, outputs)), JSON.stringify(cut(src.out_hw, outputs))]; }
+  const mon = s(f, 'monitor'); let rw = 0, monId = '';
+  if (mon) { const hw = await loadHardware(tid(me)); rw = Number(mon.slice(0, mon.indexOf(':'))); monId = mon.slice(mon.indexOf(':') + 1); const wall = hw.walls.find(x => x.id === rw && x.site_id === w.site); if (!wall || !wall.mons.some(m => m.id === monId)) return { error: 'That monitor is not in the same Site as the card.' };
+    const had = hw.outs.find(o => o.room_wall_id === rw && o.monitor_id === monId); if (had) return { error: `That monitor is already on ${hw.units.find(u => u.id === had.unit_id)?.name ?? 'another unit'} output ${had.out_no}. Choose another, or leave it blank.` }; }
+  const r = (await one('insert into hw_units(tenant_id,site_id,location_id,room_id,name,model,inputs,outputs,frame_id,slot,dest_names,dest_hw,out_names,out_hw) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning id', [tid(me), w.site, w.loc, w.room, name, model, inputs, outputs, fs[0], fs[1], ...names]))!;
+  if (mon) await rows('insert into hw_outputs(unit_id,out_no,room_wall_id,monitor_id) values($1,1,$2,$3)', [r.id, rw, monId]);
+  revalidatePath('/hardware/racks'); revalidatePath('/hardware'); return { ok: 'Added.' };
+}
 async function frameFields(me: Me, f: FormData, id: number | null) {
   const rk = Number(s(f, 'rack')); if (rk && !(await one('select 1 from hw_racks where id=$1 and tenant_id=$2', [rk, tid(me)]))) return null;
   const top = id ? (await one('select coalesce(max(slot),0)::int m from hw_units where frame_id=$1', [id]))!.m : 0;
@@ -1041,6 +1061,7 @@ export async function deleteHwUnit(...a: Parameters<typeof deleteHwUnit_>) { ret
 export async function saveHwNames(...a: Parameters<typeof saveHwNames_>) { return audited('saveHwNames', saveHwNames_, a) as ReturnType<typeof saveHwNames_>; }
 export async function copyHwUnit(...a: Parameters<typeof copyHwUnit_>) { return audited('copyHwUnit', copyHwUnit_, a) as ReturnType<typeof copyHwUnit_>; }
 export async function setHwTiles(...a: Parameters<typeof setHwTiles_>) { return audited('setHwTiles', setHwTiles_, a) as ReturnType<typeof setHwTiles_>; }
+export async function addHwCard(...a: Parameters<typeof addHwCard_>) { return audited('addHwCard', addHwCard_, a) as ReturnType<typeof addHwCard_>; }
 export async function addHwRack(...a: Parameters<typeof addHwRack_>) { return audited('addHwRack', addHwRack_, a) as ReturnType<typeof addHwRack_>; }
 export async function updateHwRack(...a: Parameters<typeof updateHwRack_>) { return audited('updateHwRack', updateHwRack_, a) as ReturnType<typeof updateHwRack_>; }
 export async function deleteHwRack(...a: Parameters<typeof deleteHwRack_>) { return audited('deleteHwRack', deleteHwRack_, a) as ReturnType<typeof deleteHwRack_>; }

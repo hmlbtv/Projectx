@@ -8,6 +8,7 @@ import { addHwRack, updateHwRack, deleteHwRack, addHwFrame, updateHwFrame, delet
 import AddDialog from '../../AddDialog';
 import Menu from '../../Menu';
 import ExpandAll from '../ExpandAll';
+import AddCard, { SlotPlus } from './AddCard';
 export const dynamic = 'force-dynamic';
 
 // A picture of each rack: every Frame drawn at its rack position, split into slots, showing which MV unit or card is in each slot.
@@ -17,12 +18,15 @@ const UNIT_BG = '#2b5fa8', CARD_BG = '#46506a';
 export default async function Racks() {
   const me = await requireMe(); if (!isAdmin(me)) redirect('/');
   const t = me.tenant_id ?? 0;
-  const [{ units, racks, frames }, sites, locs, rooms] = await Promise.all([loadHardware(t), rows<any>('select id,name from sites where tenant_id=$1 order by name', [t]), rows<any>('select l.id,l.name,l.site_id from locations l join sites s on s.id=l.site_id where s.tenant_id=$1 order by l.name', [t]), rows<any>('select r.id,r.name,r.location_id from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by r.name', [t])]);
+  const [{ units, racks, frames, walls, outs }, sites, locs, rooms] = await Promise.all([loadHardware(t), rows<any>('select id,name from sites where tenant_id=$1 order by name', [t]), rows<any>('select l.id,l.name,l.site_id from locations l join sites s on s.id=l.site_id where s.tenant_id=$1 order by l.name', [t]), rows<any>('select r.id,r.name,r.location_id from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by r.name', [t])]);
   const siteName = (id: number | null) => sites.find((x: any) => x.id === id)?.name ?? '';
   const place = (r: { site_id: number | null; location_id: number | null; room_id: number | null }) => { const rm = rooms.find((x: any) => x.id === r.room_id); const l = locs.find((x: any) => x.id === (rm?.location_id ?? r.location_id)); return [siteName(r.site_id), l?.name, rm?.name].filter(Boolean).join(' › '); };
   const whereOpts = sites.flatMap((s: any) => [<option key={'s' + s.id} value={'s:' + s.id}>{s.name} (whole Site)</option>, ...locs.filter((l: any) => l.site_id === s.id).flatMap((l: any) => [<option key={'l' + l.id} value={'l:' + l.id}>{s.name} › {l.name}</option>, ...rooms.filter((r: any) => r.location_id === l.id).map((r: any) => <option key={'r' + r.id} value={'r:' + r.id}>{s.name} › {l.name} › {r.name}</option>)])]);
   const WhereSel = ({ cur }: { cur?: Rack }) => (<select name="where" required defaultValue={cur ? (cur.room_id ? 'r:' + cur.room_id : cur.location_id ? 'l:' + cur.location_id : 's:' + cur.site_id) : ''} aria-label="Where is the rack"><option value="" disabled>Where is it?</option>{whereOpts}</select>);
   const RackSel = ({ cur }: { cur?: number | null }) => (<select name="rack" defaultValue={cur ?? ''} aria-label="Rack"><option value="">Not in a rack</option>{racks.map(r => <option key={r.id} value={r.id}>{r.name} · {place(r)}</option>)}</select>);
+  const whereList = sites.flatMap((s: any) => [{ value: 's:' + s.id, label: `${s.name} (whole Site)` }, ...locs.filter((l: any) => l.site_id === s.id).flatMap((l: any) => [{ value: 'l:' + l.id, label: `${s.name} › ${l.name}` }, ...rooms.filter((r: any) => r.location_id === l.id).map((r: any) => ({ value: 'r:' + r.id, label: `${s.name} › ${l.name} › ${r.name}` }))])]);
+  // Monitors a new card could feed: those in walls of the rack's Site that are not already on an output.
+  const monOpts = (site: number | null | undefined) => walls.filter(w => w.site_id === site).flatMap(w => w.mons.map(m => { const o = outs.find(x => x.room_wall_id === w.id && x.monitor_id === m.id); return { value: `${w.id}:${m.id}`, label: `${w.room} › ${w.name} › ${m.name}${o ? ` (on ${units.find(u => u.id === o.unit_id)?.name} out ${o.out_no})` : ''}`, disabled: !!o }; }));
   const unitAt = (f: Frame, n: number) => units.find(u => u.frame_id === f.id && u.slot === n);
   const FrameFields = ({ cur, rack }: { cur?: Frame; rack?: number }) => (<>
     <input name="model" defaultValue={cur?.model ?? ''} placeholder="Make / model (optional)" /><input name="serial" defaultValue={cur?.serial ?? ''} placeholder="Serial number (optional)" />
@@ -58,10 +62,11 @@ export default async function Racks() {
                   </div>
                   <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: `repeat(${f.slots}, minmax(0, 1fr))`, gap: 2, padding: '0 3px 3px' }}>
                     {Array.from({ length: f.slots }, (_, i) => i + 1).map(n => { const u = unitAt(f, n), c = f.slot_cards[n]; const label = u?.name ?? c?.name ?? '';
-                      const cell = (<><span style={{ fontSize: '.58rem', opacity: .8, lineHeight: 1 }}>{n}</span>{label && <span style={{ fontSize: '.64rem', lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: vert ? 'nowrap' : 'normal', writingMode: vert ? 'vertical-rl' : undefined, minHeight: 0 }}>{label}</span>}</>);
+                      const cell = (<><span style={{ fontSize: '.58rem', opacity: .8, lineHeight: 1 }}>{n}</span>{!u && !c && <SlotPlus frame={f.id} slot={n} />}{label && <span style={{ fontSize: '.64rem', lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: vert ? 'nowrap' : 'normal', writingMode: vert ? 'vertical-rl' : undefined, minHeight: 0 }}>{label}</span>}</>);
                       const st = { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 2, overflow: 'hidden', borderRadius: 3, padding: '1px 2px', minWidth: 0, textAlign: 'center' as const, color: u || c ? '#fff' : 'var(--mut, #8a93a6)', background: u ? UNIT_BG : c ? CARD_BG : 'transparent', border: u || c ? '1px solid transparent' : '1px dashed var(--line)' };
                       return u ? <Link key={n} href={`/hardware?id=${u.id}`} title={`Slot ${n}: ${u.name} (MV unit)`} style={{ ...st, textDecoration: 'none' }}>{cell}</Link> : <div key={n} title={c ? `Slot ${n}: ${c.name}` : `Slot ${n}: empty`} style={st}>{cell}</div>; })}
-                  </div></div>); })}</div>
+                  </div>
+                  <AddCard frame={f.id} frameName={f.name} rackWhere={place(r)} where={whereList} monitors={monOpts(r.site_id)} sources={units.filter(x => x.frame_id === f.id).map(x => ({ id: x.id, name: x.name, model: x.model, inputs: x.inputs, outputs: x.outputs }))} /></div>); })}</div>
             {clash.size > 0 && <p role="alert" style={{ color: '#ff6b60', fontSize: '.85rem', margin: '6px 0 0' }}>Some frames overlap in this rack (red dashed outline).</p>}
             {nopos.length > 0 && <p className="mut" style={{ fontSize: '.85rem', margin: '6px 0 0' }}>No position set: {nopos.map((f, i) => <span key={f.id}>{i ? ', ' : ''}{f.name}</span>)}. Use ⋯ on the frame to set it.</p>}
             <details style={{ marginTop: 8 }}><summary className="mut">Frames and slots in {r.name}</summary><ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: '.88rem' }}>{[...framesIn(r)].sort((a, b) => (b.rack_ru ?? 0) - (a.rack_ru ?? 0)).map(f => <li key={f.id}><b>{f.name}</b> <span className="mut">{[f.model, f.serial && 'S/N ' + f.serial, f.rack_ru ? `RU ${f.rack_ru}${f.rack_h > 1 ? '–' + (f.rack_ru + f.rack_h - 1) : ''}` : ''].filter(Boolean).join(' · ')}</span>
