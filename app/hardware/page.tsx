@@ -8,6 +8,7 @@ import ImportNames from './ImportNames';
 import CopyHardware from './CopyHardware';
 import TreeControls from './TreeControls';
 import AutoNames from './AutoNames';
+import SaveNames from './SaveNames';
 import { addHwUnit, updateHwUnit, deleteHwUnit, setHwOutput, setHwDest, setHwMonitorStart, setHwTiles, autoHwDests, clearHwDests, saveHwNames } from '@/lib/actions';
 import AddDialog from '../AddDialog';
 import Menu from '../Menu';
@@ -86,7 +87,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
     <h2 style={{ margin: '18px 0 6px' }}>Destination and output names</h2>
     <div className="card"><div className="row" style={{ justifyContent: 'space-between' }}><span className="mut">Friendly names are what people see in Monitor Plans. The hardware name is the unit's own name for it. Names belong to this unit only.</span><ImportNames id={u.id} /></div>
       <details key={u.id} style={{ marginTop: 8 }}><summary>Edit names here</summary>
-        <form action={saveHwNames} className="stack" style={{ marginTop: 8 }}><input type="hidden" name="id" value={u.id} /><button className="sec small" style={{ justifySelf: 'start' }}>Save names</button>
+        <form action={saveHwNames} className="stack" style={{ marginTop: 8 }}><input type="hidden" name="id" value={u.id} /><SaveNames />
           <b>Destinations (inputs)</b>
           {(() => {
             // Hardware name: frame name / slot / input number. Friendly name: the monitor and tile the destination is on (e.g. Prod 14-1). Where one destination is on several tiles, the first output's first layout wins.
@@ -102,7 +103,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
           <b>Outputs</b>
           <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'auto 1fr 1fr', alignItems: 'center' }}>
             {Array.from({ length: u.outputs }, (_, i) => i + 1).map(n => (<div key={n} style={{ display: 'contents' }}><span style={{ textAlign: 'right' }}>{n}</span><input name={'oh_' + n} defaultValue={u.out_hw?.[n] ?? ''} maxLength={60} aria-label={`Output ${n} hardware name`} /><input name={'on_' + n} defaultValue={u.out_names?.[n] ?? ''} maxLength={60} aria-label={`Output ${n} friendly name`} /></div>))}</div>
-          <button className="sec small" style={{ justifySelf: 'start' }}>Save names</button></form></details></div>
+          <SaveNames /></form></details></div>
     {(() => {
       // Which layout choices cannot be on at the same time: two monitors of this unit whose chosen layouts share a destination.
       type Item = { key: string; mon: string; layout: string; nums: number[] };

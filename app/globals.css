@@ -271,3 +271,8 @@ dialog.se-dlg{width:min(900px,94vw);max-width:94vw;padding:14px;overflow-x:hidde
 #hwtree[data-view=list] .hwcard .hwline{display:flex;gap:10px;align-items:baseline;white-space:nowrap;overflow:hidden}
 #hwtree[data-view=list] .hwcard .hwline span{overflow:hidden;text-overflow:ellipsis;font-size:.85rem}
 .devver{background:#2a0f0d;color:#ff9b92;font:600 .72rem/1 ui-monospace,Menlo,monospace;text-align:center;padding:4px 8px;border-bottom:1px solid #ff4b3e55;letter-spacing:.02em}
+
+/* Save names: lit up when a name has been changed */
+button.savedirty{background:#f5a524;color:#1a1200;border-color:#f5a524;box-shadow:0 0 0 3px #f5a52455;animation:savepulse 1.4s ease-in-out infinite}
+@keyframes savepulse{50%{box-shadow:0 0 0 6px #f5a52422}}
+@media(prefers-reduced-motion:reduce){button.savedirty{animation:none}}
