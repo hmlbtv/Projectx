@@ -106,10 +106,12 @@ export default function Editor(p: Props) {
     return () => { document.removeEventListener('pointerdown', close, true); document.removeEventListener('keydown', esc); }; }, [ctx]);
   const remove = () => { if (!sel.length) return; apply(items.filter(a => !sel.includes(a.id))); setSel([]); };
   // Duplicates sit beside the original (to the right); duplicating again carries on in the same line, wrapping below if the row is full.
-  const duplicate = () => { const S = items.filter(a => sel.includes(a.id)); if (!S.length) return;
+  // inc: the copies' names have the number on the end counted up by one (Prod 3 becomes Prod 4); names with no number stay the same.
+  const incName = (n?: string) => { const m = n ? /(\d+)(\D*)$/.exec(n) : null; return n && m ? n.slice(0, m.index) + String(Number(m[1]) + 1).padStart(m[1].length, '0') + m[2] : n; };
+  const duplicate = (inc?: boolean | React.MouseEvent) => { const S = items.filter(a => sel.includes(a.id)); if (!S.length) return;
     const bw = Math.max(...S.map(a => a.x + a.w)) - Math.min(...S.map(a => a.x)), bh = Math.max(...S.map(a => a.y + a.h)) - Math.min(...S.map(a => a.y)), gap = snapOn ? grid : 10;
     for (const [dx, dy] of [[bw + gap, 0], [0, bh + gap], [-(bw + gap), 0], [0, -(bh + gap)]]) {
-      const copies = S.map(a => ({ ...a, id: rid(), x: a.x + dx, y: a.y + dy, props: { ...a.props } }));
+      const copies = S.map(a => ({ ...a, id: rid(), x: a.x + dx, y: a.y + dy, props: { ...a.props }, ...(inc === true && a.name ? { name: incName(a.name) } : {}) }));
       if (free([...items, ...copies], copies)) { apply([...items, ...copies]); setSel(copies.map(c => c.id)); return; }
     }
     if (p.onWorld) { const copies = S.map(a => ({ ...a, id: rid(), x: a.x + bw + gap, props: { ...a.props } })); grow(Math.max(...copies.map(c => c.x + c.w)), Math.max(...copies.map(c => c.y + c.h))); apply([...items, ...copies]); setSel(copies.map(c => c.id)); return; }
@@ -391,6 +393,7 @@ export default function Editor(p: Props) {
         </div>}
       {ctx && <div className="dz-ctx" role="menu" style={{ position: 'fixed', left: ctx.x, top: ctx.y, zIndex: 2000 }}>
         <button type="button" role="menuitem" className="sec" onClick={() => { setCtx(null); duplicate(); }}>⧉ Duplicate</button>
+        <button type="button" role="menuitem" className="sec" onClick={() => { setCtx(null); duplicate(true); }}>⧉ Duplicate inc name</button>
         <button type="button" role="menuitem" className="del" onClick={() => { const ids = sel.includes(ctx.id) ? sel : [ctx.id]; setCtx(null); apply(items.filter(a => !ids.includes(a.id))); setSel([]); }}>🗑 Delete{sel.length > 1 && sel.includes(ctx.id) ? ` ${sel.length} items` : ''}</button></div>}
       <div className="dz-zoomwrap" ref={wrap} style={z > 1 ? { overflow: 'auto', maxHeight: '78vh', borderRadius: 14 } : undefined}><div style={{ width: `${z * 100}%` }}>
       <div ref={stage} className={'canvas dz-stage' + (brush ? ' stamping' : '')} data-pan={z > 1 ? '1' : undefined} tabIndex={0} onKeyDown={onKey}         onContextMenu={e => { const t = (document.elementsFromPoint(e.clientX, e.clientY).map(x => (x as HTMLElement).closest?.('[data-aid]')).find(Boolean) ?? null) as HTMLElement | null; if (t && !readOnly) { e.preventDefault(); openCtx(t.dataset.aid!, e.clientX, e.clientY); } }}
@@ -431,12 +434,12 @@ export default function Editor(p: Props) {
                 : f.kind === 'select' ? <select disabled={readOnly} value={String(one.props?.[f.key] ?? '')} onChange={e => { push(); setProp(f.key, e.target.value); }}>{f.options!.map(o => <option key={o}>{o}</option>)}</select>
                 : <input type={f.kind === 'number' ? 'number' : 'text'} min={f.min} max={f.max} disabled={readOnly} value={one.props?.[f.key] ?? ''} onFocus={push} onChange={e => setProp(f.key, f.kind === 'number' ? Math.min(Math.max(+e.target.value || 0, f.min ?? 0), f.max ?? 9999) : e.target.value.slice(0, 40))} />}</label>))}
             {p.extras?.(one, patch => { push(); edit({ props: { ...one.props, ...patch } }); })}
-            {!readOnly && <div className="dz-pal"><button className="sec small" onClick={duplicate}>Duplicate</button><button className="sec small" onClick={() => copy()}>Copy</button><button className="del small" onClick={remove}>Delete</button></div>}</>)
+            {!readOnly && <div className="dz-pal"><button className="sec small" onClick={() => duplicate()}>Duplicate</button><button className="sec small" onClick={() => duplicate(true)} title="Duplicate, counting the number at the end of the name up by one (Prod 3 becomes Prod 4)">Duplicate inc name</button><button className="sec small" onClick={() => copy()}>Copy</button><button className="del small" onClick={remove}>Delete</button></div>}</>)
           : sel.length > 1 ? (<>
             <div className="dz-grp">Selection order</div>
             <ol className="dz-order">{sel.map(id => items.find(a => a.id === id)).filter(Boolean).map(a => <li key={a!.id}>{a!.name}</li>)}</ol>
             <p className="mut dz-help">The first one is the reference for Arrange; Space H and V follow this order.</p>
-            {!readOnly && <div className="dz-pal"><button className="sec small" onClick={duplicate}>Duplicate</button><button className="sec small" onClick={() => copy()}>Copy</button><button className="del small" onClick={remove}>Delete</button></div>}</>)
+            {!readOnly && <div className="dz-pal"><button className="sec small" onClick={() => duplicate()}>Duplicate</button><button className="sec small" onClick={() => duplicate(true)} title="Duplicate, counting the number at the end of the name up by one (Prod 3 becomes Prod 4)">Duplicate inc name</button><button className="sec small" onClick={() => copy()}>Copy</button><button className="del small" onClick={remove}>Delete</button></div>}</>)
           : (<>
             <div className="dz-grp">{p.kind}</div>
             <div className="dz-row"><span>Canvas</span><em>{world.w} × {world.h}</em></div>
