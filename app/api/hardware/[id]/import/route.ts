@@ -35,21 +35,27 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const cHw = ci(/^hardware$/), cT = ci(/^type$/), cN = ci(/^number|^no\.?$/), cH = ci(/^hardware name/), cF = ci(/^friendly/);
   if (cT < 0 || cN < 0 || cF < 0) return NextResponse.json({ error: 'Columns needed: Type, Number and Friendly name (as in the exported sheet).' }, { status: 400 });
   const dn: Record<string, string> = { ...(u.dest_names ?? {}) }, dh: Record<string, string> = { ...(u.dest_hw ?? {}) }, on: Record<string, string> = { ...(u.out_names ?? {}) }, oh: Record<string, string> = { ...(u.out_hw ?? {}) };
-  let applied = 0, skipped = 0;
+  let applied = 0, skipped = 0; const problems: string[] = []; const bad = (m: string) => { if (problems.length < 40) problems.push(m); };
+  const seen = new Set<string>(); let rowNo = hi + 1;
   for (const r of grid.slice(hi + 1, hi + 1 + 5000)) {
+    rowNo++;
     const type = str(r[cT]).toLowerCase(), num = Math.round(Number(str(r[cN]))); if (!type && !str(r[cN])) continue;
     if (cHw >= 0 && str(r[cHw]) && str(r[cHw]).toLowerCase() !== String(u.name).toLowerCase()) return NextResponse.json({ error: `This file is for “${str(r[cHw])}”, but this unit is “${u.name}”. Nothing was imported.` }, { status: 400 });
     const dest = /^dest/.test(type), out = /^out/.test(type), max = dest ? u.inputs : u.outputs;
-    if ((!dest && !out) || !(num >= 1 && num <= max)) { skipped++; continue; }
+    if (!dest && !out) { skipped++; bad(`Row ${rowNo}: Type “${str(r[cT])}” is not recognised. Use Destination or Output.`); continue; }
+    if (!Number.isFinite(num) || !str(r[cN])) { skipped++; bad(`Row ${rowNo}: the Number is missing or is not a number.`); continue; }
+    if (!(num >= 1 && num <= max)) { skipped++; bad(`Row ${rowNo}: ${dest ? 'Destination' : 'Output'} ${num} does not exist on this unit (it has ${max} ${dest ? 'inputs' : 'outputs'}, so use 1 to ${max}).`); continue; }
+    const key = (dest ? 'd' : 'o') + num; if (seen.has(key)) bad(`Row ${rowNo}: ${dest ? 'Destination' : 'Output'} ${num} appears more than once. The last row is used.`); seen.add(key);
+    if (str(r[cF]).length > 60) bad(`Row ${rowNo}: the friendly name for ${dest ? 'destination' : 'output'} ${num} is longer than 60 characters and was shortened.`);
     const friendly = str(r[cF]).slice(0, 60), hwn = cH >= 0 ? str(r[cH]).slice(0, 60) : '', generic = new RegExp(`^(destination|output)\\s*${num}$`, 'i').test(hwn);
     const [names, hws] = dest ? [dn, dh] : [on, oh];
     if (friendly) names[num] = friendly; else delete names[num];
     if (cH >= 0) { if (hwn && !generic) hws[num] = hwn; else delete hws[num]; }
     applied++;
   }
-  if (!applied) return NextResponse.json({ error: 'No destination or output rows found in that file.' }, { status: 400 });
+  if (!applied) return NextResponse.json({ error: 'No destination or output rows could be imported from that file. Nothing was changed.', problems }, { status: 400 });
   await rows('update hw_units set dest_names=$2, dest_hw=$3, out_names=$4, out_hw=$5 where id=$1 and tenant_id=$6', [id, JSON.stringify(dn), JSON.stringify(dh), JSON.stringify(on), JSON.stringify(oh), me.tenant_id]);
   await record(me.tenant_id, me.id, me.name, 'importHwNames', `${u.name}: ${applied} names`);
   revalidatePath('/hardware'); revalidatePath('/plans');
-  return NextResponse.json({ applied, skipped });
+  return NextResponse.json({ applied, skipped, problems });
 }
