@@ -534,7 +534,7 @@ async function cleanExtras(raw: any, tenant: number) {
 }
 async function saveLayoutTiles_(p: { id: number; name: string; tiles: any[]; asNew: boolean; flags?: Record<string, boolean>; extras?: any }): Promise<{ id?: number; error?: string }> {
   const me = await adm(); const top = me.role === 'webappdev';
-  if (!Array.isArray(p.tiles) || p.tiles.length < 1 || p.tiles.length > 64) return { error: 'A layout needs 1 to 64 monitors.' };
+  if (!Array.isArray(p.tiles) || p.tiles.length > 64) return { error: 'A layout can have at most 64 monitors (0 is fine, for a layout with no monitors).' };
   const src = await one('select tenant_id from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(p.id), tid(me)]); if (!src) return { error: 'Layout not found.' };
   // A tenant can't change a Standard layout: saving one makes the tenant's own copy and leaves the Standard one as it was.
   const fork = !top && !p.asNew && !src.tenant_id; if (fork) p.asNew = true;
