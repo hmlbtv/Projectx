@@ -187,6 +187,10 @@ export default function Plan({ walls, layouts, sources, sourceCats = {}, saved, 
   const wallClash = (wl: Wall) => (wl.assets ?? []).filter(a => isScreen(a.type)).flatMap(a => { const k = `${wl.id}:${a.id}`, l = hwSel[k]; return l ? clashOf(k, l).map(c => ({ id: a.id, name: a.name || 'Monitor', layout: lname(l), ...c })) : []; });
   const clashBanner = (wl: Wall) => { const c = wallClash(wl); return c.length === 0 ? null : (<div role="alert" style={{ margin: '8px 0 0', padding: '8px 10px', border: '1px solid #ff3b30', borderRadius: 8, color: '#ff6b60', fontSize: '.9rem' }}><b>Hardware clash</b> — these layouts use the same destination on one unit, so they can't be on together:
     <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>{c.map((x, i) => <li key={i}>{x.name} ({x.layout}) shares destination {fmt(x.dests)} with {x.label}</li>)}</ul></div>); };
+  // Small expandable list of what is wrong on a wall (below its comments): today, hardware clashes, the red dashed outlines on the plan.
+  const errorBox = (wl: Wall) => { const c = wallClash(wl); return c.length === 0 ? null : (<details className="card" style={{ margin: '8px 0', padding: '6px 12px', borderColor: '#ff3b30' }}>
+    <summary style={{ cursor: 'pointer', color: '#ff6b60', fontWeight: 600 }}>⚠ {c.length} error{c.length === 1 ? '' : 's'} on {wl.name}</summary>
+    <ul style={{ margin: '6px 0 2px', paddingLeft: 18, fontSize: '.9rem' }}>{c.map((x, i) => <li key={i}><b>Hardware clash:</b> {x.name} ({x.layout}) shares destination {fmt(x.dests)} with {x.label}</li>)}</ul></details>); };
   const [msg, setMsg] = useState(''), [printId, setPrintId] = useState<number | null>(null), [whoBy, setWhoBy] = useState<Record<number, Record<string, string>>>({});
   // Who changed what, so each person's tiles get their own coloured outline.
   useEffect(() => { if (!printInfo) return; let live = true; const ld = async () => { const o: Record<number, Record<string, string>> = {}; for (const wl of walls) { try { o[wl.id] = (await (printInfo.load ?? ((w: number) => loadPlanMeta(printInfo.id, w)))(wl.id)).who ?? {}; } catch { /* ignore */ } } if (live) setWhoBy(o); };
@@ -228,5 +232,5 @@ export default function Plan({ walls, layouts, sources, sourceCats = {}, saved, 
             <text x={t.x + t.w / 2} y={t.y + t.h / 2 + 20} fill="#fff" fontSize={Math.min(70, t.w / 9)} textAnchor="middle">{cur.assign[t.n] ?? ''}</text></g>))}</svg>}
         {lay && <table><tbody>{lay.tiles.map(t => (<tr key={t.n}><td>Tile {t.n}</td><td><select disabled={readOnly} value={cur.assign[t.n] ?? ''} onChange={e => setSrc(wl.id, t.n, e.target.value)}><option value="">—</option>{sources.map(s => <option key={s}>{s}</option>)}</select></td></tr>))}</tbody></table>}
         {clashBanner(wl)}{copy?.[wl.id]}
-      </div>); })(wl)}{below?.[wl.id]}</div>)}</div>);
+      </div>); })(wl)}{below?.[wl.id]}{errorBox(wl)}</div>)}</div>);
 }
