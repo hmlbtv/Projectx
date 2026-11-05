@@ -892,7 +892,15 @@ const OWN_RW = 'select 1 from room_walls rw join rooms r on r.id=rw.room_id join
 async function assignWall_(f: FormData) {
   const me = await mgr(); const job = Number(s(f,'job')), wall = Number(s(f,'wall')); await own('jobs', job, me);
   if (!wall || !(await one(OWN_RW, [wall, tid(me)]))) throw new Error('Not found');
-  await rows('insert into job_walls(job_id,room_wall_id) values($1,$2) on conflict do nothing', [job, wall]); revalidatePath('/productions'); revalidatePath('/plans');
+  await rows('insert into job_walls(job_id,room_wall_id) values($1,$2) on conflict do nothing', [job, wall]);
+  // Start this wall's Monitor Plan from the chosen default configuration of its Wall Template ('none' = each monitor on its first layout). An existing plan is never overwritten.
+  const pick = s(f, 'def');
+  if (pick && !(await one('select 1 from job_wall_plans where job_id=$1 and room_wall_id=$2', [job, wall]))) {
+    const wt = await one('select wt.defaults from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id where rw.id=$1', [wall]);
+    const d = (Array.isArray(wt?.defaults) ? wt!.defaults : []).find((x: any) => x?.id === pick) as { mons?: Record<string, number> } | undefined;
+    if (d || pick === 'none') await saveJobPlans(job, { [String(wall)]: { assign: {}, mons: d?.mons ?? {} } }, me.id, wall);
+  }
+  revalidatePath('/productions'); revalidatePath('/plans');
 }
 // Add (or take away) many walls at once: everything in a Site, Location or Room.
 const wallIds = (f: FormData) => Array.from(new Set(f.getAll('wall').map(Number).filter(n => Number.isInteger(n) && n > 0))).slice(0, 500);

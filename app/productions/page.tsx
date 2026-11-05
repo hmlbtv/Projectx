@@ -29,7 +29,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   const contacts_p = rows('select id,name,email,company from contacts where tenant_id=$1 order by name', [t]);
   const pcs_p = rows('select pc.production_id, pc.contact_id from production_contacts pc join contacts c on c.id=pc.contact_id where c.tenant_id=$1', [t]);
   const sets_p = rows('select * from source_sets where tenant_id=$1', [t]);
-  const allWalls_p = rows('select rw.id, rw.name, r.name room, l.name loc, s.name site from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name, l.name, r.name, rw.name', [t]);
+  const allWalls_p = rows('select rw.id, rw.name, wt.defaults, r.name room, l.name loc, s.name site from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name, l.name, r.name, rw.name', [t]);
   const tree_p = rows('select s.id sid, s.name site, l.id lid, l.name loc, r.id rid, r.name room from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name, l.name, r.name', [t]);
   const ju_p = rows('select ju.job_id, ju.user_id, u.email from job_users ju join users u on u.id=ju.user_id join jobs j on j.id=ju.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1', [t]);
   const [bs, ps, js, rw, wl, contacts, pcs, sets, allWalls, ju, tree] = await Promise.all([bs_p, ps_p, js_p, rw_p, wl_p, contacts_p, pcs_p, sets_p, allWalls_p, ju_p, tree_p]); // run the page's queries together instead of one after another
@@ -69,7 +69,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
                     {ws.length === 0 && <p className="mut" style={{ marginLeft: 16 }}>No Wall Templates in this Room.</p>}
                     {ws.map((w: any) => { const on = used.some((u: any) => u.id === w.id);
                       return (<form key={w.id} action={on ? unassignWall : assignWall} className="row" style={{ marginLeft: 16, margin: '2px 0 2px 16px' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="wall" value={w.id} />
-                        <span>{w.name}</span>{on && <span className="tag">in use</span>}<button className={on ? 'del' : 'sec'} style={{ minHeight: 0, padding: '2px 10px' }}>{on ? 'Remove' : 'Use in this Job'}</button></form>); })}</details>); })}</details>); })}</details>); })}</div>
+                        <span>{w.name}</span>{on && <span className="tag">in use</span>}{!on && Array.isArray(w.defaults) && w.defaults.length > 0 && <select name="def" defaultValue={(w.defaults.find((x: any) => x.active) ?? { id: 'none' }).id} aria-label={`Starting configuration for ${w.name}`} title="The default configuration the Monitor Plan starts from" style={{ maxWidth: 220 }}>{w.defaults.map((x: any) => <option key={x.id} value={x.id}>{x.name}{x.active ? ' (active default)' : ''}</option>)}<option value="none">No default (first layout on each monitor)</option></select>}<button className={on ? 'del' : 'sec'} style={{ minHeight: 0, padding: '2px 10px' }}>{on ? 'Remove' : 'Use in this Job'}</button></form>); })}</details>); })}</details>); })}</details>); })}</div>
       </div></>);
   }
 
