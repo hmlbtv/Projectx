@@ -6,6 +6,7 @@ import type { DAsset, PaletteItem } from './assets';
 export type Flag = { key: string; label: string; initial: boolean };
 export type SaveArgs = { id: number | null; name: string; assets: DAsset[]; asNew: boolean; flags: Record<string, boolean> };
 type Props = {
+  extraProps?: (a: DAsset) => React.ReactNode; /* extra rows under Name in the Properties panel */
   nameList?: { title: string; test: (a: DAsset) => boolean; prefix: string }; /* a quick list to name every matching item, with an auto-name button */
   kind: string; backHref: string; world: { w: number; h: number }; onWorld?: (w: { w: number; h: number }) => void; palette: PaletteItem[]; renderAsset: (a: DAsset) => React.ReactNode;
   id: number | null; initialName: string; initial: DAsset[]; onSave: (a: SaveArgs) => Promise<{ id?: number; error?: string }>;
@@ -423,6 +424,7 @@ export default function Editor(p: Props) {
           {one ? (<>
             <div className="dz-grp">General</div>
             <label className="dz-row"><span>Name</span><input value={one.name} disabled={readOnly} onFocus={push} onChange={e => edit({ name: e.target.value })} /></label>
+            {p.extraProps?.(one)}
             <div className="dz-row"><span>Type</span><em>{def?.label ?? one.type}</em></div>
             <div className="dz-grp">Position &amp; size</div>
             <div className="dz-two">{numIn('X', one.x, v => edit({ x: v }))}{numIn('Y', one.y, v => edit({ y: v }))}{numIn('W', one.w, v => editSize('w', v))}{numIn('H', one.h, v => editSize('h', v))}</div>
