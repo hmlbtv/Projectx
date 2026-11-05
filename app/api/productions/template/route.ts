@@ -33,6 +33,7 @@ export async function GET() {
     [tx('Job name is required. Dates are YYYY-MM-DD (or DD/MM/YYYY). If Final date is empty the Job date is used. If Expires is empty it is 5 days after the Final date.')],
     [tx('A Job that already exists (same Production, name and Job date) is skipped. Nothing is ever deleted.')],
     [tx('To add a new Broadcaster, add a tab and name it after the Broadcaster. The Lists tab feeds the drop-downs: leave it in the file.')],
+    [tx('Importing never deletes anything. The word Blank (which clears a name) is only used on the hardware names sheet; here an empty cell just means no value.')],
     [tx('Save as .xlsx and use Import in Productions.')]], columns: [{ width: 130 }] };
   const buf = await writeExcelFile([...sheets, lists, how] as any, { features: [dataValidation] } as any).toBuffer();
   return new NextResponse(new Uint8Array(buf), { headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': 'attachment; filename="teleplanner-productions-template.xlsx"', 'Cache-Control': 'no-store' } });

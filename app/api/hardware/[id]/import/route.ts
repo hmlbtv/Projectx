@@ -47,10 +47,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!(num >= 1 && num <= max)) { skipped++; bad(`Row ${rowNo}: ${dest ? 'Destination' : 'Output'} ${num} does not exist on this unit (it has ${max} ${dest ? 'inputs' : 'outputs'}, so use 1 to ${max}).`); continue; }
     const key = (dest ? 'd' : 'o') + num; if (seen.has(key)) bad(`Row ${rowNo}: ${dest ? 'Destination' : 'Output'} ${num} appears more than once. The last row is used.`); seen.add(key);
     if (str(r[cF]).length > 60) bad(`Row ${rowNo}: the friendly name for ${dest ? 'destination' : 'output'} ${num} is longer than 60 characters and was shortened.`);
-    const friendly = str(r[cF]).slice(0, 60), hwn = cH >= 0 ? str(r[cH]).slice(0, 60) : '', generic = new RegExp(`^(destination|output)\\s*${num}$`, 'i').test(hwn);
+    // The word Blank (any case) clears a name. An empty cell leaves the name as it is.
+    const isBlank = (v: unknown) => /^blank$/i.test(str(v)), clearF = isBlank(r[cF]), clearH = cH >= 0 && isBlank(r[cH]);
+    const friendly = clearF ? '' : str(r[cF]).slice(0, 60), hwn = cH >= 0 && !clearH ? str(r[cH]).slice(0, 60) : '', generic = new RegExp(`^(destination|output)\\s*${num}$`, 'i').test(hwn);
     const [names, hws] = dest ? [dn, dh] : [on, oh];
-    if (friendly) names[num] = friendly; else delete names[num];
-    if (cH >= 0) { if (hwn && !generic) hws[num] = hwn; else delete hws[num]; }
+    if (friendly) names[num] = friendly; else if (clearF) delete names[num];
+    if (cH >= 0) { if (clearH || (hwn && generic)) delete hws[num]; else if (hwn) hws[num] = hwn; }
     applied++;
   }
   if (!applied) return NextResponse.json({ error: 'No destination or output rows could be imported from that file. Nothing was changed.', problems }, { status: 400 });

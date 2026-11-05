@@ -14,6 +14,7 @@ export async function GET() {
       [t('Fill in the Contacts sheet, one person per row. Keep the header row.')],
       [t('Name and Email are required. Company is optional.')],
       [t('People whose email is already in your contact list are skipped, not changed.')],
+      [t('The word Blank (which clears a name) is only used on the hardware names sheet; here an empty cell just means no value.')],
       [t('Up to 2000 rows. Save as .xlsx (or .csv) and use Import in Contacts.')]], columns: [{ width: 120 }] },
   ]);
   const buf = await file.toBuffer();

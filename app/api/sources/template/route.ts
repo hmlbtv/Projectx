@@ -14,6 +14,7 @@ export async function GET() {
       [t('One source per row. First column: the Source Set name. Second column: the Category (for example Cameras or EVS). Third column: the source name. Keep the header row.')],
       [t('Rows with the same Source Set name go into the same set. Sources are shown grouped by Category when assigning them to a tile; leave Category empty for none. Replace the example rows with your own.')],
       [t('A Source Set that already exists is added to: sources it does not have yet are appended, nothing is removed.')],
+      [t('The word Blank (which clears a name) is only used on the hardware names sheet; here an empty cell just means no value.')],
       [t('Up to 5000 rows, 200 Source Sets and 500 sources per set. Save as .xlsx (or .csv) and use Import in Source Sets.')]], columns: [{ width: 120 }] },
   ]);
   const buf = await file.toBuffer();

@@ -18,7 +18,8 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
     { sheet: 'Names', data, columns: [{ width: 24 }, { width: 14 }, { width: 10 }, { width: 30 }, { width: 36 }] },
     { sheet: 'How to use', data: [
       [t('One row per destination (hardware input) and per output. Do not change the Hardware, Type or Number columns.')],
-      [t('Type the name people use in the Friendly name column (for example Camera 1). Leave it empty to clear a name.')],
+      [t('Type the name people use in the Friendly name column (for example Camera 1). Leave a cell empty to keep the name as it is. To delete a name, type the word Blank in the cell (it is not case sensitive).')],
+      [t('The word Blank works in both the Hardware name and the Friendly name columns. Blank removes the name that is already saved on the unit.')],
       [t('The Hardware name column is the unit\'s own name for that destination or output. If your hardware export gives them, paste them in; they are saved too.')],
       [t('Save as .xlsx (or .csv) and use Import names on the unit\'s page. The Hardware column must match the unit\'s name.')]], columns: [{ width: 120 }] },
   ]);
