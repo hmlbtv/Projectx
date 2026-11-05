@@ -12,6 +12,11 @@ export function SlotPlus({ frame, slot }: { frame: number; slot: number }) {
   return <button type="button" onClick={() => window.dispatchEvent(new CustomEvent(EVENT, { detail: { frame, slot } }))} title={`Slot ${slot}: empty. Add a card`} aria-label={`Add a card to slot ${slot}`} style={{ all: 'unset', cursor: 'pointer', flex: 1, width: '100%', textAlign: 'center', fontSize: '.9rem', lineHeight: 1, opacity: .7 }}>+</button>;
 }
 
+// A normal button (used in the frame's ⋯ menu) that opens the same dialog. Leave slot out to use the first empty slot.
+export function AddCardButton({ frame, slot, children }: { frame: number; slot: number; children: React.ReactNode }) {
+  return <button type="button" className="sec small" onClick={() => window.dispatchEvent(new CustomEvent(EVENT, { detail: { frame, slot } }))}>{children}</button>;
+}
+
 // One dialog per frame. Add a new card, or copy one already in the frame. Location and monitor are optional.
 export default function AddCard({ frame, frameName, rackWhere, where, monitors, sources }: { frame: number; frameName: string; rackWhere: string; where: Opt[]; monitors: Opt[]; sources: Src[] }) {
   const [st, act, pending] = useActionState(addHwCard, undefined); const ref = useRef<HTMLDialogElement>(null), form = useRef<HTMLFormElement>(null);

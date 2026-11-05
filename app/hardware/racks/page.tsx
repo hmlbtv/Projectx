@@ -8,7 +8,7 @@ import { addHwRack, updateHwRack, deleteHwRack, addHwFrame, updateHwFrame, delet
 import AddDialog from '../../AddDialog';
 import Menu from '../../Menu';
 import TreeControls from '../TreeControls';
-import AddCard, { SlotPlus } from './AddCard';
+import AddCard, { AddCardButton, SlotPlus } from './AddCard';
 export const dynamic = 'force-dynamic';
 
 // A picture of each rack: every Frame drawn at its rack position, split into slots, showing which MV unit or card is in each slot.
@@ -83,9 +83,10 @@ export default async function Racks() {
   </>);
 
   function FrameMenu({ f }: { f: Frame }) {
-    return (<Menu><b>Edit frame</b><form action={updateHwFrame} className="stack"><input type="hidden" name="id" value={f.id} /><input name="name" defaultValue={f.name} required placeholder="Frame name" /><FrameFields cur={f} />
+    const free = Array.from({ length: f.slots }, (_, i) => i + 1).filter(n => !unitAt(f, n) && !f.slot_cards[n]);
+    return (<Menu><b>Edit frame</b>{free.length ? <AddCardButton frame={f.id} slot={free[0]}>+ Add card (slot {free[0]})</AddCardButton> : <span className="mut" style={{ fontSize: '.85rem' }}>All slots are filled</span>}<form action={updateHwFrame} className="stack"><input type="hidden" name="id" value={f.id} /><input name="name" defaultValue={f.name} required placeholder="Frame name" /><FrameFields cur={f} />
             <b style={{ fontSize: '.85rem' }}>Slots</b>
-      {Array.from({ length: f.slots }, (_, i) => i + 1).map(n => { const u = unitAt(f, n); return (<div key={n} className="stack" style={{ gap: 4 }}><span className="mut" style={{ fontSize: '.85rem' }}>Slot {n}</span>
+      {Array.from({ length: f.slots }, (_, i) => i + 1).map(n => { const u = unitAt(f, n); return (<div key={n} className="stack" style={{ gap: 4 }}><span className="mut" style={{ fontSize: '.85rem', display: 'flex', gap: 8, alignItems: 'center' }}>Slot {n}{!u && !f.slot_cards[n] && <AddCardButton frame={f.id} slot={n}>+ Add card</AddCardButton>}</span>
         <select name={'su_' + n} defaultValue={u?.id ?? ''} aria-label={`MV unit in slot ${n}`}><option value="">No MV unit</option>{units.map(x => <option key={x.id} value={x.id}>{x.name}{x.frame_id && x.frame_id !== f.id ? ` (now in ${frames.find(z => z.id === x.frame_id)?.name ?? 'another frame'})` : ''}</option>)}</select>
         {!u && <input name={'sc_' + n} defaultValue={f.slot_cards[n]?.name ?? ''} placeholder="or another card (optional)" aria-label={`Slot ${n} other card`} />}</div>); })}
       <button className="sec">Save</button></form>
