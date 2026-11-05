@@ -195,7 +195,7 @@ export default function Plan({ walls, layouts, sources, sourceCats = {}, saved, 
   // Who changed what, so each person's tiles get their own coloured outline.
   useEffect(() => { if (!printInfo) return; let live = true; const ld = async () => { const o: Record<number, Record<string, string>> = {}; for (const wl of walls) { try { o[wl.id] = (await (printInfo.load ?? ((w: number) => loadPlanMeta(printInfo.id, w)))(wl.id)).who ?? {}; } catch { /* ignore */ } } if (live) setWhoBy(o); };
     ld(); const iv = setInterval(() => { if (!document.hidden) ld(); }, 10000); return () => { live = false; clearInterval(iv); }; }, [printInfo?.id, msg === 'Saved']); // eslint-disable-line react-hooks/exhaustive-deps
-  const people = Array.from(new Set(Object.values(whoBy).flatMap(m => Object.values(m)))).sort(), colorOf = Object.fromEntries(people.map((n, i) => [n, PALETTE[i % PALETTE.length]]));
+  const people = Array.from(new Set(Object.values(whoBy).flatMap(m => Object.values(m)))).sort(), colorOf = people.length > 1 ? Object.fromEntries(people.map((n, i) => [n, PALETTE[i % PALETTE.length]])) : {}; // outlines by editor only when two or more people have edited, as with the legend
   // No Save button: every change is saved automatically a moment after it is made.
   // The plan is shared: only the walls this person changed are saved, so someone else's changes to other walls are never overwritten.
   const first = useRef(true), touched = useRef(new Set<number>()), inflight = useRef(new Set<number>()), editingN = useRef(0), dataRef = useRef(data);
