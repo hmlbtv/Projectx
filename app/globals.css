@@ -270,3 +270,4 @@ dialog.se-dlg{width:min(900px,94vw);max-width:94vw;padding:14px;overflow-x:hidde
 #hwtree[data-view=list] .hwcard .hwfull{display:none}
 #hwtree[data-view=list] .hwcard .hwline{display:flex;gap:10px;align-items:baseline;white-space:nowrap;overflow:hidden}
 #hwtree[data-view=list] .hwcard .hwline span{overflow:hidden;text-overflow:ellipsis;font-size:.85rem}
+.devver{background:#2a0f0d;color:#ff9b92;font:600 .72rem/1 ui-monospace,Menlo,monospace;text-align:center;padding:4px 8px;border-bottom:1px solid #ff4b3e55;letter-spacing:.02em}

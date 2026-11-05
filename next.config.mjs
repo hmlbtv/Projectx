@@ -9,6 +9,10 @@ export default {
   serverExternalPackages: ['@electric-sql/pglite', 'sharp'],
   poweredByHeader: false,
   // Dev comments are compiled OUT of a production build (Vercel sets VERCEL_ENV=production for the live site), not just switched off at run time.
-  env: { DEV_TOOLS_BUILD: process.env.VERCEL_ENV === 'production' ? '0' : '1' },
+  env: {
+    DEV_TOOLS_BUILD: process.env.VERCEL_ENV === 'production' ? '0' : '1',
+    // Shown in the dev site's version strip, so a new build is easy to spot.
+    DEV_BUILD_INFO: `${(process.env.VERCEL_GIT_COMMIT_SHA ?? 'local').slice(0, 7)}|${new Date().toISOString()}`,
+  },
   async headers() { return [{ source: '/:path*', headers }]; },
 };
