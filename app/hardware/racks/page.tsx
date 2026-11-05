@@ -7,6 +7,7 @@ import type { Frame, Rack, Unit } from '@/lib/hardware';
 import { addHwRack, updateHwRack, deleteHwRack, addHwFrame, updateHwFrame, deleteHwFrame } from '@/lib/actions';
 import AddDialog from '../../AddDialog';
 import Menu from '../../Menu';
+import ExpandAll from '../ExpandAll';
 export const dynamic = 'force-dynamic';
 
 // A picture of each rack: every Frame drawn at its rack position, split into slots, showing which MV unit or card is in each slot.
@@ -39,13 +40,13 @@ export default async function Racks() {
       <AddDialog action={addHwFrame} inline label="Add frame" title="New frame" placeholder="Frame name (e.g. MV Frame 1)"><FrameFields /></AddDialog></div></div>
     <p className="mut"><Link href="/hardware">MV Hardware</Link> · Put an MV unit in a frame slot under Edit hardware. Use ⋯ on a rack or frame to change it.</p>
     {racks.length === 0 && frames.length === 0 && <p className="mut">No racks yet. Add a rack, then add frames to it.</p>}
-    {[...bySite.entries()].map(([site, rs]) => (<section key={site}><h2 style={{ margin: '18px 0 6px' }}>{site || 'No site'}</h2>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start', paddingBottom: 24 }}>
-        {rs.map(r => { const fs = framesIn(r).filter(f => f.rack_ru); const nopos = framesIn(r).filter(f => !f.rack_ru); const top = Math.max(r.ru, ...fs.map(f => (f.rack_ru ?? 1) + f.rack_h - 1)); const clash = new Set<number>();
+    {racks.length > 0 && <div style={{ margin: '8px 0 0' }}><ExpandAll target="#racktree" /></div>}
+    <div id="racktree">{[...bySite.entries()].map(([site, rs]) => { const draw = (r: Rack) => { const fs = framesIn(r).filter(f => f.rack_ru); const nopos = framesIn(r).filter(f => !f.rack_ru); const top = Math.max(r.ru, ...fs.map(f => (f.rack_ru ?? 1) + f.rack_h - 1)); const clash = new Set<number>();
           for (const a of fs) for (const b of fs) if (a.id < b.id && (a.rack_ru ?? 0) <= (b.rack_ru ?? 0) + b.rack_h - 1 && (b.rack_ru ?? 0) <= (a.rack_ru ?? 0) + a.rack_h - 1) { clash.add(a.id); clash.add(b.id); }
-          return (<div key={r.id} style={{ flex: '0 0 auto', width: 'min(340px, 100%)' }}>
-            <div className="row" style={{ justifyContent: 'space-between', margin: '0 0 4px', flexWrap: 'nowrap' }}><div style={{ minWidth: 0 }}><b>{r.name}</b><div className="mut" style={{ fontSize: '.8rem' }}>{place(r)} · {top}U · {framesIn(r).length} frame{framesIn(r).length === 1 ? '' : 's'}</div></div>
-              <span className="row" style={{ margin: 0, flexWrap: 'nowrap' }}><AddDialog action={addHwFrame} inline label="Frame" title={`New frame in ${r.name}`} placeholder="Frame name (e.g. MV Frame 1)"><FrameFields rack={r.id} /></AddDialog>
+          return (<details key={r.id} open style={{ flex: '0 0 auto', width: 'min(340px, 100%)' }}>
+            <summary style={{ cursor: 'pointer', margin: '0 0 4px' }}><b>{r.name}</b> <span className="mut" style={{ fontSize: '.8rem' }}>{top}U · {framesIn(r).length} frame{framesIn(r).length === 1 ? '' : 's'}</span></summary>
+            <div className="row" style={{ justifyContent: 'space-between', margin: '0 0 4px', flexWrap: 'nowrap' }}><div className="mut" style={{ fontSize: '.8rem', minWidth: 0 }}>{place(r)}</div>
+              <span className="row inlmenu" style={{ margin: 0, flexWrap: 'nowrap' }}><AddDialog action={addHwFrame} inline label="Frame" title={`New frame in ${r.name}`} placeholder="Frame name (e.g. MV Frame 1)"><FrameFields rack={r.id} /></AddDialog>
                 <Menu><b>Edit rack</b><form action={updateHwRack} className="stack"><input type="hidden" name="id" value={r.id} /><input name="name" defaultValue={r.name} required /><WhereSel cur={r} /><label>Height (RU) <input name="ru" type="number" min={1} max={100} defaultValue={r.ru} style={{ width: 80 }} /></label><button className="sec">Save</button></form>
                   <form action={deleteHwRack} className="del-row"><input type="hidden" name="id" value={r.id} /><span className="mut">Delete this rack? Its frames are kept but no longer in a rack.</span><button className="del">Yes, delete</button></form></Menu></span></div>
             <div style={{ position: 'relative', height: top * RU, border: '3px solid var(--line)', borderRadius: 8, background: 'repeating-linear-gradient(to bottom, transparent 0, transparent ' + (RU - 1) + 'px, var(--line) ' + (RU - 1) + 'px, var(--line) ' + RU + 'px)', boxSizing: 'content-box' }} aria-label={`${r.name}, ${top} rack units`}>
@@ -64,8 +65,15 @@ export default async function Racks() {
             {clash.size > 0 && <p role="alert" style={{ color: '#ff6b60', fontSize: '.85rem', margin: '6px 0 0' }}>Some frames overlap in this rack (red dashed outline).</p>}
             {nopos.length > 0 && <p className="mut" style={{ fontSize: '.85rem', margin: '6px 0 0' }}>No position set: {nopos.map((f, i) => <span key={f.id}>{i ? ', ' : ''}{f.name}</span>)}. Use ⋯ on the frame to set it.</p>}
             <details style={{ marginTop: 8 }}><summary className="mut">Frames and slots in {r.name}</summary><ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: '.88rem' }}>{[...framesIn(r)].sort((a, b) => (b.rack_ru ?? 0) - (a.rack_ru ?? 0)).map(f => <li key={f.id}><b>{f.name}</b> <span className="mut">{[f.model, f.serial && 'S/N ' + f.serial, f.rack_ru ? `RU ${f.rack_ru}${f.rack_h > 1 ? '–' + (f.rack_ru + f.rack_h - 1) : ''}` : ''].filter(Boolean).join(' · ')}</span>
-              <ul style={{ paddingLeft: 16 }}>{Array.from({ length: f.slots }, (_, i) => i + 1).map(n => { const u = unitAt(f, n); return <li key={n}>Slot {n}: {u ? <Link href={`/hardware?id=${u.id}`}>{u.name}</Link> : occupantLabel(f, n) || <span className="mut">empty</span>}</li>; })}</ul></li>)}</ul></details></div>); })}</div></section>))}
-    {loneFrames.length > 0 && (<><h2 style={{ margin: '18px 0 6px' }}>Frames not in a rack</h2><div className="card"><ul style={{ margin: 0, paddingLeft: 18 }}>{loneFrames.map(f => <li key={f.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span><b>{f.name}</b> <span className="mut">· {f.slots} slots{f.model ? ' · ' + f.model : ''}{f.serial ? ' · S/N ' + f.serial : ''}</span></span><FrameMenu f={f} /></li>)}</ul></div></>)}
+              <ul style={{ paddingLeft: 16 }}>{Array.from({ length: f.slots }, (_, i) => i + 1).map(n => { const u = unitAt(f, n); return <li key={n}>Slot {n}: {u ? <Link href={`/hardware?id=${u.id}`}>{u.name}</Link> : occupantLabel(f, n) || <span className="mut">empty</span>}</li>; })}</ul></li>)}</ul></details></details>); };
+      // Site > Location > racks, each level collapsible. A rack put at Site level sits directly under the Site.
+      const locOf = (r: Rack) => rooms.find((x: any) => x.id === r.room_id)?.location_id ?? r.location_id;
+      const lids = Array.from(new Set(rs.map(locOf).filter(Boolean))) as number[];
+      const wrap = (list: Rack[]) => <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start', padding: '6px 0 14px' }}>{list.map(draw)}</div>;
+      return (<details key={site} open style={{ margin: '14px 0' }}><summary style={{ cursor: 'pointer' }}><b style={{ fontSize: '1.25rem' }}>{site || 'No site'}</b> <span className="tag">{rs.length}</span></summary>
+        {wrap(rs.filter(r => !locOf(r)))}
+        {lids.map(id => { const lr = rs.filter(r => locOf(r) === id); return (<details key={id} open style={{ margin: '10px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><summary style={{ cursor: 'pointer' }}><b style={{ fontSize: '1.1rem' }}>{locs.find((l: any) => l.id === id)?.name}</b> <span className="tag">{lr.length}</span></summary>{wrap(lr)}</details>); })}</details>); })}</div>
+    {loneFrames.length > 0 && (<><h2 style={{ margin: '18px 0 6px' }}>Frames not in a rack</h2><div className="card"><ul style={{ margin: 0, paddingLeft: 18 }}>{loneFrames.map(f => <li key={f.id} className="inlmenu" style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span><b>{f.name}</b> <span className="mut">· {f.slots} slots{f.model ? ' · ' + f.model : ''}{f.serial ? ' · S/N ' + f.serial : ''}</span></span><FrameMenu f={f} /></li>)}</ul></div></>)}
     {loose.length > 0 && (<><h2 style={{ margin: '18px 0 6px' }}>MV units not in a frame yet</h2><div className="card"><ul style={{ margin: 0, paddingLeft: 18 }}>{loose.map(u => <li key={u.id}><Link href={`/hardware?id=${u.id}`}>{u.name}</Link> <span className="mut">· {place(u)}</span></li>)}</ul></div></>)}
   </>);
 
