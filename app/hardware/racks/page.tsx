@@ -71,8 +71,10 @@ export default async function Racks() {
 
   function FrameMenu({ f }: { f: Frame }) {
     return (<Menu><b>Edit frame</b><form action={updateHwFrame} className="stack"><input type="hidden" name="id" value={f.id} /><input name="name" defaultValue={f.name} required placeholder="Frame name" /><FrameFields cur={f} />
-      <b style={{ fontSize: '.85rem' }}>Other cards (not MV units)</b>
-      {Array.from({ length: f.slots }, (_, i) => i + 1).map(n => { const u = unitAt(f, n); return u ? <div key={n} className="mut" style={{ fontSize: '.85rem' }}>Slot {n}: {u.name} (MV unit)</div> : <input key={n} name={'sc_' + n} defaultValue={f.slot_cards[n]?.name ?? ''} placeholder={`Slot ${n} card (optional)`} aria-label={`Slot ${n} card`} />; })}
+            <b style={{ fontSize: '.85rem' }}>Slots</b>
+      {Array.from({ length: f.slots }, (_, i) => i + 1).map(n => { const u = unitAt(f, n); return (<div key={n} className="stack" style={{ gap: 4 }}><span className="mut" style={{ fontSize: '.85rem' }}>Slot {n}</span>
+        <select name={'su_' + n} defaultValue={u?.id ?? ''} aria-label={`MV unit in slot ${n}`}><option value="">No MV unit</option>{units.map(x => <option key={x.id} value={x.id}>{x.name}{x.frame_id && x.frame_id !== f.id ? ` (now in ${frames.find(z => z.id === x.frame_id)?.name ?? 'another frame'})` : ''}</option>)}</select>
+        {!u && <input name={'sc_' + n} defaultValue={f.slot_cards[n]?.name ?? ''} placeholder="or another card (optional)" aria-label={`Slot ${n} other card`} />}</div>); })}
       <button className="sec">Save</button></form>
       <form action={deleteHwFrame} className="del-row"><input type="hidden" name="id" value={f.id} /><span className="mut">Delete this frame? Its MV units stay but are no longer in a frame.</span><button className="del">Yes, delete</button></form></Menu>);
   }

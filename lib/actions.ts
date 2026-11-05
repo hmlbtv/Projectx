@@ -747,7 +747,11 @@ async function addHwFrame_(_: FormState, f: FormData): Promise<FormState> {
 async function updateHwFrame_(f: FormData) {
   const me = await adm(); const id = Number(s(f, 'id')); if (!(await one('select 1 from hw_frames where id=$1 and tenant_id=$2', [id, tid(me)]))) throw new Error('Not found');
   const v = await frameFields(me, f, id); if (!v) throw new Error('Not found');
-  const occupied = (await rows<{ slot: number }>('select slot from hw_units where frame_id=$1', [id])).map(r => r.slot); for (const o of occupied) delete v.sc[o]; // a slot with an MV unit has no other card
+  // MV units chosen for slots (an existing unit can be picked, and moves here from wherever it was). A slot with an MV unit has no other card.
+  const mine = await rows<{ id: number }>('select id from hw_units where tenant_id=$1', [tid(me)]); const ok = new Set(mine.map(r => r.id)); const pick = new Map<number, number>(); const used = new Set<number>();
+  for (let n = 1; n <= v.slots; n++) { const uid = Number(f.get('su_' + n)); if (uid && ok.has(uid) && !used.has(uid)) { pick.set(n, uid); used.add(uid); delete v.sc[n]; } }
+  await rows('update hw_units set frame_id=null, slot=null where frame_id=$1 and not (id = any($2::int[]))', [id, [...used]]);
+  for (const [n, uid] of pick) await rows('update hw_units set frame_id=$1, slot=$2 where id=$3', [id, n, uid]);
   await rows('update hw_frames set rack_id=$2, name=coalesce(nullif($3,\'\'),name), model=$4, serial=$5, slots=$6, rack_ru=$7, rack_h=$8, notes=$9, slot_cards=$10 where id=$1', [id, v.rack, v.name, v.model, v.serial, v.slots, v.rack_ru, v.rack_h, v.notes, JSON.stringify(v.sc)]);
   revalidatePath('/hardware/racks'); revalidatePath('/hardware');
 }
