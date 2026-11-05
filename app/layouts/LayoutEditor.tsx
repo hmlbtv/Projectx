@@ -36,7 +36,7 @@ export default function LayoutEditor({ id: id0, name, tiles, tileList, readOnly,
   const onTileClick = (a: DAsset, items: DAsset[]) => {
     if (swap && a.type === 'mv') { // swap mode: click one window, then another, and their numbers trade places
       if (!swap.first) { setSwap({ first: a.id }); return true; }
-      if (swap.first !== a.id) { const x = swap.first; custom.current = true; setNums(n => ({ ...n, [x]: n[a.id] ?? 999, [a.id]: n[x] ?? 999 })); }
+      if (swap.first !== a.id) { const x = swap.first; custom.current = true; setNums(n => { const m = { ...n }; const nx = n[x], na = n[a.id]; if (na === undefined) delete m[x]; else m[x] = na; if (nx === undefined) delete m[a.id]; else m[a.id] = nx; return m; }); }
       setSwap({ first: null }); return true; }
     if (!renum || a.type !== 'mv') return false;
     allIds.current = items.filter(x => x.type === 'mv').map(x => x.id); if (renum.includes(a.id)) return true;
