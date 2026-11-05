@@ -110,7 +110,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
           {t.status !== 'active' && <form action={setTenantStatus}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="status" value="active" /><button>Reactivate</button></form>}
           <form action={deleteTenant} className="delete"><input type="hidden" name="id" value={t.id} />
             <input name="confirm" placeholder={`Type “${t.name}” to delete`} autoComplete="off" aria-label="Type the tenant name to confirm deletion" />
-            <button className="danger">Delete forever</button></form>
+            <button className="danger" data-noconfirm>Delete forever</button></form>
         </div>)}
       </details>); })}</>);
 }

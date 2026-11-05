@@ -47,7 +47,7 @@ export default function SetEditor({ set }: { set: Set_ }) {
           </div>
           <div style={{ display: 'grid', gap: 8 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}><b style={{ flex: 1 }}>{sel === OTHER ? 'Other (no category)' : renCat ? '' : sel}</b>
-              {sel !== OTHER && !renCat && !confirmDel && <><button type="button" className="sec small" onClick={() => { setCatDraft(sel); setRenCat(true); }}>Rename category</button><button type="button" className="del small" onClick={() => setConfirmDel(true)}>Delete category</button></>}
+              {sel !== OTHER && !renCat && !confirmDel && <><button type="button" className="sec small" onClick={() => { setCatDraft(sel); setRenCat(true); }}>Rename category</button><button type="button" data-noconfirm className="del small" onClick={() => setConfirmDel(true)}>Delete category</button></>}
               {renCat && <><input value={catDraft} onChange={e => setCatDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); renameCat(); } }} autoFocus style={{ flex: 1 }} /><button type="button" className="small" onClick={renameCat}>OK</button><button type="button" className="sec small" onClick={() => setRenCat(false)}>Cancel</button></>}
               {confirmDel && <><span className="mut">Delete {sel}? Its sources move to Other.</span><button type="button" className="del small" onClick={deleteCat}>Yes, delete</button><button type="button" className="sec small" onClick={() => setConfirmDel(false)}>Cancel</button></>}</div>
             {shown.length === 0 && <div className="mut">No sources here yet.</div>}

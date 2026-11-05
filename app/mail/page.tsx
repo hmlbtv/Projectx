@@ -47,6 +47,6 @@ export default async function Mail({ searchParams }: { searchParams: Promise<SP>
     <h2>Groups</h2>
     <p className="mut">Role groups (all Users, all Admins…) and the registered-interest list are built in. Add your own groups of addresses here.</p>
     {groups.map((g: any) => (<div key={g.id} className="card"><b>{g.name}</b> <span className="mut">· {String(g.emails).split('\n').filter(Boolean).length} addresses</span>
-      <Link href={`/mail?edit=${g.id}`} style={{ marginLeft: 8 }}>Edit</Link><form action={deleteGroup} style={{ display: 'inline', marginLeft: 8 }}><input type="hidden" name="id" value={g.id} /><button className="sec">Delete</button></form></div>))}
+      <Link href={`/mail?edit=${g.id}`} style={{ marginLeft: 8 }}>Edit</Link><form action={deleteGroup} style={{ display: 'inline', marginLeft: 8 }}><input type="hidden" name="id" value={g.id} /><button className="del" title="Delete this group?">Delete</button></form></div>))}
     <GroupEditor key={edit?.id ?? 'new'} known={known} id={edit?.id} name={edit?.name} emails={edit ? String(edit.emails).split('\n').filter(Boolean) : []} /></>);
 }

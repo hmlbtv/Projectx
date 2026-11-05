@@ -85,7 +85,7 @@ export default function ImagePicker({ onPick, onClose }: { onPick: (i: { id: num
           {used && <div style={{ color: '#b45309', fontSize: '.78rem' }} role="alert">⚠ Used on {i.usedIn.length} Wall Template{i.usedIn.length === 1 ? '' : 's'}: {i.usedIn.map(u => u.name).join(', ')}</div>}
           {del === i.id ? (<div style={{ display: 'grid', gap: 4 }}><span style={{ fontSize: '.78rem', color: used ? '#b45309' : undefined }}>{used ? 'Those walls will show an empty space where it was. Delete anyway?' : 'Delete this image?'}</span>
             <span style={{ display: 'flex', gap: 6 }}><button type="button" className="del small" onClick={() => remove(i)}>Yes, delete</button><button type="button" className="sec small" onClick={() => setDel(null)}>No</button></span></div>)
-            : <button type="button" className="del small" onClick={() => setDel(i.id)}>Delete</button>}</>)
+            : <button type="button" data-noconfirm className="del small" onClick={() => setDel(i.id)}>Delete</button>}</>)
           : <span style={{ fontSize: '.82rem', overflowWrap: 'anywhere', lineHeight: 1.2 }}>{i.name}<span className="mut" style={{ display: 'block', fontSize: '.72rem' }}>{i.w} × {i.h}</span></span>}</div>); })}</div>
     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}><button type="button" className="sec" onClick={() => ref.current?.close()}>Close</button></div>
   </dialog>);

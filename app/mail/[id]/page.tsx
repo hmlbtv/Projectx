@@ -30,5 +30,5 @@ export default async function MailOne({ params }: { params: Promise<{ id: string
     <p className="mut">Status: <b>{m.status === 'signed_off' ? 'Signed off' : m.status === 'tested' ? 'Tested' : 'Draft'}</b>{m.tested_at ? ` · tested ${d(m.tested_at)} to ${TEST_ADDRESS}` : ''}{m.signed_off_at ? ` · signed off ${d(m.signed_off_at)}` : ''}</p>
     <Editor m={{ id: m.id, subject: m.subject, body: m.body, btn_label: m.btn_label, btn_url: m.btn_url, status: m.status, category: m.category }} opts={opts} test={TEST_ADDRESS} />
     <h2>Preview</h2><Frame html={shown(m)} />
-    <form action={deleteDraft} style={{ marginTop: 16 }}><input type="hidden" name="id" value={id} /><button className="sec">Delete this draft</button></form></>);
+    <form action={deleteDraft} style={{ marginTop: 16 }}><input type="hidden" name="id" value={id} /><button className="del" title="Delete this draft?">Delete this draft</button></form></>);
 }
