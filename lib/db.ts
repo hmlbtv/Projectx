@@ -253,7 +253,7 @@ async function init(): Promise<Client> {
 // Plans (tiers): the built-in Demo and Site owner tiers, three draft tiers for the site admin to price, and anything the old free-text plan names need. Safe to run again.
 async function seedPlans(db: Client) {
   const q = async (s: string, p: any[] = []) => (await db.query(s, p)).rows as any[];
-  const L = (w: number, b: number, p: number, j: number, d: number) => JSON.stringify({ wall_templates: w, broadcasters: b, productions: p, jobs_per_production: j, wall_defaults: d });
+  const L = (w: number, b: number, p: number, j: number, d: number) => JSON.stringify({ wall_templates: w, broadcasters: b, productions: p, jobs_per_production: j, wall_defaults: d, guest_invites: 3 });
   const ins = "insert into plans(key,name,sort,limits,description,public,active,free) values($1,$2,$3,$4,$5,$6,$7,$8) on conflict (key) do nothing";
   await q(ins, ['demo', 'Demo', 0, L(1, 2, 3, 4, 5), 'Free demo workspace', true, true, true]);
   await q(ins, ['owner', 'Site owner', 99, L(100000, 100000, 100000, 100000, 100000), 'Unlimited, for the site owner', false, true, true]);
@@ -264,6 +264,8 @@ async function seedPlans(db: Client) {
   for (const t of await q("select distinct on (plan) plan, max_wall_templates, max_walls_per_broadcaster, max_broadcasters, max_productions, max_jobs_per_production, max_wall_defaults from tenants where plan not in (select key from plans) order by plan, id")) {
     await q(ins, [t.plan, t.plan, 50, L(t.max_walls_per_broadcaster, t.max_broadcasters, t.max_productions, t.max_jobs_per_production, t.max_wall_defaults), 'Created from an older plan name', false, true, false]);
   }
+  // Plans made before a limit existed keep doing what they did: Demo gets the default, everything else is unlimited for it until the site admin sets a number.
+  await q("update plans set limits = limits || jsonb_build_object('guest_invites', case when key='demo' then 3 else 100000 end) where not (limits ? 'guest_invites')");
   // Workspaces whose numbers differ from their tier's keep them as overrides, so nothing they could do before is taken away.
   const keys = ['wall_templates', 'broadcasters', 'productions', 'jobs_per_production', 'wall_defaults'] as const;
   for (const t of await q("select t.id, t.max_walls_per_broadcaster w, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j, t.max_wall_defaults d, p.limits from tenants t join plans p on p.key=t.plan where t.limit_overrides='{}'::jsonb and not exists (select 1 from settings where key='plans_migrated')")) {

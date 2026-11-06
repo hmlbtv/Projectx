@@ -14,6 +14,7 @@ import { mailTemplates as T } from './mailTemplates';
 import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, sendMail, baseUrl } from './mail';
 import { newToken, sha256, hashPassword, passwordProblem } from './password';
 import type { FormState } from './actions';
+import { limitCheck, lockMessage } from './subscriptions';
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? '').trim().slice(0, 300);
 
@@ -26,6 +27,8 @@ async function createWallLink_(_: FormState, f: FormData): Promise<FormState> {
   const ok = await one(`select 1 from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id
     join job_walls jw on jw.job_id=j.id join room_walls rw on rw.id=jw.room_wall_id where j.id=$1 and rw.id=$2 and b.tenant_id=$3`, [job, wall, tenant]);
   if (!ok) return { error: 'Choose a wall that belongs to this Job.' };
+  if (await lockMessage('jobs', job)) return { error: 'This Job is view only on your current plan, so no new guest links can be made.' };
+  { const m = await guestRoom(me, job, null); if (m) return { error: m }; }
   const contact = await one(`select c.id, c.email from contacts c join production_contacts pc on pc.contact_id=c.id join jobs j on j.production_id=pc.production_id
     where c.id=$1 and c.tenant_id=$2 and j.id=$3`, [Number(s(f, 'contact')), tenant, job]);
   if (!contact) return { error: 'Choose a contact assigned to this Production.' };
@@ -74,6 +77,7 @@ async function linkAccess(me: Me, linkId: number) {
 }
 export async function savePlanLink(linkId: number, _name: string, data: any) {
   const me = await requireMe(); const l = await linkAccess(me, linkId); if (!l || l.access !== 'edit') throw new Error('Not allowed');
+  { const m = await lockMessage('jobs', l.job_id); if (m) throw new Error(m); }
   await saveJobPlans(l.job_id, data ?? {}, me.id, l.room_wall_id); // only this wall, into the plan everyone on the Job shares
 }
 // The latest shared plan for the invited wall (picks up other people's changes).
@@ -113,6 +117,13 @@ async function reassignWallLink_(_: FormState, f: FormData): Promise<FormState> 
   return { ok: sent ? `New link emailed to ${contact.email}. The previous link no longer works.` : `Email sending is not set up. Send this new link to ${contact.email} (the previous link no longer works):`, link: sent ? undefined : link };
 }
 
+// Guest invitations are limited per Job by the plan: each invited person (or unnamed guest link) counts once. Ones that already exist are never blocked.
+async function guestRoom(me: Me, job: number, email: string | null): Promise<string | null> {
+  if (me.role === 'webappdev') return null;
+  if (email && await one('select 1 from wall_links where job_id=$1 and lower(email)=$2 and not revoked', [job, email])) return null;
+  const c = (await one("select count(distinct coalesce(lower(email), 'link' || id::text))::int c from wall_links where job_id=$1 and not revoked", [job]))!.c;
+  return limitCheck(me.tenant_id ?? 0, 'guest_invites', c);
+}
 // ---- Invitations from Monitor Plans: one person, any number of the Job's walls, a contact or any email address ----
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 async function jobFor(me: Me, job: number) {
@@ -136,9 +147,11 @@ async function inviteToWalls_(_: FormState, f: FormData): Promise<FormState> {
   if (!(await allow('wall-link', String(me.id), 60, 60))) return { error: 'Too many requests. Please wait a while and try again.' };
   const access = s(f, 'access') === 'view' ? 'view' : 'edit';
   const walls = await wallsOf(job, ids(f)); if (walls.length === 0) return { error: 'Tick at least one wall.' };
+  if (await lockMessage('jobs', job)) return { error: 'This Job is view only on your current plan, so no one new can be invited.' };
   let email = s(f, 'email').toLowerCase(), contactId: number | null = null;
   if (!email) { const c = await one('select id, email from contacts where id=$1 and tenant_id=$2', [Number(s(f, 'contact')), tenant]); if (c) { email = String(c.email).toLowerCase(); contactId = c.id; } }
   if (!EMAIL.test(email) || email.length > 200) return { error: 'Choose a contact or type a valid email address.' };
+  { const m = await guestRoom(me, job, email); if (m) return { error: m }; }
   if (!contactId) { const c = await one('select id from contacts where tenant_id=$1 and lower(email)=$2 limit 1', [tenant, email]); if (c) contactId = c.id; }
   let first = '', accessChanged = false;
   for (const w of walls) {

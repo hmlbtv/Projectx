@@ -13,7 +13,7 @@ import { requireMe, canManage, isAdmin, createSession, destroySession, resetLimi
 import { allow, clientIp } from './security';
 import { brandedMail, brandedMailDetailed } from './brandMail';
 import { mailTemplates as T } from './mailTemplates';
-import { getLimits, limitCheck } from './subscriptions';
+import { getLimits, limitCheck, lockMessage } from './subscriptions';
 import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, sendMail, sendMailDetailed, mailFrom, baseUrl } from './mail';
 import { verifyPassword, hashPassword, passwordProblem, newToken, sha256 } from './password';
 
@@ -39,11 +39,15 @@ const OWN: Record<string, string> = {
   jobs: 'select 1 from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where j.id=$1 and b.tenant_id=$2',
   sourceSets: 'select 1 from source_sets where id=$1 and tenant_id=$2',
 };
-async function own(kind: keyof typeof OWN, id: number, me: Me) {
+async function own(kind: keyof typeof OWN, id: number, me: Me, o: { del?: boolean } = {}) {
   if (!id || !(await one(OWN[kind], [id, tid(me)]))) throw new Error('Not found');
+  // Over the plan limit means view only (deleting stays allowed so a workspace can get back under its limit).
+  if (!o.del && me.role !== 'webappdev' && (kind === 'walls' || kind === 'myWalls' || kind === 'broadcasters' || kind === 'productions' || kind === 'jobs')) {
+    const m = await lockMessage(kind === 'myWalls' ? 'walls' : kind, id); if (m) throw new Error(m);
+  }
 }
 // A finished Job (past its expiry) is in the Archive: view only.
-async function jobOpen(jobId: number) { return !!(await one('select 1 from jobs where id=$1 and (expires_at is null or expires_at >= current_date)', [jobId])); }
+async function jobOpen(jobId: number) { return !!(await one('select 1 from jobs where id=$1 and (expires_at is null or expires_at >= current_date)', [jobId])) && !(await lockMessage('jobs', jobId)); }
 async function canAccessJob(me: Me, jobId: number) {
   if (await one('select 1 from job_users ju join jobs j on j.id=ju.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where ju.job_id=$1 and ju.user_id=$2 and b.tenant_id=$3', [jobId, me.id, tid(me)])) return true;
   return canManage(me) && !!(await one(OWN.jobs, [jobId, tid(me)]));
@@ -882,12 +886,12 @@ async function updateJob_(f: FormData) {
 // Deleting removes everything underneath (Productions, Jobs, their Monitor Plans and guest links). Admin only.
 async function deleteProduction_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
-  const id = Number(s(f,'id')); await own('productions', id, me);
+  const id = Number(s(f,'id')); await own('productions', id, me, { del: true });
   await rows('delete from productions where id=$1', [id]); revalidatePath('/productions'); revalidatePath('/plans');
 }
 async function deleteBroadcaster_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
-  const id = Number(s(f,'id')); await own('broadcasters', id, me);
+  const id = Number(s(f,'id')); await own('broadcasters', id, me, { del: true });
   await rows('delete from broadcasters where id=$1', [id]); revalidatePath('/productions'); revalidatePath('/walls'); revalidatePath('/tenant');
 }
 // A Wall Template sits in a Room (Sites page); a Job is then given the specific walls it will plan.
@@ -939,7 +943,7 @@ async function unassignWall_(f: FormData) {
 }
 async function deleteJob_(f: FormData) {
   const me = await requireMe(); if (!isAdmin(me)) throw new Error('Only Admin can delete');
-  const id = Number(s(f, 'id')); await own('jobs', id, me);
+  const id = Number(s(f, 'id')); await own('jobs', id, me, { del: true });
   await rows('delete from jobs where id=$1', [id]); revalidatePath('/archive'); revalidatePath('/productions'); revalidatePath('/plans');
 }
 

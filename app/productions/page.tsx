@@ -9,7 +9,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Menu from '../Menu';
 import DefPick from './DefPick';
-import { getLimits, limitText } from '@/lib/subscriptions';
+import { getLimits, limitText, overLimits } from '@/lib/subscriptions';
 import TreeControls from '../hardware/TreeControls';
 import { addBroadcaster, addProduction, addJob, assignWall, setWallDef, unassignWall, assignWalls, unassignWalls, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob, copyJobToNew } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
@@ -30,7 +30,8 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   const [bs, ps, js, rw, sets, allWalls, tree] = await Promise.all([bs_p, ps_p, js_p, rw_p, sets_p, allWalls_p, tree_p]); // run the page's queries together instead of one after another
   const adm = isAdmin(me); const d = (x: any) => x ? new Date(x).toISOString().slice(0, 10) : '';
   const Del = ({ action, id, what }: { action: any; id: number; what: string }) => adm ? (<form action={action} className="del-row"><input type="hidden" name="id" value={id} /><span className="mut">Delete this {what} and everything inside it? This cannot be undone.</span><button className="del">Yes, delete</button></form>) : null;
-  const note = <p className="mut">{me.role === 'webappdev' ? 'No limits on this account.' : <>{plan.name} plan: {limitText(lim.b)} Broadcaster{lim.b === 1 ? '' : 's'}, {limitText(lim.p)} Productions each, {limitText(lim.j)} active Jobs each. <Link href="/account">See your plan</Link></>} Jobs are archived when they expire.</p>;
+  const over = me.role !== 'webappdev' && await overLimits(t);
+  const note = <p className="mut">{over && <b style={{ display: 'block', color: 'var(--bad)' }}>Some of your work is over your plan&apos;s limits, so it is view only. The oldest items up to each limit stay editable, and you can still delete to get back under. Nothing is lost.<br /></b>}{me.role === 'webappdev' ? 'No limits on this account.' : <>{plan.name} plan: {limitText(lim.b)} Broadcaster{lim.b === 1 ? '' : 's'}, {limitText(lim.p)} Productions each, {limitText(lim.j)} active Jobs each. <Link href="/account">See your plan</Link></>} Jobs are archived when they expire.</p>;
   const Bar = ({ back }: { back: string }) => (<div className="crumbs"><Link href={back} className="btn sec small">← Back</Link><Link href="/productions" className="btn sec small">Productions home</Link></div>);
   const jobId = Number(q.j) || 0, prodId = Number(q.p) || 0, bcId = Number(q.b) || 0;
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;

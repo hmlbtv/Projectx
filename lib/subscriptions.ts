@@ -15,6 +15,7 @@ export const LIMIT_DEFS = [
   { key: 'productions', label: 'Productions', per: 'per Broadcaster', def: 3 },
   { key: 'jobs_per_production', label: 'Jobs', per: 'per Production', def: 4 },
   { key: 'wall_defaults', label: 'Default configurations', per: 'per Wall Template', def: 5 },
+  { key: 'guest_invites', label: 'Guest invitations', per: 'per Job', def: 3 },
 ] as const;
 export type LimitKey = typeof LIMIT_DEFS[number]['key'];
 export type Limits = Record<LimitKey, number>;
@@ -51,6 +52,32 @@ export async function limitCheck(tid: number, key: LimitKey, count: number): Pro
   const d = LIMIT_DEFS.find(x => x.key === key)!;
   const over = g.plan === DEMO && g.status === 'expired' ? ' Your subscription has ended, so your workspace is back on the Demo plan and everything you made is kept.' : '';
   return `Your ${g.name} plan allows ${limitText(max)} ${d.label} ${d.per}${count > max ? ` (you have ${count})` : ''}.${over} Contact us to upgrade.`;
+}
+
+// ---- View only: when a workspace has more than its plan allows (for example after dropping back to Demo), the oldest items up to the limit stay editable
+// and the rest are view only. Nothing is deleted; deleting is always allowed, which is how a workspace gets back under its limit. Upgrading unlocks everything.
+type LockKind = 'walls' | 'broadcasters' | 'productions' | 'jobs';
+export async function lockMessage(kind: LockKind, id: number): Promise<string | null> {
+  const q = (sql: string) => one<any>(sql, [id]);
+  let tid: number | null = null, rank = 0, key: LimitKey = 'wall_templates', label = 'Wall Template', parent: string | null = null;
+  if (kind === 'walls') { const r = await q('select tenant_id t, (select count(*)::int from wall_templates o where o.tenant_id=w.tenant_id and o.id<w.id) k from wall_templates w where id=$1'); if (!r) return null; tid = r.t; rank = r.k; }
+  else if (kind === 'broadcasters') { const r = await q('select tenant_id t, (select count(*)::int from broadcasters o where o.tenant_id=b.tenant_id and o.id<b.id) k from broadcasters b where id=$1'); if (!r) return null; tid = r.t; rank = r.k; key = 'broadcasters'; label = 'Broadcaster'; }
+  else if (kind === 'productions') { const r = await q('select b.tenant_id t, p.broadcaster_id bid, (select count(*)::int from productions o where o.broadcaster_id=p.broadcaster_id and o.id<p.id) k from productions p join broadcasters b on b.id=p.broadcaster_id where p.id=$1'); if (!r) return null; tid = r.t; rank = r.k; key = 'productions'; label = 'Production'; parent = await lockMessage('broadcasters', r.bid); }
+  else { const r = await q('select b.tenant_id t, j.production_id pid, (j.expires_at is null or j.expires_at >= current_date) act, (select count(*)::int from jobs o where o.production_id=j.production_id and o.id<j.id and (o.expires_at is null or o.expires_at >= current_date)) k from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where j.id=$1'); if (!r) return null; tid = r.t; rank = r.act ? r.k : 0; key = 'jobs_per_production'; label = 'Job'; if (r.act) parent = await lockMessage('productions', r.pid); }
+  const why = (n: string, plan: string) => `This ${n} is over what your ${plan} plan allows, so it is view only. You can still delete things to get back under the limit. Contact us to upgrade.`;
+  if (tid == null) return null;
+  const g = await getLimits(tid); if (g.plan === 'owner') return null;
+  if (rank >= g.limits[key]) return why(label, g.name);
+  return parent ? why(label, g.name) : null;
+}
+
+// True when the workspace holds more than its plan allows, so some of it is view only (used for the notice on the pages).
+export async function overLimits(tid: number): Promise<boolean> {
+  const L = (await getLimits(tid)).limits;
+  const r = await one<any>(`select (select count(*)::int from wall_templates where tenant_id=$1) w, (select count(*)::int from broadcasters where tenant_id=$1) b,
+    (select coalesce(max(c),0)::int from (select count(*) c from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 group by p.broadcaster_id) x) p,
+    (select coalesce(max(c),0)::int from (select count(*) c from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 and (j.expires_at is null or j.expires_at >= current_date) group by j.production_id) x) j`, [tid]);
+  return r.w > L.wall_templates || r.b > L.broadcasters || r.p > L.productions || r.j > L.jobs_per_production;
 }
 
 export async function logEvent(tid: number | null, kind: string, o: { from?: string | null; to?: string | null; amount?: number | null; detail?: string; by?: number | null } = {}) {
