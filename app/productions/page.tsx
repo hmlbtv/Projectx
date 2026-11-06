@@ -1,3 +1,4 @@
+import KeepDetails from '../KeepDetails';
 import Calendar from './Calendar';
 import ImportJobs from './ImportJobs';
 import JobDates from './JobDates';
@@ -43,6 +44,9 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   if (jobId) {
     const j = js.find((x: any) => x.id === jobId); if (!j) redirect('/productions');
     const p = ps.find((x: any) => x.id === j.production_id)!; const b = bs.find((x: any) => x.id === p.broadcaster_id)!;
+    const shUsers = await rows('select u.id, u.name, u.email, coalesce(m.role, u.role) role from job_users ju join users u on u.id=ju.user_id left join memberships m on m.user_id=u.id and m.tenant_id=$2 and m.accepted where ju.job_id=$1 order by u.name', [j.id, t]);
+    const shRaw = await rows('select lower(wl.email) email, wl.access, r.name || \' / \' || rw.name wall from wall_links wl join room_walls rw on rw.id=wl.room_wall_id join rooms r on r.id=rw.room_id where wl.job_id=$1 and not wl.revoked order by wl.email, r.name, rw.name', [j.id]);
+    const shGuests = [...new Set(shRaw.map((x: any) => x.email as string))].map(e => { const mine = shRaw.filter((x: any) => x.email === e); return { email: e, access: mine.some((x: any) => x.access === 'edit') ? 'edit' : 'view', walls: mine.map((x: any) => x.wall as string) }; });
     const jobPlans = await rows('select room_wall_id, data from job_wall_plans where job_id=$1', [j.id]);
     const inUse = (id: number) => rw.some((x: any) => x.job_id === j.id && x.id === id);
     // Add or remove every wall under a Site, Location or Room in one click.
@@ -57,7 +61,8 @@ export default async function Productions({ searchParams }: { searchParams: Prom
           <select name="sourceSet" defaultValue={j.source_set_id ?? ''}><option value="">Source Set…</option>{sets.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}</select><button className="sec">Save</button></form>
           <Del action={deleteJob} id={j.id} what="Job" /></Menu></div>
       <div className="card">
-      <div>Wall Templates: {rw.filter((x: any) => x.job_id === j.id).length === 0 && <span className="mut">none assigned yet</span>}{rw.filter((x: any) => x.job_id === j.id).map((x: any) => <form key={x.id} action={unassignWall} style={{ display: 'inline' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="wall" value={x.id} /><span className="tag">{x.rname} / {x.wname} <button title="Remove from Job" style={{ background: 'none', color: 'inherit', padding: 0 }}>×</button></span></form>)}</div>
+      <KeepDetails id={`job${j.id}-walls`} defaultOpen summary={<b>Wall Templates <span className="tag">{rw.filter((x: any) => x.job_id === j.id).length} in use</span></b>}>
+      <div style={{ marginTop: 8 }}>Wall Templates: {rw.filter((x: any) => x.job_id === j.id).length === 0 && <span className="mut">none assigned yet</span>}{rw.filter((x: any) => x.job_id === j.id).map((x: any) => <form key={x.id} action={unassignWall} style={{ display: 'inline' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="wall" value={x.id} /><span className="tag">{x.rname} / {x.wname} <button title="Remove from Job" style={{ background: 'none', color: 'inherit', padding: 0 }}>×</button></span></form>)}</div>
       <div style={{ margin: '8px 0' }}><b>Choose Wall Templates</b> <span className="mut">(open a Site, Location and Room, then add the walls this Job uses)</span>{tree.length > 0 && <div style={{ margin: '8px 0 0' }}><TreeControls target="#jobtree" store="teleplanner.jobtree" /></div>}<div id="jobtree">
         {tree.length === 0 && <p className="mut">Add Rooms and Wall Templates on the Sites page first.</p>}
         {[...new Set(tree.map((x: any) => x.sid))].map((sid: any) => { const sr = tree.filter((x: any) => x.sid === sid); const inUseS = sr.filter((r: any) => rw.some((x: any) => x.job_id === j.id && allWalls.find((w: any) => w.id === x.id && w.room === r.room && w.loc === r.loc && w.site === r.site))).length;
@@ -77,7 +82,11 @@ export default async function Productions({ searchParams }: { searchParams: Prom
                           <button className={on ? 'del' : 'sec'} style={{ minHeight: 0, padding: '2px 10px' }}>{on ? 'Remove' : 'Use in this Job'}</button></form>
                         {on && (defs.length > 0 ? <div style={{ marginTop: 6 }}><DefPick action={setWallDef} job={j.id} wall={w.id} value={cur} options={defs.map((x: any) => ({ id: x.id, name: x.name, active: x.active }))} locked={locked} /></div> : <div className="mut" style={{ marginTop: 4, fontSize: 13 }}>This Wall Template has no default configurations.</div>)}
                       </div>); })}</details>); })}</details>); })}</details>); })}</div></div>
-      </div></>);
+      </KeepDetails></div>
+      <div className="card"><b>Shared with</b> <span className="tag">{shUsers.length + shGuests.length}</span>
+        {shUsers.length + shGuests.length === 0 ? <p className="mut" style={{ margin: '6px 0 0' }}>Not shared with anyone yet. Invite people from this Job&apos;s Monitor Plans.</p> : <div className="tablewrap"><table><thead><tr><th>Person</th><th>How</th><th>Access</th><th>Walls</th></tr></thead><tbody>
+          {shUsers.map((u: any) => <tr key={'u' + u.id}><td>{u.name} <span className="mut">{u.email}</span></td><td>Team member ({u.role === 'master_admin' ? 'Master Admin' : u.role === 'admin' ? 'Admin' : u.role === 'manager' ? 'Manager' : 'User'})</td><td>Can edit</td><td>All walls in this Job</td></tr>)}
+          {shGuests.map((g: any) => <tr key={'g' + g.email}><td>{g.email}</td><td>Guest invitation</td><td>{g.access === 'edit' ? 'Can edit' : 'View only'}</td><td>{g.walls.join(', ')}</td></tr>)}</tbody></table></div>}</div></>);
   }
 
   // ---- Jobs of a Production ----
