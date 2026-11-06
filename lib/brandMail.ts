@@ -18,7 +18,7 @@ export function renderBrandedHtml(b: Brand): string {
 <tr><td style="background:#ffffff;border-bottom:3px solid #e5352b;padding:16px 22px;border-radius:12px 12px 0 0">
  <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="padding-right:12px">${markHtml}</td>
  <td style="color:#0f1217;font-size:24px;letter-spacing:-0.02em;line-height:1"><b>Tele</b>Planner</td></tr></table>
- <div style="color:#5f6978;font-size:11px;letter-spacing:.08em;margin-top:6px">TelePlanner.tv · Monitor plans for live production</div></td></tr>
+ <div style="color:#5f6978;font-size:11px;letter-spacing:.08em;margin-top:6px">TelePlanner.tv · Monitor Plans for live production</div></td></tr>
 <tr><td style="background:#fff;padding:26px 22px;border-radius:0 0 12px 12px">
  <p style="margin:0 0 10px;font-size:20px;font-weight:700;color:#111">${b.heading}</p>
  ${(b.lines ?? []).map(l => `<p style="margin:0 0 10px;font-size:15px;color:#444;line-height:1.5">${l}</p>`).join('')}

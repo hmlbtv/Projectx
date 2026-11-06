@@ -269,7 +269,7 @@ async function bootstrap(db: Client) {
 
 async function seedPresets(db: Client) {
   const q = async (s: string, p: any[] = []) => (await db.query(s, p)).rows as any[];
-  // Preset MV layouts (WebAppDev, tenant_id null), 16:9 frame = 1920x1080
+  // Preset MV Layouts (WebAppDev, tenant_id null), 16:9 frame = 1920x1080
   const presets: [string, any][] = [['1-way',grid(1,1)],['2-way',grid(2,1)],['4-way (2x2)',grid(2,2)],['6-way (3x2)',grid(3,2)],['9-way (3x3)',grid(3,3)],['16-way (4x4)',grid(4,4)],['1 + 5',oneAndFive()]];
   for (const [n,tiles] of presets) await q('insert into mv_layouts(tenant_id,name,tiles) values(null,$1,$2)',[n,JSON.stringify(tiles)]);
 }

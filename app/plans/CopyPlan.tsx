@@ -31,6 +31,6 @@ export default function CopyPlan({ job, wall, plans, action }: { job: number; wa
         {res?.findings?.length > 0 && <ul style={{ margin: '6px 0', paddingLeft: 18 }}>{res.findings.map((x: any, i: number) => <li key={i} style={{ color: x.level === 'warn' ? '#b45309' : undefined }}><b>{x.wall}:</b> {x.text}</li>)}</ul>}
         {res && !res.error && warns.length === 0 && <p>This plan fits with no differences.</p>}
         {res && !res.error && warns.length > 0 && <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="checkbox" checked={ok} onChange={e => setOk(e.target.checked)} /> I have reviewed these differences</label>}
-        {res && !res.error && <form action={action} style={{ marginTop: 8 }}><input type="hidden" name="job" value={job} /><input type="hidden" name="wall" value={wall} /><input type="hidden" name="plan" value={pick.id} /><input type="hidden" name="confirm" value={ok ? '1' : ''} /><button disabled={busy || (warns.length > 0 && !ok)}>Paste into this monitor plan</button></form>}</div>}
+        {res && !res.error && <form action={action} style={{ marginTop: 8 }}><input type="hidden" name="job" value={job} /><input type="hidden" name="wall" value={wall} /><input type="hidden" name="plan" value={pick.id} /><input type="hidden" name="confirm" value={ok ? '1' : ''} /><button disabled={busy || (warns.length > 0 && !ok)}>Paste into this Monitor Plan</button></form>}</div>}
     </dialog></div>);
 }

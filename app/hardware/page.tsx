@@ -39,7 +39,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
       <AddDialog action={addHwUnit} inline label="Add Hardware" title="New hardware unit" placeholder="Name (e.g. MV Frame 1)">
         <input name="model" placeholder="Make / model (optional)" /><Where /><RackFields />
         <label>Inputs <input name="inputs" type="number" min={1} max={1024} defaultValue={48} /></label><label>Outputs <input name="outputs" type="number" min={1} max={256} defaultValue={4} /></label></AddDialog></div>
-      <p className="mut">Multiviewer hardware defines the monitors' MV layouts. Give each unit its inputs and outputs, put it in a Site, Location or Room (any monitor in that Site can use it), then assign each output to a monitor. <Link href="/hardware/usage">Usage report</Link></p>
+      <p className="mut">Multiviewer hardware defines the monitors' MV Layouts. Give each unit its inputs and outputs, put it in a Site, Location or Room (any monitor in that Site can use it), then assign each output to a monitor. <Link href="/hardware/usage">Usage report</Link></p>
       {units.length === 0 && <p className="mut">No hardware yet.</p>}
       {units.length > 0 && <div style={{ margin: '8px 0 0' }}><TreeControls target="#hwtree" store="teleplanner.hw" views /></div>}
       <div id="hwtree">{(() => {
@@ -83,7 +83,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
         <form action={autoHwDests} className="row"><input type="hidden" name="unit" value={u.id} /><label>Auto-assign from <input name="start" type="number" min={1} defaultValue={1} style={{ width: 80 }} /></label><button className="sec small">Auto-assign all monitors</button></form>
         <form action={clearHwDests}><input type="hidden" name="unit" value={u.id} /><button className="sec small">Clear all destinations</button></form>
         <CopyHardware key={u.id} u={{ id: u.id, name: u.name, model: u.model, inputs: u.inputs, outputs: u.outputs, where: u.room_id ? 'r:' + u.room_id : u.location_id ? 'l:' + u.location_id : 's:' + u.site_id, dest_names: u.dest_names ?? {}, dest_hw: u.dest_hw ?? {}, out_names: u.out_names ?? {}, out_hw: u.out_hw ?? {} }} where={whereOpts} /></div>
-      <p className="mut" style={{ fontSize: '.85rem', margin: '6px 0 0' }}>Auto-assign stacks the monitors in output order. Each monitor takes as many destinations as its biggest MV layout, and all of its layouts start at its first one (a full-screen layout sits on the first destination).</p></div>
+      <p className="mut" style={{ fontSize: '.85rem', margin: '6px 0 0' }}>Auto-assign stacks the monitors in output order. Each monitor takes as many destinations as its biggest MV Layout, and all of its layouts start at its first one (a full-screen layout sits on the first destination).</p></div>
     <h2 style={{ margin: '18px 0 6px' }}>Destination and output names</h2>
     <div className="card"><div className="row" style={{ justifyContent: 'space-between' }}><span className="mut">Friendly names are what people see in Monitor Plans. The hardware name is the unit's own name for it. Names belong to this unit only.</span><ImportNames id={u.id} /></div>
       <details key={u.id} style={{ marginTop: 8 }}><summary>Edit names here</summary>
@@ -120,7 +120,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
           <button className="sec small">Save</button></form></div>
         {o && !m && <p className="mut" style={{ margin: '6px 0 0' }}>The assigned monitor no longer exists on its wall.</p>}
         {o && m && w && (<div style={{ marginTop: 8 }}><div className="mut" style={{ fontSize: '.85rem' }}>{w.location} › {w.room} › {w.name} › {m.name}</div>
-          {m.mvs.length === 0 ? <p className="mut" style={{ margin: '4px 0' }}>This monitor has no MV layouts chosen in its Wall Template.</p> : (<><details style={{ marginTop: 6 }}><summary><b>MV layouts</b> <span className="mut">({m.mvs.filter(l => layouts.has(l)).length}) · set destinations</span></summary>
+          {m.mvs.length === 0 ? <p className="mut" style={{ margin: '4px 0' }}>This monitor has no MV Layouts chosen in its Wall Template.</p> : (<><details style={{ marginTop: 6 }}><summary><b>MV Layouts</b> <span className="mut">({m.mvs.filter(l => layouts.has(l)).length}) · set destinations</span></summary>
             <div style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: 'minmax(0,1fr)' }}>{m.mvs.filter(l => layouts.has(l)).map(l => { const lay = layouts.get(l)!; const d = dests.find(x => x.room_wall_id === w.id && x.monitor_id === m.id && x.layout_id === l) as Dest | undefined;
               const nums = d ? destNums(d, lay.n) : Array.from({ length: lay.n }, () => null as number | null); const others = new Set<number>(); taken(u.id, outs, dests, layouts, { rw: w.id, mon: m.id }).forEach(r => r.nums.forEach(v => others.add(v)));
               return (<div key={l}><form action={setHwDest} className="row" style={{ margin: 0 }}><input type="hidden" name="unit" value={u.id} /><input type="hidden" name="rw" value={w.id} /><input type="hidden" name="mon" value={m.id} /><input type="hidden" name="layout" value={l} />

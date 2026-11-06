@@ -19,7 +19,7 @@ function Filter({ col, all, picked, onPick, onSort, sort, close }: { col: Col; a
     <button type="button" className={sort === 'asc' ? '' : 'sec'} style={{ minHeight: 0, padding: '4px 10px' }} onClick={() => onSort(sort === 'asc' ? null : 'asc')}>Sort A to Z</button>
     <button type="button" className={sort === 'desc' ? '' : 'sec'} style={{ minHeight: 0, padding: '4px 10px' }} onClick={() => onSort(sort === 'desc' ? null : 'desc')}>Sort Z to A</button>
     <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search values" aria-label="Search values" autoFocus />
-    <div className="row" style={{ gap: 6 }}><button type="button" className="sec small" onClick={() => onPick(null)}>Select all</button><button type="button" className="sec small" onClick={() => onPick(new Set())}>Clear</button></div>
+    <div className="row" style={{ gap: 6 }}><button type="button" className="sec small" onClick={() => onPick(null)}>Select all</button><button type="button" className="sec small" onClick={() => onPick(new Set())}>Deselect all</button></div>
     <div style={{ maxHeight: 220, overflow: 'auto', display: 'grid', gap: 2 }}>
       {shown.map(v => (<label key={v || BLANK} style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'flex-start', fontWeight: 400, padding: '1px 0' }}><input type="checkbox" checked={on(v)} onChange={() => toggle(v)} />{v || BLANK}</label>))}
       {shown.length === 0 && <span className="mut">No values match.</span>}</div></div>);

@@ -23,7 +23,7 @@ export default async function Audit({ searchParams }: { searchParams: Promise<{ 
       <select name="who" defaultValue={s.who ?? ''} aria-label="Person"><option value="">Everyone</option>{people.map((x: any) => <option key={x.who}>{x.who}</option>)}</select>
       <label className="mut" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6 }}>From<input type="date" name="from" defaultValue={s.from} /></label>
       <label className="mut" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6 }}>To<input type="date" name="to" defaultValue={s.to} /></label>
-      <button className="sec small">Filter</button>{(s.q || s.who || s.from || s.to) && <Link href="/audit" className="btn small">Clear</Link>}</form>
+      <button className="sec small">Filter</button>{(s.q || s.who || s.from || s.to) && <Link href="/audit" className="btn small">Clear filters</Link>}</form>
     {list.length === 0 ? <p className="mut">Nothing recorded{s.q || s.who || s.from || s.to ? ' for those filters' : ' yet'}. Changes made from now on appear here.</p> :
       <div className="card" style={{ overflowX: 'auto' }}><table className="lay-list"><thead><tr><th>When (UTC)</th><th>Person</th><th>Action</th><th>Details</th></tr></thead><tbody>
         {list.map((r: any) => <tr key={r.id}><td style={{ whiteSpace: 'nowrap' }}>{new Date(r.at).toISOString().replace('T', ' ').slice(0, 19)}</td><td>{r.who}</td><td>{actionLabel(r.action)}</td><td className="mut" style={{ overflowWrap: 'anywhere' }}>{r.detail}</td></tr>)}</tbody></table></div>}

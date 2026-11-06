@@ -7,26 +7,26 @@ export function checkCopy(o: { src: any; srcAssets: Asset[]; tgtAssets: Asset[];
   const tgt = new Map(o.tgtAssets.map(a => [a.id, a])), nm = (a?: Asset, id?: string) => a?.name || id || 'monitor';
   const out: any = { assign: {}, mons: {}, srcs: {} };
   // Wall level layout (older plans) must still exist.
-  if (src.layoutId) { if (lay.has(src.layoutId)) { out.layoutId = src.layoutId; for (const [n, v] of Object.entries(src.assign ?? {})) if (lay.get(src.layoutId)!.tiles.some(t => String(t.n) === n)) out.assign[n] = v; else f.push({ level: 'warn', text: `Tile ${n} no longer exists in MV layout "${lay.get(src.layoutId)!.name}": its source was not copied.` }); }
-    else f.push({ level: 'warn', text: 'The MV layout used on the old plan is no longer available: it was not copied.' }); }
+  if (src.layoutId) { if (lay.has(src.layoutId)) { out.layoutId = src.layoutId; for (const [n, v] of Object.entries(src.assign ?? {})) if (lay.get(src.layoutId)!.tiles.some(t => String(t.n) === n)) out.assign[n] = v; else f.push({ level: 'warn', text: `Tile ${n} no longer exists in MV Layout "${lay.get(src.layoutId)!.name}": its source was not copied.` }); }
+    else f.push({ level: 'warn', text: 'The MV Layout used on the old plan is no longer available: it was not copied.' }); }
   const used = new Set<string>([...Object.keys(src.mons ?? {}), ...Object.keys(src.srcs ?? {})]); let copied = 0;
   const srcA = new Map(o.srcAssets.map(a => [a.id, a]));
   for (const aid of used) {
     const t = tgt.get(aid), s = srcA.get(aid);
-    if (!t) { f.push({ level: 'warn', text: `${nm(s, aid)} is not on this wall: its MV layout and sources were skipped.` }); continue; }
+    if (!t) { f.push({ level: 'warn', text: `${nm(s, aid)} is not on this wall: its MV Layout and sources were skipped.` }); continue; }
     const allowed: number[] = Array.isArray(t.props?.mvs) ? t.props!.mvs! : [];
     const want = (src.mons ?? {})[aid] as number | undefined;
     let chosen = want;
     if (want != null) {
-      if (!lay.has(want)) { f.push({ level: 'warn', text: `${nm(t)}: the MV layout it used is no longer available, so it was left on this wall's default.` }); chosen = undefined; }
-      else if (!allowed.includes(want)) { f.push({ level: 'warn', text: `${nm(t)}: MV layout "${lay.get(want)!.name}" is not one of the MV layouts allowed for this monitor here, so it was left on this wall's default.` }); chosen = undefined; }
+      if (!lay.has(want)) { f.push({ level: 'warn', text: `${nm(t)}: the MV Layout it used is no longer available, so it was left on this wall's default.` }); chosen = undefined; }
+      else if (!allowed.includes(want)) { f.push({ level: 'warn', text: `${nm(t)}: MV Layout "${lay.get(want)!.name}" is not one of the MV Layouts allowed for this monitor here, so it was left on this wall's default.` }); chosen = undefined; }
       else { out.mons[aid] = want; copied++; }
     }
     const lid = chosen ?? allowed[0], L = lid != null ? lay.get(lid) : undefined, sr = (src.srcs ?? {})[aid] as Record<string, string> | undefined;
     if (sr && Object.keys(sr).length) {
-      if (chosen == null && want != null) { f.push({ level: 'warn', text: `${nm(t)}: its tile sources were skipped because the MV layout changed.` }); continue; }
+      if (chosen == null && want != null) { f.push({ level: 'warn', text: `${nm(t)}: its tile sources were skipped because the MV Layout changed.` }); continue; }
       const keep: Record<string, string> = {};
-      for (const [n, v] of Object.entries(sr)) { if (L && L.tiles.some(x => String(x.n) === n)) keep[n] = v; else f.push({ level: 'warn', text: `${nm(t)}: tile ${n} does not exist in the MV layout "${L?.name ?? ''}" any more: its source "${v}" was skipped.` }); }
+      for (const [n, v] of Object.entries(sr)) { if (L && L.tiles.some(x => String(x.n) === n)) keep[n] = v; else f.push({ level: 'warn', text: `${nm(t)}: tile ${n} does not exist in the MV Layout "${L?.name ?? ''}" any more: its source "${v}" was skipped.` }); }
       if (Object.keys(keep).length) { out.srcs[aid] = keep; copied += Object.keys(keep).length; }
     }
   }

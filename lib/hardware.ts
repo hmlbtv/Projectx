@@ -1,7 +1,7 @@
 import { rows } from './db';
 
 // Hardware: MV units with a number of inputs and outputs. Each output drives one monitor of a Wall Template in a particular Room (a "room wall").
-// A monitor shows one of its MV layouts; each layout on that monitor starts at a destination number on the unit and its tiles take the next numbers in turn.
+// A monitor shows one of its MV Layouts; each layout on that monitor starts at a destination number on the unit and its tiles take the next numbers in turn.
 export const isScreen = (t: string) => /^(mon|monitor|bvm|pvm)/.test(String(t ?? ''));
 export type Mon = { id: string; name: string; mvs: number[] };
 export const monitorsOf = (data: any): Mon[] => (Array.isArray(data?.assets) ? data.assets : []).filter((a: any) => isScreen(a.type) && a.id != null)

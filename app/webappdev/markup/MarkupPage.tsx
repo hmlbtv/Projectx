@@ -34,7 +34,7 @@ export default async function MarkupPage({ searchParams }: { searchParams: Promi
     <label>Page contains<input name="pg" defaultValue={pg ?? ''} placeholder="/walls" /></label>
     <label>Text contains<input name="q" defaultValue={q ?? ''} placeholder="note or item" /></label>
     <label>From<input type="date" name="from" defaultValue={from ?? ''} /></label><label>To<input type="date" name="to" defaultValue={to ?? ''} /></label>
-    <span className="row" style={{ gap: 6 }}><button className="small">Filter</button>{filtering && <Link className="btn small sec" href={`/webappdev/markup?tab=${tab}`}>Clear</Link>}</span></form>);
+    <span className="row" style={{ gap: 6 }}><button className="small">Filter</button>{filtering && <Link className="btn small sec" href={`/webappdev/markup?tab=${tab}`}>Clear filters</Link>}</span></form>);
   const link = (n: any) => `${n.page}${n.page.includes('?') ? '&' : '?'}devnote=${n.id}`;
   const card = (n: any, archived = false) => (<div key={n.id} className="card" style={{ borderLeft: `6px solid ${COL[n.severity]}`, margin: '10px 0' }}>
     <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>

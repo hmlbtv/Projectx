@@ -69,7 +69,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
                         <form action={on ? unassignWall : assignWall} style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="wall" value={w.id} />
                           <span><b>{w.name}</b> {on && <span className="tag">in use</span>}</span>
                           <button className={on ? 'del' : 'sec'} style={{ minHeight: 0, padding: '2px 10px' }}>{on ? 'Remove' : 'Use in this Job'}</button></form>
-                        {on && (defs.length > 0 ? <div style={{ marginTop: 6 }}><DefPick action={setWallDef} job={j.id} wall={w.id} value={cur} options={defs.map((x: any) => ({ id: x.id, name: x.name, active: x.active }))} locked={locked} /></div> : <div className="mut" style={{ marginTop: 4, fontSize: 13 }}>This Wall Template has no default layouts.</div>)}
+                        {on && (defs.length > 0 ? <div style={{ marginTop: 6 }}><DefPick action={setWallDef} job={j.id} wall={w.id} value={cur} options={defs.map((x: any) => ({ id: x.id, name: x.name, active: x.active }))} locked={locked} /></div> : <div className="mut" style={{ marginTop: 4, fontSize: 13 }}>This Wall Template has no default configurations.</div>)}
                       </div>); })}</details>); })}</details>); })}</details>); })}</div>
       </div></>);
   }

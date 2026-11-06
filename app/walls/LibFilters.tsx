@@ -16,6 +16,6 @@ export default function LibFilters({ q, site, loc, room, f, sort, view, sites, l
     <select name="f" defaultValue={f} aria-label="Filter" onChange={go}><option value="all">All Wall Templates</option><option value="used">Assigned to a Room</option><option value="unused">Not assigned to a Room</option><option value="mv">With multiview templates assigned</option><option value="nomv">No multiview templates assigned</option></select>
     <select name="sort" defaultValue={sort} aria-label="Sort" onChange={go}><option value="name">Name A to Z</option><option value="namez">Name Z to A</option><option value="new">Newest first</option><option value="old">Oldest first</option><option value="most">Most monitors</option><option value="fewest">Fewest monitors</option><option value="rmost">Used in most Rooms</option><option value="rfewest">Used in fewest Rooms</option></select>
     <input type="hidden" name="view" value={view} /><button className="sec small">Apply</button>
-    {(q || s || l || r || f !== 'all') && <a className="btn sec small" href={`/walls?view=${view}`}>Clear</a>}
+    {(q || s || l || r || f !== 'all') && <a className="btn sec small" href={`/walls?view=${view}`}>Clear filters</a>}
     {children}</form>);
 }

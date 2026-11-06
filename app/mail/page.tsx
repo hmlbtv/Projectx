@@ -39,7 +39,7 @@ export default async function Mail({ searchParams }: { searchParams: Promise<SP>
         <label>Type<select name="cat" defaultValue={cat} style={{ width: '100%' }}><option value="">All</option><option value="marketing">Marketing</option><option value="important">Important update</option></select></label>
         <label>From<input type="date" name="from" defaultValue={from} style={{ width: '100%' }} /></label>
         <label>To<input type="date" name="to" defaultValue={to} style={{ width: '100%' }} /></label></div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="sec">Search</button>{filtered && <Link href="/mail">Clear</Link>}<span className="mut">{list.length} {list.length === 1 ? 'email' : 'emails'}{filtered ? ' match' : ''}</span></div></form>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="sec">Search</button>{filtered && <Link href="/mail">Clear search</Link>}<span className="mut">{list.length} {list.length === 1 ? 'email' : 'emails'}{filtered ? ' match' : ''}</span></div></form>
     {list.length === 0 && <p className="mut">{filtered ? 'No emails match.' : 'No emails yet.'}</p>}
     {list.map((m: any) => (<Link key={m.id} href={`/mail/${m.id}`} className="card" style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
       <b>{m.subject || '(no subject)'}</b> <span className="tag">{ST[m.status] ?? m.status}</span> <span className="tag">{m.category === 'important' ? 'Important update' : 'Marketing'}</span>

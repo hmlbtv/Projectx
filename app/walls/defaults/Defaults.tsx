@@ -23,7 +23,7 @@ export default function Defaults({ wall, layouts, initial, limit }: { wall: any;
   async function saveName(d: Def) { await saveWallDefault(wall.id, d.id, d.name, d.mons); }
   async function use(d: Def) { setList(list.map(x => ({ ...x, active: x.id === d.id }))); await setActiveWallDefault(wall.id, d.id); }
   async function del(d: Def) { await deleteWallDefault(wall.id, d.id); const rest = list.filter(x => x.id !== d.id); if (rest.length && !rest.some(x => x.active)) rest[0].active = true; setList(rest); router.refresh(); }
-  if (monitors === 0) return <div className="card mut">This Wall Template has no monitors with MV layouts to choose from yet. Add multiview templates to its monitors in the Wall Designer first.</div>;
+  if (monitors === 0) return <div className="card mut">This Wall Template has no monitors with MV Layouts to choose from yet. Add multiview templates to its monitors in the Wall Designer first.</div>;
   return (<div>
     {edit && cur && <WallPlan key={cur.id} wl={wall} layouts={layouts} cur={{ assign: {}, mons: cur.mons }} setMon={setMon} readOnly={false} autoFull onExit={() => { setEdit(null); router.refresh(); }} />}
     {list.length === 0 && <div className="card mut">No default configurations yet.</div>}
@@ -31,7 +31,7 @@ export default function Defaults({ wall, layouts, initial, limit }: { wall: any;
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         <input value={d.name} onChange={e => rename(d, e.target.value)} onBlur={() => saveName(d)} aria-label="Name" style={{ maxWidth: 260 }} />
         {d.active ? <span className="tag">Used for new plans</span> : <button className="sec small" onClick={() => use(d)}>Use for new plans</button>}
-        <button className="small" onClick={() => setEdit(d.id)}>Choose MV layouts (full screen)</button>
+        <button className="small" onClick={() => setEdit(d.id)}>Choose MV Layouts (full screen)</button>
         <button className="del small" title={`Delete “${d.name}”?`} onClick={() => del(d)}>Delete</button></div>
       <span className="mut">{Object.keys(d.mons).length} of {monitors} monitor{monitors === 1 ? '' : 's'} set</span></div>))}
     {list.length < limit ? <button className="sec" onClick={add}>+ New default configuration</button> : <p className="mut">You have all {limit} default configurations. Delete one to add another, or ask the site admin to raise the number.</p>}

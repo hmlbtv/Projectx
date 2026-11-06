@@ -211,7 +211,7 @@ main>div[style*="space-between"]+p{margin-top:10px}
 .dz-tools .dz-tgl{align-self:stretch;width:1px;margin:2px 6px;background:var(--line)}.dz-tools .dz-tgl:first-child{display:none}
 @media(max-width:700px){.dz-tools .dz-tg button{width:40px;min-height:44px}.dz-tools .dz-tgl{display:none}.dz-tools{gap:6px}}
 
-/* Tile stamps for MV layouts */
+/* Tile stamps for MV Layouts */
 .dz-stamps{margin:6px 0 2px}.dz-stk{font-style:normal;text-transform:none;letter-spacing:0;color:var(--acc);font-weight:600}
 .dz-stg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:6px 0 8px}
 .dz-stamp{display:flex;flex-direction:column;align-items:stretch;gap:4px;padding:5px;min-height:0;text-align:left;border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:10px;cursor:pointer;font-size:.72rem;font-weight:600}

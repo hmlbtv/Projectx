@@ -1,6 +1,6 @@
 import { rows } from './db';
 
-// A Wall Template as the Monitor Plan needs it: its assets, and for each monitor and MV layout the names of the hardware destinations its windows take
+// A Wall Template as the Monitor Plan needs it: its assets, and for each monitor and MV Layout the names of the hardware destinations its windows take
 // (window 1 is the layout's start destination on the monitor's hardware unit, window 2 the next, and so on).
 export async function planWalls(list: { id: number; name: string; data: any; defaults?: any }[], tenant: number, hardware = true) {
   const assetsOf = (d: any): any[] => (Array.isArray(d?.assets) ? d.assets : []);

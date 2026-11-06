@@ -57,10 +57,10 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
   ];
   const lim = await sessionLimits();
   return (<><h1>Site admin · Tenants</h1>
-    <details className="card acc" open={imported !== undefined}><summary><b>Kaleido layouts</b> <span className="mut">add the MV layouts converted from the Kaleido database</span></summary>
+    <details className="card acc" open={imported !== undefined}><summary><b>Kaleido layouts</b> <span className="mut">add the MV Layouts converted from the Kaleido database</span></summary>
       {imported !== undefined && <p><b>{imported}</b> new Standard layout{imported === '1' ? '' : 's'} added{of ? ` (${of} in the file${Number(imported) < Number(of) ? ', the rest were already there' : ''})` : ''}.</p>}
       <form action={importKaleidoLayouts} className="stack"><p className="mut">47 layouts from the KMX database: even grids, one-big-plus-small, and with-timecode variants. Each monitor is placed and sized as in Kaleido and numbered left to right, top to bottom. Clock-only layouts are left out, and clocks inside layouts are not added as monitors. Safe to press again; layouts already added are skipped.</p><button className="sec">Add Kaleido layouts</button></form></details>
-    <details className="card acc" open={tidied !== undefined}><summary><b>Tidy Standard layouts</b> <span className="mut">neat 16:9 versions of the Standard MV layouts</span></summary>
+    <details className="card acc" open={tidied !== undefined}><summary><b>Tidy Standard layouts</b> <span className="mut">neat 16:9 versions of the Standard MV Layouts</span></summary>
       {tidied !== undefined && <p><b>{tidied}</b> layout{tidied === '1' ? '' : 's'} updated.</p>}
       <form action={tidyStandardLayouts} className="stack"><p className="mut">Replaces the shapes of the Standard layouts (the built-in grids, 1 + 5 and the Kaleido ones) so every window is exactly 16:9, small windows around a big one are the same size, edges line up and the layout is centred. Tiles already on a window stay with it. Six layouts with unusual shapes (9-WAY-PGM-PRV, the 9-WAY-SMALL ones and PROD STCK MIMIC) are left as they are. Tenants' own layouts are not touched.</p><button className="sec">Tidy Standard layouts</button></form></details>
     <details className="card acc"><summary><b>Sign-in length</b> <span className="mut">{lim.idleHours ? `signed out after ${lim.idleHours} h idle` : 'no idle sign-out'} · {lim.maxDays} day maximum</span></summary>
@@ -80,7 +80,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
     <p className="mut">Counts only, never contact emails. Time logged in runs from sign-in to the last page seen. Activity is for the last 30 days unless stated. New sign-ups start on the demo plan: 1 Wall Template per Broadcaster, 2 Broadcasters, 3 Productions each, 4 Jobs each. One-Time guests (no tenant): {g.guests} accounts, {g.guests30} signed in during the last 30 days.</p>
     <form method="get" className="searchbar"><input name="q" defaultValue={q} placeholder="Search tenants, users or emails" aria-label="Search" />
       <select name="s" defaultValue={sf ?? ''} aria-label="Status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="archived">Archived</option></select>
-      <button>Search</button>{(q || sf) && <a href="/webappdev"><button type="button" className="sec">Clear</button></a>}</form>
+      <button>Search</button>{(q || sf) && <a href="/webappdev"><button type="button" className="sec">Clear filters</button></a>}</form>
     <p className="mut">{ts.length} tenant{ts.length === 1 ? '' : 's'}{q ? ` matching “${q}”` : ''}. Open a card for details.</p>
     {ts.length === 0 && <div className="card mut">No tenants match.</div>}
     {ts.map((t: any) => { const m: any = msById.get(t.id) ?? {}; const mine = found.filter((u: any) => u.tenant_id === t.id); const own = t.id === me.tenant_id; return (
@@ -92,7 +92,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
           {u.id !== me.id && u.role !== 'webappdev' && <form action={setUserSuspended}><input type="hidden" name="id" value={u.id} /><input type="hidden" name="suspend" value={u.suspended ? '0' : '1'} /><button className="sec small">{u.suspended ? 'Reactivate' : 'Suspend'}</button></form>}</div>)}</div>}
         <div className="stats">
           <Stat k="Members" v={t.members} /><Stat k="Contacts" v={t.contacts} /><Stat k="Wall Templates" v={t.walls} /><Stat k="Productions" v={m.prods ?? 0} /><Stat k="Jobs" v={m.jobs ?? 0} /><Stat k="Monitor Plans" v={m.plans ?? 0} />
-          <Stat k="Logins (30d)" v={m.logins30 ?? 0} /><Stat k="Active users 7d / 30d" v={`${m.active7 ?? 0} / ${m.active30 ?? 0}`} /><Stat k="Avg session" v={m.logins30 ? dur(m.avg_secs) : '—'} /><Stat k="Total time (30d)" v={m.logins30 ? dur(m.total_secs) : '—'} />
+          <Stat k="Sign-ins (30d)" v={m.logins30 ?? 0} /><Stat k="Active users 7d / 30d" v={`${m.active7 ?? 0} / ${m.active30 ?? 0}`} /><Stat k="Avg session" v={m.logins30 ? dur(m.avg_secs) : '—'} /><Stat k="Total time (30d)" v={m.logins30 ? dur(m.total_secs) : '—'} />
           <Stat k="Invited, not joined" v={m.pending ?? 0} /><Stat k="Never signed in" v={m.never ?? 0} /><Stat k="Guest links (joined)" v={`${m.links ?? 0} (${m.links_joined ?? 0})`} />
         </div>
         <form action={setTenantPlan} className="limits"><input type="hidden" name="id" value={t.id} />

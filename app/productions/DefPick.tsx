@@ -9,8 +9,8 @@ export default function DefPick({ action, job, wall, value, options, locked }: {
     start(async () => { try { await action(f); setState('saved'); } catch (e) { setErr(e instanceof Error ? e.message : 'Could not save'); setState('error'); } });
   };
   return (<div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-    <span className="mut" style={{ fontSize: 13 }}>Starting layout</span>
-    <select defaultValue={value} disabled={locked || pending} onChange={e => save(e.target.value)} aria-label="Default layout this Job's Monitor Plan starts from" style={{ maxWidth: 260 }}>
+    <span className="mut" style={{ fontSize: 13 }}>Starting configuration</span>
+    <select defaultValue={value} disabled={locked || pending} onChange={e => save(e.target.value)} aria-label="Default configuration this Job's Monitor Plan starts from" style={{ maxWidth: 260 }}>
       {value === 'custom' && <option value="custom" disabled>Customised in the plan</option>}
       {options.map(x => <option key={x.id} value={x.id}>{x.name}{x.active ? ' (active default)' : ''}</option>)}
       <option value="none">None (first layout on each monitor)</option>

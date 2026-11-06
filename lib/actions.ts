@@ -632,7 +632,7 @@ async function deleteSourceSet_(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id')); await own('sourceSets', id, me);
   await rows('update jobs set source_set_id=null where source_set_id=$1', [id]); await rows('delete from source_sets where id=$1', [id]); revalidatePath('/sources'); revalidatePath('/productions');
 }
-// ---- Hardware: MV units (inputs/outputs), which output drives which monitor in which Room, and where each MV layout starts on the unit. Admin only. ----
+// ---- Hardware: MV units (inputs/outputs), which output drives which monitor in which Room, and where each MV Layout starts on the unit. Admin only. ----
 // Where a unit lives: a whole Site ("s:ID"), one Location ("l:ID") or one Room ("r:ID"). It can be used by monitors anywhere in that Site.
 async function hwWhere(me: Me, v: string): Promise<{ site: number | null; loc: number | null; room: number | null }> {
   const k = v.slice(0, 1), id = Number(v.slice(2)); if (!id || !'slr'.includes(k)) return { site: null, loc: null, room: null };
@@ -786,7 +786,7 @@ async function deleteHwFrame_(f: FormData) {
 function checkDest(ctx: Awaited<ReturnType<typeof loadHardware>>, rwId: number, monId: string, layoutId: number, nums: (number | null)[]): { unit: number; err?: string } {
   const o = ctx.outs.find(x => x.room_wall_id === rwId && x.monitor_id === monId); if (!o) return { unit: 0, err: 'Assign this monitor to a hardware output first.' };
   const u = ctx.units.find(x => x.id === o.unit_id)!; const rw = ctx.walls.find(w => w.id === rwId); const mon = rw?.mons.find(m => m.id === monId); const lay = ctx.layouts.get(layoutId);
-  if (!mon || !lay || !mon.mvs.includes(layoutId)) return { unit: u.id, err: 'That layout is not one of this monitor\'s MV layouts.' };
+  if (!mon || !lay || !mon.mvs.includes(layoutId)) return { unit: u.id, err: 'That layout is not one of this monitor\'s MV Layouts.' };
   const seen = new Set<number>();
   for (let i = 0; i < nums.length; i++) { const v = nums[i]; if (v == null) continue;
     if (!Number.isInteger(v) || v < 1) return { unit: u.id, err: 'Use whole destination numbers of 1 or more.' };
@@ -814,7 +814,7 @@ async function setHwTiles_(f: FormData) {
   const c = checkDest(ctx, rw, mon, lay, nums); if (c.err) return hwBack(unit || c.unit, c.err);
   await saveDest(rw, mon, lay, nums); revalidatePath('/hardware'); revalidatePath('/plans');
 }
-// Every MV layout of one monitor starts at the same number (a full-screen layout then sits on the first destination of the multi-tile one).
+// Every MV Layout of one monitor starts at the same number (a full-screen layout then sits on the first destination of the multi-tile one).
 async function setHwMonitorStart_(f: FormData) {
   const me = await adm(); const ctx = await loadHardware(tid(me)); const rw = Number(s(f, 'rw')), mon = s(f, 'mon'), first = Number(s(f, 'first')), unit = Number(s(f, 'unit'));
   const m = ctx.walls.find(w => w.id === rw)?.mons.find(x => x.id === mon); if (!m) return hwBack(unit, 'That monitor was not found.');
@@ -956,8 +956,8 @@ export async function loadPlans(jobId: number): Promise<Record<string, any>> {
   return loadJobPlans(jobId);
 }
 // Copy a saved Monitor Plan (from another Job, including one that has expired) into this Job. Each wall is matched by its place in a Room, or failing that by its Wall Template.
-// Only the monitors' chosen MV layouts and sources that still exist on the wall are kept.
-// Works out what copying another Job's saved plan onto this Job would do, wall by wall, checking it fits (MV layouts allowed, monitors, tiles, sources).
+// Only the monitors' chosen MV Layouts and sources that still exist on the wall are kept.
+// Works out what copying another Job's saved plan onto this Job would do, wall by wall, checking it fits (MV Layouts allowed, monitors, tiles, sources).
 async function copyPlanCompute(me: Me, job: number, planId: number, onlyWall = 0) {
   if (!(await canAccessJob(me, job)) || !(await jobOpen(job))) throw new Error('Not found');
   // planId is the Job whose plans are being copied (any Job in the same workspace that this person can open).

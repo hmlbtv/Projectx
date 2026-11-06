@@ -30,7 +30,7 @@ const click = async (p, loc, o = {}) => { for (let k = 0; k < 4; k++) { await op
 
   await p.goto(B + '/productions?j=' + jobId); await openAll(p); if (process.env.DBG) console.log(p.url(), (await p.locator('details').evaluateAll(a => a.map(d => d.open + ':' + d.innerText.slice(0, 40).replace(/\n/g, '|')))));
   await click(p, p.locator('button', { hasText: 'Use in this Job' }).first()); await p.waitForTimeout(1500); await openAll(p);
-  const pick = p.locator('select[aria-label^="Default layout"]');
+  const pick = p.locator('select[aria-label^="Default configuration"]');
   ok(await pick.count() === 1 && await pick.first().inputValue() === 'd1', 'adding a wall applies the active default layout');
   await pick.first().selectOption('d2'); await p.waitForTimeout(1500); await p.reload(); await openAll(p);
   ok(await pick.first().inputValue() === 'd2', 'changing the starting layout is saved');

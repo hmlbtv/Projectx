@@ -14,6 +14,6 @@ export function Logo({ size = 28, tagline = false }: { size?: number; tagline?: 
       <Mark size={size} />
       <span style={{ fontSize: size * 0.95, letterSpacing: '-0.02em', lineHeight: 1, whiteSpace: 'nowrap' }}><b style={{ fontWeight: 700 }}>Tele</b><span style={{ fontWeight: 400 }}>Planner</span></span>
     </span>
-    {tagline && <span style={{ fontSize: Math.max(11, size * 0.3), letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--mut)' }}>Monitor plans for live production</span>}
+    {tagline && <span style={{ fontSize: Math.max(11, size * 0.3), letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--mut)' }}>Monitor Plans for live production</span>}
   </span>);
 }

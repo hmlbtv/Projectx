@@ -1,4 +1,4 @@
-// Neaten an MV layout: every window becomes exactly 16:9 on one shared grid of equal cells, so small windows match, edges line up
+// Neaten an MV Layout: every window becomes exactly 16:9 on one shared grid of equal cells, so small windows match, edges line up
 // and the layout is centred in the 1920x1080 frame. A window can span k x k cells (a "big" window).
 type R = { x: number; y: number; w: number; h: number };
 const W = 1920, H = 1080;

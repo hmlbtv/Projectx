@@ -17,7 +17,7 @@ export const viewport = { width: 'device-width', initialScale: 1, minimumScale: 
 export async function generateMetadata() {
   const me = await getMe(); const orgs = me ? await myOrgs(me.id) : [];
   const cur = me && orgs.length > 1 ? orgs.find(o => o.key === (me.membership_id ? String(me.membership_id) : 'home')) : null;
-  return { title: cur ? `${cur.name} · TelePlanner` : 'TelePlanner', description: 'Monitor plans for live production' };
+  return { title: cur ? `${cur.name} · TelePlanner` : 'TelePlanner', description: 'Monitor Plans for live production' };
 }
 const hueOf = (s: string) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 

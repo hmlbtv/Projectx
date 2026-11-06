@@ -12,7 +12,7 @@ export default function ArchiveFilter({ items, tiles }: { items: ArchiveItem[]; 
       <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search the archive…" aria-label="Search the archive" style={{ flex: '1 1 220px' }} />
       {prods.length > 1 && <select value={prod} onChange={e => setProd(e.target.value)} aria-label="Filter by Production"><option value="">All Productions</option>{prods.map(p => <option key={p}>{p}</option>)}</select>}
       {years.length > 1 && <select value={year} onChange={e => setYear(e.target.value)} aria-label="Filter by year"><option value="">All years</option>{years.map(y => <option key={y}>{y}</option>)}</select>}
-      {(q || prod || year) && <button type="button" className="sec small" onClick={() => { setQ(''); setProd(''); setYear(''); }}>Clear</button>}
+      {(q || prod || year) && <button type="button" className="sec small" onClick={() => { setQ(''); setProd(''); setYear(''); }}>Clear filters</button>}
       <span className="mut" style={{ fontSize: '.85rem' }}>{shown.length} of {items.length}</span></div>
     {shown.length === 0 ? <div className="card mut">Nothing in the archive matches.</div> : <div className={tiles ? 'tiles' : undefined}>{shown.map(i => <div key={i.key} style={tiles ? { display: 'contents' } : undefined}>{i.node}</div>)}</div>}
   </div>);

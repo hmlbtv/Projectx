@@ -15,6 +15,6 @@ export default async function WallDefaults({ searchParams }: { searchParams: Pro
   const lim = (await one('select max_wall_defaults m from tenants where id=$1', [t]))?.m ?? 5;
   return (<><div className="crumbs"><Link href={`/walls?id=${w.id}`} className="btn sec small">← Back to {w.name}</Link></div>
     <h1 style={{ marginBottom: 4 }}>Default configuration: {w.name}</h1>
-    <p className="mut">Choose the MV layout each monitor starts with. The default marked “Used for new plans” is what people get when this Wall Template is sent to them as a Monitor Plan. You can keep up to {lim}.</p>
+    <p className="mut">Choose the MV Layout each monitor starts with. The default marked “Used for new plans” is what people get when this Wall Template is sent to them as a Monitor Plan. You can keep up to {lim}.</p>
     <Defaults wall={{ id: w.id, name: w.name, assets: pw.assets, dests: pw.dests }} layouts={layouts as any} initial={Array.isArray(w.defaults) ? w.defaults : []} limit={lim} /></>);
 }
