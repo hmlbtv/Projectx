@@ -7,6 +7,7 @@ import type { Dest } from '@/lib/hardware';
 import ImportNames from './ImportNames';
 import CopyHardware from './CopyHardware';
 import TreeControls from './TreeControls';
+import KeepDetails from '../KeepDetails';
 import AutoNames from './AutoNames';
 import SaveNames from './SaveNames';
 import { addHwUnit, updateHwUnit, deleteHwUnit, setHwOutput, setHwDest, setHwMonitorStart, setHwTiles, autoHwDests, clearHwDests, saveHwNames } from '@/lib/actions';
@@ -127,11 +128,11 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
                 <span style={{ flex: '1 1 160px' }}>{lay.name} <span className="mut">({lay.n} tile{lay.n === 1 ? '' : 's'})</span></span>
                 <label className="mut">fill from <input name="first" type="number" min={1} max={u.inputs} placeholder="start" style={{ width: 80 }} /></label>
                 <span style={{ minWidth: 70, overflowWrap: 'anywhere' }}>{d ? fmtNums(nums) : <span className="mut">unset</span>}</span><button className="sec small">Fill</button></form>
-                <details key={u.id + '-' + w.id + m.id + l + JSON.stringify(nums)} style={{ marginTop: 4 }}><summary className="mut">Set each tile's destination</summary>
+                <KeepDetails key={u.id + '-' + w.id + m.id + l + JSON.stringify(nums)} id={'tiles-' + u.id + '-' + w.id + '-' + m.id + '-' + l} style={{ marginTop: 4 }} summary={<summary className="mut">Set each tile's destination</summary>}>
                   <form action={setHwTiles} className="stack" style={{ marginTop: 6 }}><input type="hidden" name="unit" value={u.id} /><input type="hidden" name="rw" value={w.id} /><input type="hidden" name="mon" value={m.id} /><input type="hidden" name="layout" value={l} />
                     <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'auto minmax(0,1fr)', alignItems: 'center' }}>{nums.map((v, i) => (<div key={i} style={{ display: 'contents' }}><span style={{ textAlign: 'right' }}>Tile {i + 1}</span>
                       <select name={'t_' + (i + 1)} defaultValue={v ?? ''} aria-label={`${lay.name} tile ${i + 1} destination`}><option value="">No destination</option>{Array.from({ length: u.inputs }, (_, k) => k + 1).map(k => <option key={k} value={k} >{k}{destLabel(u, k) ? ' · ' + destLabel(u, k) : ''}{others.has(k) ? ' (also on another monitor)' : ''}</option>)}</select></div>))}</div>
-                    <button className="sec small" style={{ justifySelf: 'start' }}>Save tiles</button></form></details></div>); })}</div>
+                    <button className="sec small" style={{ justifySelf: 'start' }}>Save tiles</button></form></KeepDetails></div>); })}</div>
             <form action={setHwMonitorStart} className="row" style={{ marginTop: 6 }}><input type="hidden" name="unit" value={u.id} /><input type="hidden" name="rw" value={w.id} /><input type="hidden" name="mon" value={m.id} />
               <label className="mut">All layouts of this monitor start at <input name="first" type="number" min={1} max={u.inputs} required style={{ width: 80 }} /></label><button className="sec small">Set all</button></form></details></>)}</div>)}</div>); })}</div></>);
 }

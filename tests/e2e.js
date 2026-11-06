@@ -73,6 +73,15 @@ const click = async (p, loc, o = {}) => { for (let k = 0; k < 4; k++) { await op
   await p.locator('a', { hasText: /^← All/ }).first().click(); await p.waitForTimeout(2500);
   const after = await p.evaluate(() => Math.round(window.scrollY)); ok(Math.abs(after - before) < 40, `back link returns to the same scroll position (left at ${before}, back at ${after})`);
   await p.goto(B + '/productions?j=' + jobId); await p.waitForLoadState('networkidle'); await p.waitForTimeout(400);
+
+  // ---- Saving or clicking must not move the page or fold the trees ----
+  await p.setViewportSize({ width: 1100, height: 420 });
+  await p.goto(B + '/productions?j=' + jobId); await openAll(p);
+  const state = async () => ({ y: await p.evaluate(() => Math.round(window.scrollY)), open: await p.evaluate(() => document.querySelectorAll('details[open]:not(.dots)').length) });
+  await p.evaluate(() => window.scrollTo(0, document.body.scrollHeight)); await p.waitForTimeout(300);
+  const s0 = await state(); ok(s0.y > 100, 'Job page is tall enough to scroll (' + s0.y + ')');
+  await p.locator('select[aria-label^="Default configuration"]').last().selectOption('d2'); await p.waitForTimeout(1500);
+  const s1 = await state(); ok(Math.abs(s1.y - s0.y) < 10 && s1.open === s0.open, `changing a starting configuration keeps the page still and the trees open (y ${s0.y} to ${s1.y}, open ${s0.open} to ${s1.open})`);
   ok(errs.length === 0, 'no server or page errors: ' + errs.join(' | '));
   await b.close(); await stop(); fs.rmSync(DIR, { recursive: true, force: true });
   console.log(fails.length ? `\n${fails.length} failed` : '\nall passed'); process.exit(fails.length ? 1 : 0);
