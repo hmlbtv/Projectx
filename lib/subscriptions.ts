@@ -60,10 +60,10 @@ type LockKind = 'walls' | 'broadcasters' | 'productions' | 'jobs';
 export async function lockMessage(kind: LockKind, id: number): Promise<string | null> {
   const q = (sql: string) => one<any>(sql, [id]);
   let tid: number | null = null, rank = 0, key: LimitKey = 'wall_templates', label = 'Wall Template', parent: string | null = null;
-  if (kind === 'walls') { const r = await q('select tenant_id t, (select count(*)::int from wall_templates o where o.tenant_id=w.tenant_id and o.id<w.id) k from wall_templates w where id=$1'); if (!r) return null; tid = r.t; rank = r.k; }
-  else if (kind === 'broadcasters') { const r = await q('select tenant_id t, (select count(*)::int from broadcasters o where o.tenant_id=b.tenant_id and o.id<b.id) k from broadcasters b where id=$1'); if (!r) return null; tid = r.t; rank = r.k; key = 'broadcasters'; label = 'Broadcaster'; }
-  else if (kind === 'productions') { const r = await q('select b.tenant_id t, p.broadcaster_id bid, (select count(*)::int from productions o where o.broadcaster_id=p.broadcaster_id and o.id<p.id) k from productions p join broadcasters b on b.id=p.broadcaster_id where p.id=$1'); if (!r) return null; tid = r.t; rank = r.k; key = 'productions'; label = 'Production'; parent = await lockMessage('broadcasters', r.bid); }
-  else { const r = await q('select b.tenant_id t, j.production_id pid, (j.expires_at is null or j.expires_at >= current_date) act, (select count(*)::int from jobs o where o.production_id=j.production_id and o.id<j.id and (o.expires_at is null or o.expires_at >= current_date)) k from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where j.id=$1'); if (!r) return null; tid = r.t; rank = r.act ? r.k : 0; key = 'jobs_per_production'; label = 'Job'; if (r.act) parent = await lockMessage('productions', r.pid); }
+  if (kind === 'walls') { const r = await q('select tenant_id t, (select count(*)::int from wall_templates o where o.tenant_id=w.tenant_id and not o.demo and o.id<w.id) k from wall_templates w where id=$1 and not demo'); if (!r) return null; tid = r.t; rank = r.k; }
+  else if (kind === 'broadcasters') { const r = await q('select tenant_id t, (select count(*)::int from broadcasters o where o.tenant_id=b.tenant_id and not o.demo and o.id<b.id) k from broadcasters b where id=$1 and not demo'); if (!r) return null; tid = r.t; rank = r.k; key = 'broadcasters'; label = 'Broadcaster'; }
+  else if (kind === 'productions') { const r = await q('select b.tenant_id t, p.broadcaster_id bid, (select count(*)::int from productions o where o.broadcaster_id=p.broadcaster_id and o.id<p.id) k from productions p join broadcasters b on b.id=p.broadcaster_id where p.id=$1 and not b.demo'); if (!r) return null; tid = r.t; rank = r.k; key = 'productions'; label = 'Production'; parent = await lockMessage('broadcasters', r.bid); }
+  else { const r = await q('select b.tenant_id t, j.production_id pid, (j.expires_at is null or j.expires_at >= current_date) act, (select count(*)::int from jobs o where o.production_id=j.production_id and o.id<j.id and (o.expires_at is null or o.expires_at >= current_date)) k from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where j.id=$1 and not b.demo'); if (!r) return null; tid = r.t; rank = r.act ? r.k : 0; key = 'jobs_per_production'; label = 'Job'; if (r.act) parent = await lockMessage('productions', r.pid); }
   const why = (n: string, plan: string) => `This ${n} is over what your ${plan} plan allows, so it is view only. You can still delete things to get back under the limit. Contact us to upgrade.`;
   if (tid == null) return null;
   const g = await getLimits(tid); if (g.plan === 'owner') return null;
@@ -74,9 +74,9 @@ export async function lockMessage(kind: LockKind, id: number): Promise<string | 
 // True when the workspace holds more than its plan allows, so some of it is view only (used for the notice on the pages).
 export async function overLimits(tid: number): Promise<boolean> {
   const L = (await getLimits(tid)).limits;
-  const r = await one<any>(`select (select count(*)::int from wall_templates where tenant_id=$1) w, (select count(*)::int from broadcasters where tenant_id=$1) b,
-    (select coalesce(max(c),0)::int from (select count(*) c from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 group by p.broadcaster_id) x) p,
-    (select coalesce(max(c),0)::int from (select count(*) c from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 and (j.expires_at is null or j.expires_at >= current_date) group by j.production_id) x) j`, [tid]);
+  const r = await one<any>(`select (select count(*)::int from wall_templates where tenant_id=$1 and not demo) w, (select count(*)::int from broadcasters where tenant_id=$1 and not demo) b,
+    (select coalesce(max(c),0)::int from (select count(*) c from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 and not b.demo group by p.broadcaster_id) x) p,
+    (select coalesce(max(c),0)::int from (select count(*) c from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 and not b.demo and (j.expires_at is null or j.expires_at >= current_date) group by j.production_id) x) j`, [tid]);
   return r.w > L.wall_templates || r.b > L.broadcasters || r.p > L.productions || r.j > L.jobs_per_production;
 }
 

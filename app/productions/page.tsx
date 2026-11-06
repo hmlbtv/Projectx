@@ -9,6 +9,8 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Menu from '../Menu';
 import DefPick from './DefPick';
+import { demoInfo, DEMO_NAME } from '@/lib/demoSite';
+import { resetDemoSite } from '@/lib/demoActions';
 import { getLimits, limitText, overLimits } from '@/lib/subscriptions';
 import TreeControls from '../hardware/TreeControls';
 import { addBroadcaster, addProduction, addJob, assignWall, setWallDef, unassignWall, assignWalls, unassignWalls, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob, copyJobToNew } from '@/lib/actions';
@@ -30,6 +32,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   const [bs, ps, js, rw, sets, allWalls, tree] = await Promise.all([bs_p, ps_p, js_p, rw_p, sets_p, allWalls_p, tree_p]); // run the page's queries together instead of one after another
   const adm = isAdmin(me); const d = (x: any) => x ? new Date(x).toISOString().slice(0, 10) : '';
   const Del = ({ action, id, what }: { action: any; id: number; what: string }) => adm ? (<form action={action} className="del-row"><input type="hidden" name="id" value={id} /><span className="mut">Delete this {what} and everything inside it? This cannot be undone.</span><button className="del">Yes, delete</button></form>) : null;
+  const demoPub = adm && me.role !== 'webappdev' ? await demoInfo() : null;
   const over = me.role !== 'webappdev' && await overLimits(t);
   const note = <p className="mut">{over && <b style={{ display: 'block', color: 'var(--bad)' }}>Some of your work is over your plan&apos;s limits, so it is view only. The oldest items up to each limit stay editable, and you can still delete to get back under. Nothing is lost.<br /></b>}{me.role === 'webappdev' ? 'No limits on this account.' : <>{plan.name} plan: {limitText(lim.b)} Broadcaster{lim.b === 1 ? '' : 's'}, {limitText(lim.p)} Productions each, {limitText(lim.j)} active Jobs each. <Link href="/account">See your plan</Link></>} Jobs are archived when they expire.</p>;
   const Bar = ({ back }: { back: string }) => (<div className="crumbs"><Link href={back} className="btn sec small">← Back</Link><Link href="/productions" className="btn sec small">Productions home</Link></div>);
@@ -114,9 +117,11 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   const cal = q.v === 'cal'; const evs = js.filter((j: any) => j.job_date).map((j: any) => { const pr = ps.find((x: any) => x.id === j.production_id), b = bs.find((x: any) => x.id === pr?.broadcaster_id); const st = d(j.job_date), en = d(j.final_date); return { id: j.id, title: j.name, prod: pr?.name ?? '', bc: b?.id ?? 0, bcName: b?.name ?? '', start: st, end: en && en >= st ? en : st }; });
   // ---- Home: Broadcasters ----
   return (<><div className="pagehead"><h1 style={{ margin: 0 }}>Productions</h1><div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}><Link href="/integrations" className="btn sec small">Scheduling integration</Link><ImportJobs /><AddDialog action={addBroadcaster} inline label="Add Broadcaster" title="New Broadcaster" placeholder="Broadcaster name" /></div></div>{note}
+    {demoPub && <div className="card" style={{ margin: '8px 0' }}><b>{DEMO_NAME}</b> <span className="tag">Demo Site</span><p className="mut" style={{ margin: '4px 0' }}>{bs.some((b: any) => b.demo) ? 'A ready-made example to play with. Change anything you like in it: it is your own copy and does not count against your plan.' : 'The ready-made example is not in your workspace.'} Resetting puts it back exactly as published and removes your changes to it only; nothing else you made is touched.</p>
+      <form action={resetDemoSite}><button className="del small" title="Your changes to the Demo Site are replaced with the original. Everything else stays.">{bs.some((b: any) => b.demo) ? 'Reset Demo Site to original' : 'Add the Demo Site'}</button></form></div>}
     <div style={{ display: 'inline-flex', margin: '4px 0 12px' }} role="group" aria-label="View"><Link href="/productions" className={cal ? 'btn sec small' : 'btn small'} style={{ borderRadius: '8px 0 0 8px', ...(cal ? {} : { background: '#e5352b', color: '#fff', borderColor: '#e5352b' }) }}>List</Link><Link href="/productions?v=cal" className={cal ? 'btn small' : 'btn sec small'} style={{ borderRadius: '0 8px 8px 0', ...(cal ? { background: '#e5352b', color: '#fff', borderColor: '#e5352b' } : {}) }}>Calendar</Link></div>
     {cal && <Calendar events={evs} initView={q.cv === 'day' || q.cv === 'week' ? q.cv : 'month'} initDate={q.cd} />}
     {!cal && bs.length === 0 && <p className="mut">No Broadcasters yet. Add one to get started.</p>}
-    {!cal && <div className="tiles">{bs.map((b: any) => (<div key={b.id} className="card tile"><Link href={`/productions?b=${b.id}`} className="tilelink"><b>{b.name}</b><span className="mut">{plural(ps.filter((p: any) => p.broadcaster_id === b.id).length, 'Production')}</span></Link>
+    {!cal && <div className="tiles">{bs.map((b: any) => (<div key={b.id} className="card tile"><Link href={`/productions?b=${b.id}`} className="tilelink"><b>{b.name}</b>{b.demo && <span className="tag">Demo Site</span>}<span className="mut">{plural(ps.filter((p: any) => p.broadcaster_id === b.id).length, 'Production')}</span></Link>
       <Menu><b>Edit Broadcaster</b><form action={updateBroadcaster} className="stack"><input type="hidden" name="id" value={b.id} /><input name="name" defaultValue={b.name} required /><button className="sec">Save</button></form><Del action={deleteBroadcaster} id={b.id} what="Broadcaster" /></Menu></div>))}</div>}</>);
 }

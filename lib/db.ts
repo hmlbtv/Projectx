@@ -156,6 +156,12 @@ create index if not exists ix_sub_events_tenant on subscription_events(tenant_id
 create index if not exists ix_sub_events_at on subscription_events(at desc);
 alter table tenants add column if not exists limit_overrides jsonb not null default '{}';
 alter table tenants add column if not exists plan_since timestamptz;
+-- The Demo Site: a ready-made example every Demo workspace starts with. Its rows are tagged so they can be reset without touching anything else, and do not count against plan limits.
+alter table broadcasters add column if not exists demo boolean not null default false;
+alter table wall_templates add column if not exists demo boolean not null default false;
+alter table sites add column if not exists demo boolean not null default false;
+alter table source_sets add column if not exists demo boolean not null default false;
+alter table tenants add column if not exists demo_given boolean not null default false;
 create index if not exists ix_hw_units_tenant on hw_units(tenant_id);
 create table if not exists hw_outputs(unit_id int not null references hw_units(id) on delete cascade, out_no int not null, room_wall_id int not null references room_walls(id) on delete cascade, monitor_id text not null, primary key(unit_id, out_no), unique(room_wall_id, monitor_id));
 create table if not exists hw_dests(room_wall_id int not null references room_walls(id) on delete cascade, monitor_id text not null, layout_id int not null, first_dest int not null, primary key(room_wall_id, monitor_id, layout_id));

@@ -1,3 +1,4 @@
+import { giveDemoOnLogin } from './demoSite';
 import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -35,6 +36,7 @@ export async function createSession(userId: number) {
   const { maxDays } = await sessionLimits();
   await rows("insert into sessions(id,user_id,expires_at,membership_id) values($1,$2,now() + ($3 || ' days')::interval,$4)", [sha256(token), userId, String(maxDays), start]);
   await rows('insert into login_events(session_id,user_id,tenant_id) select $1,u.id,coalesce(m.tenant_id,u.tenant_id) from users u left join memberships m on m.id=$3 where u.id=$2', [sha256(token), userId, start]);
+  await giveDemoOnLogin(start == null ? (await one<{ t: number | null }>("select tenant_id t from users where id=$1 and role<>'webappdev'", [userId]))?.t ?? null : (await one<{ t: number }>('select tenant_id t from memberships where id=$1', [start]))?.t ?? null);
   await rows('update users set last_login_at=now(), login_count=login_count+1 where id=$1', [userId]);
   (await cookies()).set(COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: maxDays * 86400 });
 }

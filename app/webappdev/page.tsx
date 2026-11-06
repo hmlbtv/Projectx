@@ -4,12 +4,15 @@ import { requireMe, sessionLimits } from '@/lib/session';
 import { setTenantStatus, deleteTenant, setUserSuspended, saveSessionSettings, importKaleidoLayouts, tidyStandardLayouts } from '@/lib/actions';
 import { emailOn, mailFrom, baseUrl } from '@/lib/mail';
 import TestEmail from './TestEmail';
+import { demoInfo, DEMO_NAME } from '@/lib/demoSite';
+import { publishDemoSite } from '@/lib/demoActions';
 import Link from 'next/link';
 import { loadOptouts } from '@/lib/interestList';
 export const dynamic = 'force-dynamic';
-export default async function SiteAdmin({ searchParams }: { searchParams: Promise<{ q?: string; s?: string; imported?: string; of?: string; tidied?: string }> }) {
-  const { q: q0, s: sf, imported, of, tidied } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
+export default async function SiteAdmin({ searchParams }: { searchParams: Promise<{ demo?: string; demoerr?: string; q?: string; s?: string; imported?: string; of?: string; tidied?: string }> }) {
+  const { demo: demoMsg, demoerr, q: q0, s: sf, imported, of, tidied } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
   const me = await requireMe(); if (me.role !== 'webappdev') redirect('/');
+  const demo = await demoInfo();
   const ts = await rows(`select t.id,t.name,t.plan,t.max_walls_per_broadcaster m, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j, t.max_wall_defaults wd, t.status,
     ((select count(*)::int from users u where u.tenant_id=t.id) + (select count(*)::int from memberships mm where mm.tenant_id=t.id)) members,
     (select count(*)::int from wall_templates w where w.tenant_id=t.id) walls,
@@ -57,6 +60,11 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
   ];
   const lim = await sessionLimits();
   return (<><h1>Site admin · Tenants</h1><p><Link href="/webappdev/subscriptions" className="btn sec small">Subscriptions, plans and revenue →</Link></p>
+    <details className="card acc" id="demosite" open={!!demoMsg}><summary><b>Demo Site</b> <span className="mut">{DEMO_NAME}: the example every Demo workspace starts with{demo ? ` · published ${new Date(demo.at).toISOString().slice(0, 10)}` : ' · not published yet'}</span></summary>
+      {demoMsg && <p role="status" style={{ color: demoerr ? 'var(--bad)' : undefined }}>{demoMsg}</p>}
+      <p className="mut">Build it in your own workspace: add a Broadcaster called <b>{DEMO_NAME}</b> with Productions, Jobs, Wall Templates, walls, a Source Set and Monitor Plans, exactly as a customer would. Then press Publish. Every Demo workspace gets its own copy the first time someone signs in (anyone already signed up gets it at their next sign-in), can change it freely, and can reset it to what you published. Publishing again does not change copies people already have until they reset. The example does not count against plan limits.</p>
+      {demo && <p className="mut">Published: {demo.prods} Production{demo.prods === 1 ? '' : 's'}, {demo.jobs} Job{demo.jobs === 1 ? '' : 's'}, {demo.walls} wall{demo.walls === 1 ? '' : 's'}.</p>}
+      <form action={publishDemoSite}><button>{demo ? 'Publish the current version' : 'Publish the Demo Site'}</button> <Link href="/productions" className="btn sec small">Open my Productions</Link></form></details>
     <details className="card acc" open={imported !== undefined}><summary><b>Kaleido MV Layouts</b> <span className="mut">add the MV Layouts converted from the Kaleido database</span></summary>
       {imported !== undefined && <p><b>{imported}</b> new Standard MV Layout{imported === '1' ? '' : 's'} added{of ? ` (${of} in the file${Number(imported) < Number(of) ? ', the rest were already there' : ''})` : ''}.</p>}
       <form action={importKaleidoLayouts} className="stack"><p className="mut">47 layouts from the KMX database: even grids, one-big-plus-small, and with-timecode variants. Each monitor is placed and sized as in Kaleido and numbered left to right, top to bottom. Clock-only layouts are left out, and clocks inside layouts are not added as monitors. Safe to press again; layouts already added are skipped.</p><button className="sec">Add Kaleido MV Layouts</button></form></details>
