@@ -83,6 +83,7 @@ const click = async (p, loc, o = {}) => { for (let k = 0; k < 4; k++) { await op
   await p.locator('select[aria-label^="Default configuration"]').last().selectOption('d2'); await p.waitForTimeout(1500);
   const s1 = await state(); ok(Math.abs(s1.y - s0.y) < 10 && s1.open === s0.open, `changing a starting configuration keeps the page still and the trees open (y ${s0.y} to ${s1.y}, open ${s0.open} to ${s1.open})`);
   for (const v of ['list', 'detail', 'cal']) { const r = await p.goto(B + '/shared?v=' + v + '&q=x&acc=edit&when=upcoming'); ok(r.status() === 200 && await p.locator('h1', { hasText: 'Shared with me' }).count() > 0, 'Shared with me opens in ' + v + ' view'); }
+  for (const v of ['list', 'detail', 'cal']) { const r = await p.goto(B + '/plans?v=' + v + '&q=x&when=upcoming'); ok(r.status() === 200 && await p.locator('h1', { hasText: 'Monitor Plans' }).count() > 0, 'Monitor Plans opens in ' + v + ' view'); }
   // ---- Subscriptions (site admin) ----
   await p.goto(B + '/webappdev/subscriptions'); await p.waitForLoadState('networkidle');
   ok(await p.locator('text=Monthly revenue (MRR)').count() > 0, 'Subscriptions page shows the revenue report');

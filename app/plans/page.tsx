@@ -5,6 +5,9 @@ import { addComment, copyPlan } from '@/lib/actions';
 import { loadJobPlans } from '@/lib/plans';
 import { unreadByJob, wallCommentsFor, markSeen } from '@/lib/comments';
 import ArchiveFilter from '@/app/ArchiveFilter';
+import DetailTable from '@/app/shared/DetailTable';
+import AutoSelect from '@/app/AutoSelect';
+import Calendar from '@/app/productions/Calendar';
 import WallComments from './WallComments';
 import Plan from './Plan';
 import CopyPlan from './CopyPlan';
@@ -14,18 +17,41 @@ import { planHardware } from '@/lib/hardware';
 import { savePlan, loadPlans } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
-export default async function Plans({ searchParams }: { searchParams: Promise<{ job?: string; plan?: string; copied?: string }> }) {
-  const me = await requireMe(); if (me.role === 'onetime') redirect('/shared'); const { job, plan: planQ, copied } = await searchParams;
-  const jobs = await rows(`select j.id,j.name,j.job_date,(j.expires_at < current_date) expired,p.name prod,b.name broadcaster from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id
+export default async function Plans({ searchParams }: { searchParams: Promise<{ job?: string; plan?: string; copied?: string; q?: string; v?: string; cv?: string; cd?: string; bc?: string; prod?: string; when?: string; new?: string }> }) {
+  const me = await requireMe(); if (me.role === 'onetime') redirect('/shared'); const sp = await searchParams; const { job, plan: planQ, copied } = sp;
+  const jobs = await rows(`select j.id,j.name,j.job_date,j.final_date,b.id bid,(j.expires_at < current_date) expired,p.name prod,b.name broadcaster from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id
     where b.tenant_id=$3 and (j.id in (select job_id from job_users where user_id=$1) or $2::boolean) order by j.job_date desc nulls last`, [me.id, canManage(me), me.tenant_id ?? 0]);
   const cur = jobs.find((j: any) => String(j.id) === job);
   if (!cur) { const unread = await unreadByJob(me.id);
     const card = (j: any, old: boolean) => (<div key={j.id} className="card" style={!old && unread[j.id] > 0 ? { borderLeft: '6px solid #e5352b', boxShadow: '0 0 0 2px rgba(229,53,43,.35)' } : undefined}><div className="row" style={{ justifyContent: 'space-between', gap: 8 }}><div><a href={`/plans?job=${j.id}`}><b>{j.name}</b></a> <span className="mut">{String(j.job_date ?? '').slice(0, 10)}</span>
       <div className="mut" style={{ fontSize: '.85rem' }}>{j.broadcaster} \ {j.prod} \ {j.name}</div></div>
       {!old && unread[j.id] > 0 && <a href={`/plans?job=${j.id}`} style={{ textDecoration: 'none', flex: '0 0 auto' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#e5352b', color: '#fff', fontWeight: 800, fontSize: '.95rem', padding: '8px 14px', borderRadius: 999, boxShadow: '0 0 0 4px rgba(229,53,43,.25)' }}>🔔 {unread[j.id]} new comment{unread[j.id] === 1 ? '' : 's'}</span></a>}</div></div>);
-    const live = jobs.filter((j: any) => !j.expired), old = jobs.filter((j: any) => j.expired);
-    return (<><h1>Monitor Plans</h1>{live.length === 0 && <p className="mut">No active Jobs assigned to you.</p>}{live.map((j: any) => card(j, false))}
-      {old.length > 0 && <details><summary style={{ cursor: 'pointer', fontSize: '1.4rem', fontWeight: 700, margin: '28px 0 10px' }}>Archive ({old.length})</summary><><p className="mut">Expired Jobs, kept for reference (view only).</p><ArchiveFilter items={old.map((j: any) => ({ key: j.id, text: `${j.broadcaster} ${j.prod} ${j.name} ${String(j.job_date ?? '').slice(0, 10)}`, prod: j.prod, year: String(j.job_date ?? j.expires_at ?? '').slice(0, 4), node: card(j, true) }))} /></></details>}</>); }
+    const q = (sp.q ?? '').trim().slice(0, 80), view = sp.v === 'cal' || sp.v === 'detail' ? sp.v : 'list';
+    const dt = (x: any) => x ? new Date(x).toISOString().slice(0, 10) : '', today = new Date().toISOString().slice(0, 10);
+    const fb = sp.bc ?? '', fp = sp.prod ?? '', fw = ['upcoming', 'past', 'undated'].includes(sp.when ?? '') ? sp.when! : '', fn = sp.new === '1';
+    const uniq = (k: string) => [...new Set(jobs.map((x: any) => x[k] as string))].sort((x, y) => x.localeCompare(y));
+    const needle = q.toLowerCase();
+    const shown = jobs.filter((x: any) => (!fb || x.broadcaster === fb) && (!fp || x.prod === fp) && (!fn || unread[x.id] > 0)
+      && (!fw || (fw === 'undated' ? !x.job_date : fw === 'upcoming' ? !!x.job_date && dt(x.final_date ?? x.job_date) >= today : !!x.job_date && dt(x.final_date ?? x.job_date) < today))
+      && (!needle || `${x.broadcaster} ${x.prod} ${x.name} ${dt(x.job_date)}`.toLowerCase().includes(needle)));
+    const live = shown.filter((j: any) => !j.expired), old = shown.filter((j: any) => j.expired);
+    const keep = [q && 'q=' + encodeURIComponent(q), fb && 'bc=' + encodeURIComponent(fb), fp && 'prod=' + encodeURIComponent(fp), fw && 'when=' + fw, fn && 'new=1'].filter(Boolean).join('&');
+    const tab = (v: string, label: string, first: boolean, last: boolean) => (<a href={`/plans?v=${v}${keep ? '&' + keep : ''}`} className={view === v ? 'btn small' : 'btn sec small'} style={{ borderRadius: first ? '8px 0 0 8px' : last ? '0 8px 8px 0' : 0, ...(view === v ? { background: '#e5352b', color: '#fff', borderColor: '#e5352b' } : {}) }}>{label}</a>);
+    const detail = (list: any[]) => (<DetailTable base="/plans?job=" cols={['wall', 'path', 'date', 'access', 'unread']} labels={{ wall: 'Job', path: 'Broadcaster › Production', access: 'Status' }} rows={list.map((j: any) => ({ id: j.id, wall: j.name, path: `${j.broadcaster} › ${j.prod}`, room: '', org: '', date: dt(j.job_date), access: j.expired ? 'Expired' : 'Active', unread: unread[j.id] ?? 0 }))} />);
+    const evs = shown.filter((j: any) => j.job_date).map((j: any) => { const st = dt(j.job_date), en = dt(j.final_date); return { id: j.id, title: j.name, prod: j.prod, bc: j.bid, bcName: j.broadcaster, start: st, end: en && en >= st ? en : st }; });
+    return (<><h1>Monitor Plans</h1>
+      {jobs.length > 0 && <><form method="get" className="searchbar"><input name="q" defaultValue={q} placeholder="Search Jobs, Productions or Broadcasters" aria-label="Search" /><input type="hidden" name="v" value={view} /><button className="sec">Search</button>
+        <AutoSelect name="bc" value={fb} label="Broadcaster" options={[['', 'All Broadcasters'], ...uniq('broadcaster').map(x => [x, x] as [string, string])]} />
+        <AutoSelect name="prod" value={fp} label="Production" options={[['', 'All Productions'], ...uniq('prod').map(x => [x, x] as [string, string])]} />
+        <AutoSelect name="when" value={fw} label="When" options={[['', 'Any date'], ['upcoming', 'Current and upcoming'], ['past', 'Past'], ['undated', 'No date']]} />
+        <AutoSelect name="new" value={fn ? '1' : ''} label="Comments" options={[['', 'All Jobs'], ['1', 'New comments only']]} />
+        {(q || fb || fp || fw || fn) && <a href={`/plans?v=${view}`} className="btn small">Clear filters</a>}</form>
+        <div style={{ display: 'inline-flex', margin: '4px 0 12px' }} role="group" aria-label="View">{tab('list', 'List', true, false)}{tab('detail', 'Details', false, false)}{tab('cal', 'Calendar', false, true)}</div></>}
+      {jobs.length === 0 && <p className="mut">No active Jobs assigned to you.</p>}{jobs.length > 0 && shown.length === 0 && <div className="card mut">Nothing matches your search.</div>}
+      {view === 'cal' && shown.length > 0 && (evs.length ? <Calendar kind="plans" extra={keep ? keep + '&' : ''} events={evs} initView={sp.cv === 'day' || sp.cv === 'week' ? sp.cv : 'month'} initDate={sp.cd} /> : <div className="card mut">None of these Jobs has a date to show.</div>)}
+      {view === 'list' && live.map((j: any) => card(j, false))}
+      {view === 'detail' && live.length > 0 && detail(live)}
+      {view !== 'cal' && old.length > 0 && <details><summary style={{ cursor: 'pointer', fontSize: '1.4rem', fontWeight: 700, margin: '28px 0 10px' }}>Archive ({old.length})</summary><><p className="mut">Expired Jobs, kept for reference (view only).</p>{view === 'detail' ? detail(old) : <ArchiveFilter items={old.map((j: any) => ({ key: j.id, text: `${j.broadcaster} ${j.prod} ${j.name} ${dt(j.job_date)}`, prod: j.prod, year: dt(j.job_date).slice(0, 4), node: card(j, true) }))} />}</></details>}</>); }
   const arch = !!cur.expired;
   const j = (await rows('select j.*, ss.sources, ss.categories from jobs j left join source_sets ss on ss.id=j.source_set_id where j.id=$1', [cur.id]))[0];
   const rws = await rows(`select r.id room_id, r.name room, rw.id, rw.name, rw.wall_template_id wt_id, wt.data, wt.defaults from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join wall_templates wt on wt.id=rw.wall_template_id join rooms r on r.id=rw.room_id where jw.job_id=$1 order by r.id, rw.id`, [cur.id]);
