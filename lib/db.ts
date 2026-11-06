@@ -151,6 +151,24 @@ create index if not exists ix_hw_units_tenant on hw_units(tenant_id);
 create table if not exists hw_outputs(unit_id int not null references hw_units(id) on delete cascade, out_no int not null, room_wall_id int not null references room_walls(id) on delete cascade, monitor_id text not null, primary key(unit_id, out_no), unique(room_wall_id, monitor_id));
 create table if not exists hw_dests(room_wall_id int not null references room_walls(id) on delete cascade, monitor_id text not null, layout_id int not null, first_dest int not null, primary key(room_wall_id, monitor_id, layout_id));
 alter table hw_dests add column if not exists tiles jsonb not null default '{}';
+create index if not exists ix_hw_units_frame_id on hw_units(frame_id);
+create index if not exists ix_hw_units_room_id on hw_units(room_id);
+create index if not exists ix_hw_units_location_id on hw_units(location_id);
+create index if not exists ix_hw_units_site_id on hw_units(site_id);
+create index if not exists ix_hw_frames_rack_id on hw_frames(rack_id);
+create index if not exists ix_hw_racks_room_id on hw_racks(room_id);
+create index if not exists ix_hw_racks_location_id on hw_racks(location_id);
+create index if not exists ix_hw_racks_site_id on hw_racks(site_id);
+create index if not exists ix_wall_links_job_id on wall_links(job_id);
+create index if not exists ix_wall_links_room_wall_id on wall_links(room_wall_id);
+create index if not exists ix_room_walls_wall_template_id on room_walls(wall_template_id);
+create index if not exists ix_job_wall_plans_room_wall_id on job_wall_plans(room_wall_id);
+create index if not exists ix_jobs_source_set_id on jobs(source_set_id);
+create index if not exists ix_production_contacts_contact_id on production_contacts(contact_id);
+create index if not exists ix_destination_sets_tenant_id on destination_sets(tenant_id);
+create index if not exists ix_destination_sets_site_id on destination_sets(site_id);
+create index if not exists ix_sessions_membership_id on sessions(membership_id);
+create index if not exists ix_user_emails_user_id on user_emails(user_id);
 `;
 
 function grid(cols: number, rows: number) {

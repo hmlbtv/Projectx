@@ -919,7 +919,10 @@ async function assignWalls_(f: FormData) {
   const me = await mgr(); const job = Number(s(f,'job')); await own('jobs', job, me);
   const ok = wallIds(f).length ? (await rows('select rw.id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites st on st.id=l.site_id where rw.id = any($1::int[]) and st.tenant_id=$2', [wallIds(f), tid(me)])).map((x: any) => x.id) : [];
   if (ok.length) await rows('insert into job_walls(job_id,room_wall_id) select $1, unnest($2::int[]) on conflict do nothing', [job, ok]);
-  for (const w of ok) await seedWallDefault(job, w, '', me.id, false);
+  if (ok.length) { // only walls with no plan yet and an active default need seeding (one query instead of three per wall)
+    const need = await rows<{ id: number }>("select rw.id from room_walls rw join wall_templates wt on wt.id=rw.wall_template_id where rw.id = any($1::int[]) and not exists (select 1 from job_wall_plans p where p.job_id=$2 and p.room_wall_id=rw.id) and jsonb_typeof(wt.defaults)='array' and exists (select 1 from jsonb_array_elements(wt.defaults) d where d->>'active'='true')", [ok, job]);
+    for (const w of need) await seedWallDefault(job, w.id, '', me.id, false);
+  }
   revalidatePath('/productions'); revalidatePath('/plans');
 }
 async function unassignWalls_(f: FormData) {
