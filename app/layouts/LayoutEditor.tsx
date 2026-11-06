@@ -24,7 +24,7 @@ const LOOSE = ['txt', 'img', 'tc', 'tcl']; // text and pictures can sit over (or
 
 // Edits an MV Layout on the shared designer. Each monitor keeps its number (Monitor Plans refer to it); new ones take the next free number when saved.
 export default function LayoutEditor({ id: id0, name, tiles, tileList, readOnly, notice, canNeaten, standard, backQuery, extras }: { extras?: { bg?: number; bgHasAlpha?: boolean; bgUseAlpha?: boolean; items?: DAsset[] }; backQuery?: string; standard?: boolean | null; canNeaten?: boolean; id: number; name: string; tiles: T[]; tileList: TileRef[]; readOnly?: boolean; notice?: React.ReactNode }) {
-  const [id, setId] = useState(id0); // becomes the tenant's own copy after the first save of a Standard layout
+  const [id, setId] = useState(id0); // becomes the tenant's own copy after the first save of a Standard MV Layout
   const initial: DAsset[] = [...tiles.map(t => ({ id: 't' + t.n, type: 'mv', name: 'Monitor ' + t.n, x: t.x, y: t.y, w: t.w, h: t.h, ...(t.tileId ? { props: { tileId: t.tileId } } : {}) })), ...(extras?.items ?? [])];
   const [bg, setBg] = useState<number | null>(extras?.bg ?? null); const [bgHasAlpha, setBgHasAlpha] = useState(!!extras?.bgHasAlpha), [bgUseAlpha, setBgUseAlpha] = useState(extras?.bgUseAlpha !== false);
   const [picker, setPicker] = useState<null | { mode: 'bg' } | { mode: 'img'; add: (o: Partial<PaletteItem>) => void }>(null);

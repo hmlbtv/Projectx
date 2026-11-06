@@ -9,7 +9,7 @@ import { loadInterest, loadOptouts } from './interestList';
 import { unsubUrl } from './unsub';
 
 import { ROLES, TEST_ADDRESS } from './mailConst';
-const ROLE_LABEL: Record<string, string> = { user: 'All User accounts', manager: 'All Manager accounts', admin: 'All Admin accounts', master_admin: 'All Master admin accounts', webappdev: 'All Site developer accounts', onetime: 'All guest (invited) accounts' };
+const ROLE_LABEL: Record<string, string> = { user: 'All User accounts', manager: 'All Manager accounts', admin: 'All Admin accounts', master_admin: 'All Master Admin accounts', webappdev: 'All Site developer accounts', onetime: 'All guest (invited) accounts' };
 const ok = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 const mails = (t: string) => t.split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(ok);
 async function dev() { const me = await requireMe(); if (me.role !== 'webappdev') redirect('/'); return me; }

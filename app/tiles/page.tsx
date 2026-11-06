@@ -36,6 +36,6 @@ export default async function Tiles({ searchParams }: { searchParams: Promise<{ 
           {(canEdit || top) && <form action={saveProps} className="stack"><b>Tile properties</b><input type="hidden" name="id" value={x.id} />{canEdit && <input name="name" defaultValue={x.name} required />}
             {top && <><input type="hidden" name="std_form" value="1" /><label className="dz-flag"><input type="checkbox" name="standard" value="1" defaultChecked={std} /> Standard (all tenants)</label></>}<button className="sec">Save</button></form>}
           <form action={copyTile}><input type="hidden" name="id" value={x.id} /><button className="sec">Copy</button></form>
-          {canEdit && <form action={deleteTile} className="del-row"><input type="hidden" name="id" value={x.id} /><span className="mut">Delete this tile?</span><button className="del">Yes, delete</button></form>}
+          {canEdit && <form action={deleteTile} className="del-row"><input type="hidden" name="id" value={x.id} /><span className="mut">Delete this Tile?</span><button className="del">Yes, delete</button></form>}
         </Menu></div>); })}</div></>);
 }

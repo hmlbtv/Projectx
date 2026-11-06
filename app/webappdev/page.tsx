@@ -57,12 +57,12 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
   ];
   const lim = await sessionLimits();
   return (<><h1>Site admin · Tenants</h1>
-    <details className="card acc" open={imported !== undefined}><summary><b>Kaleido layouts</b> <span className="mut">add the MV Layouts converted from the Kaleido database</span></summary>
-      {imported !== undefined && <p><b>{imported}</b> new Standard layout{imported === '1' ? '' : 's'} added{of ? ` (${of} in the file${Number(imported) < Number(of) ? ', the rest were already there' : ''})` : ''}.</p>}
-      <form action={importKaleidoLayouts} className="stack"><p className="mut">47 layouts from the KMX database: even grids, one-big-plus-small, and with-timecode variants. Each monitor is placed and sized as in Kaleido and numbered left to right, top to bottom. Clock-only layouts are left out, and clocks inside layouts are not added as monitors. Safe to press again; layouts already added are skipped.</p><button className="sec">Add Kaleido layouts</button></form></details>
-    <details className="card acc" open={tidied !== undefined}><summary><b>Tidy Standard layouts</b> <span className="mut">neat 16:9 versions of the Standard MV Layouts</span></summary>
+    <details className="card acc" open={imported !== undefined}><summary><b>Kaleido MV Layouts</b> <span className="mut">add the MV Layouts converted from the Kaleido database</span></summary>
+      {imported !== undefined && <p><b>{imported}</b> new Standard MV Layout{imported === '1' ? '' : 's'} added{of ? ` (${of} in the file${Number(imported) < Number(of) ? ', the rest were already there' : ''})` : ''}.</p>}
+      <form action={importKaleidoLayouts} className="stack"><p className="mut">47 layouts from the KMX database: even grids, one-big-plus-small, and with-timecode variants. Each monitor is placed and sized as in Kaleido and numbered left to right, top to bottom. Clock-only layouts are left out, and clocks inside layouts are not added as monitors. Safe to press again; layouts already added are skipped.</p><button className="sec">Add Kaleido MV Layouts</button></form></details>
+    <details className="card acc" open={tidied !== undefined}><summary><b>Tidy Standard MV Layouts</b> <span className="mut">neat 16:9 versions of the Standard MV Layouts</span></summary>
       {tidied !== undefined && <p><b>{tidied}</b> layout{tidied === '1' ? '' : 's'} updated.</p>}
-      <form action={tidyStandardLayouts} className="stack"><p className="mut">Replaces the shapes of the Standard layouts (the built-in grids, 1 + 5 and the Kaleido ones) so every window is exactly 16:9, small windows around a big one are the same size, edges line up and the layout is centred. Tiles already on a window stay with it. Six layouts with unusual shapes (9-WAY-PGM-PRV, the 9-WAY-SMALL ones and PROD STCK MIMIC) are left as they are. Tenants' own layouts are not touched.</p><button className="sec">Tidy Standard layouts</button></form></details>
+      <form action={tidyStandardLayouts} className="stack"><p className="mut">Replaces the shapes of the Standard MV Layouts (the built-in grids, 1 + 5 and the Kaleido ones) so every window is exactly 16:9, small windows around a big one are the same size, edges line up and the layout is centred. Tiles already on a window stay with it. Six layouts with unusual shapes (9-WAY-PGM-PRV, the 9-WAY-SMALL ones and PROD STCK MIMIC) are left as they are. Tenants' own layouts are not touched.</p><button className="sec">Tidy Standard MV Layouts</button></form></details>
     <details className="card acc"><summary><b>Sign-in length</b> <span className="mut">{lim.idleHours ? `signed out after ${lim.idleHours} h idle` : 'no idle sign-out'} · {lim.maxDays} day maximum</span></summary>
       <form action={saveSessionSettings} className="stack"><label className="mut">Sign out after this many hours with no activity (0 = never)<input name="idle" type="number" min="0" max="720" defaultValue={lim.idleHours} /></label>
         <label className="mut">Always sign out after this many days (1 to 90)<input name="days" type="number" min="1" max="90" defaultValue={lim.maxDays} /></label>
@@ -110,7 +110,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
           {t.status !== 'active' && <form action={setTenantStatus}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="status" value="active" /><button>Reactivate</button></form>}
           <form action={deleteTenant} className="delete"><input type="hidden" name="id" value={t.id} />
             <input name="confirm" placeholder={`Type “${t.name}” to delete`} autoComplete="off" aria-label="Type the tenant name to confirm deletion" />
-            <button className="danger" data-noconfirm>Delete forever</button></form>
+            <button className="danger" data-noconfirm>Delete</button></form>
         </div>)}
       </details>); })}</>);
 }

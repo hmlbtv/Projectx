@@ -59,7 +59,7 @@ export default function PrintPlan({ Wall, wl, layouts, cur, job, onClose }: { Wa
       <button type="button" onClick={() => window.print()} disabled={!meta}>🖨 Print</button>
       <button type="button" className="sec" style={{ color: '#f4f5f8' }} onClick={() => pdf(false)} disabled={!meta || !!busy}>{busy === 'pdf' ? 'Making PDF…' : '⬇ Save PDF'}</button>
       {canShare && <button type="button" className="sec" style={{ color: '#f4f5f8' }} onClick={() => pdf(true)} disabled={!meta || !!busy}>{busy === 'share' ? 'Making PDF…' : '↗ Share PDF'}</button>}
-      <button type="button" className="sec" style={{ color: '#f4f5f8' }} onClick={onClose}>✕ Close</button></div>
+      <button type="button" className="sec" style={{ color: '#f4f5f8' }} onClick={onClose}>Close</button></div>
     {ready && <div role="dialog" aria-label="PDF ready" style={{ position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: '#fff', color: '#111827', borderRadius: 14, padding: 18, maxWidth: 340, width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <b style={{ fontSize: '1.05rem' }}>Your PDF is ready</b><span style={{ fontSize: '.85rem', color: '#5b6472' }}>A4, upright. Open it to print, or share it.</span>

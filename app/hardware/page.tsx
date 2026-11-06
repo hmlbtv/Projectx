@@ -39,7 +39,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
       <AddDialog action={addHwUnit} inline label="Add Hardware" title="New hardware unit" placeholder="Name (e.g. MV Frame 1)">
         <input name="model" placeholder="Make / model (optional)" /><Where /><RackFields />
         <label>Inputs <input name="inputs" type="number" min={1} max={1024} defaultValue={48} /></label><label>Outputs <input name="outputs" type="number" min={1} max={256} defaultValue={4} /></label></AddDialog></div>
-      <p className="mut">Multiviewer hardware defines the monitors' MV Layouts. Give each unit its inputs and outputs, put it in a Site, Location or Room (any monitor in that Site can use it), then assign each output to a monitor. <Link href="/hardware/usage">Usage report</Link></p>
+      <p className="mut">MV hardware defines the monitors' MV Layouts. Give each unit its inputs and outputs, put it in a Site, Location or Room (any monitor in that Site can use it), then assign each output to a monitor. <Link href="/hardware/usage">Usage report</Link></p>
       {units.length === 0 && <p className="mut">No hardware yet.</p>}
       {units.length > 0 && <div style={{ margin: '8px 0 0' }}><TreeControls target="#hwtree" store="teleplanner.hw" views /></div>}
       <div id="hwtree">{(() => {

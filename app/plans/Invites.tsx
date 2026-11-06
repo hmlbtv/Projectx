@@ -16,7 +16,7 @@ function EditInvite({ job, inv, walls }: { job: number; inv: Inv; walls: W[] }) 
   return (<form action={act} className="stack" style={{ margin: '6px 0' }}><input type="hidden" name="job" value={job} /><input type="hidden" name="email" value={inv.email} />
     <WallTicks walls={walls} on={new Set(inv.walls)} />
     <select name="access" defaultValue={inv.access}><option value="edit">Can edit</option><option value="view">View only</option></select>
-    <button className="sec" disabled={pending}>Save changes</button>
+    <button className="sec" disabled={pending}>Save</button>
     {st?.error && <div role="alert" style={{ color: 'var(--bad)' }}>{st.error}</div>}{st?.ok && <div role="status" style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(31,184,101,.14)', border: '1px solid #1fb865', fontWeight: 600 }}>✓ {st.ok}</div>}</form>);
 }
 function ContactPick({ contacts, onPick }: { contacts: C[]; onPick: (c: C | null) => void }) {
@@ -51,5 +51,5 @@ export default function Invites({ job, walls, contacts, invited }: { job: number
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}><b>{i.email}</b><span className="tag">{i.access === 'edit' ? 'can edit' : 'view only'}</span>
           {i.walls.map(id => <span key={id} className="tag">{walls.find(w => w.id === id)?.name ?? 'wall'}</span>)}</div>
         <details><summary className="mut" style={{ cursor: 'pointer' }}>Edit invitation</summary><EditInvite job={job} inv={i} walls={walls} />
-          <form action={removeInvite}><input type="hidden" name="job" value={job} /><input type="hidden" name="email" value={i.email} /><button className="del small">Remove this person</button></form></details></div>))}</div>}</div>);
+          <form action={removeInvite}><input type="hidden" name="job" value={job} /><input type="hidden" name="email" value={i.email} /><button className="del small">Remove access</button></form></details></div>))}</div>}</div>);
 }
