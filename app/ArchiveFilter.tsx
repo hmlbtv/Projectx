@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 
-// Search and filters for an Archive list. Each item carries the text to search and the Production / year to filter on; its card is passed in ready-made.
+// Search and filters for an Archive list. Each item carries the text to search and the Production / year to filter on; its Card is passed in ready-made.
 export type ArchiveItem = { key: string | number; text: string; prod: string; year: string; node: React.ReactNode };
 export default function ArchiveFilter({ items, tiles }: { items: ArchiveItem[]; tiles?: boolean }) {
   const [q, setQ] = useState(''), [prod, setProd] = useState(''), [year, setYear] = useState('');

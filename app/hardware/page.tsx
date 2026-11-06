@@ -24,26 +24,26 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
   const { units, outs, walls, layouts, dests, racks, frames } = hw;
   const siteName = (id: number | null) => sites.find((s: any) => s.id === id)?.name ?? '';
   const whereOf = (u: any) => u.room_id ? (() => { const r = rooms.find((x: any) => x.id === u.room_id); return `${siteName(u.site_id)} › ${locs.find((l: any) => l.id === r?.location_id)?.name ?? ''} › ${r?.name ?? ''}`; })() : u.location_id ? `${siteName(u.site_id)} › ${locs.find((l: any) => l.id === u.location_id)?.name ?? ''}` : siteName(u.site_id);
-  const Where = ({ cur }: { cur?: any }) => (<select name="where" required defaultValue={cur ? (cur.room_id ? 'r:' + cur.room_id : cur.location_id ? 'l:' + cur.location_id : 's:' + cur.site_id) : ''} aria-label="Where is the unit">
+  const Where = ({ cur }: { cur?: any }) => (<select name="where" required defaultValue={cur ? (cur.room_id ? 'r:' + cur.room_id : cur.location_id ? 'l:' + cur.location_id : 's:' + cur.site_id) : ''} aria-label="Where is the Unit">
     <option value="" disabled>Where is it?</option>
     {sites.map((s: any) => (<optgroup key={s.id} label={s.name}><option value={'s:' + s.id}>{s.name} (whole Site)</option>
       {locs.filter((l: any) => l.site_id === s.id).flatMap((l: any) => [<option key={'l' + l.id} value={'l:' + l.id}>{s.name} › {l.name}</option>, ...rooms.filter((r: any) => r.location_id === l.id).map((r: any) => <option key={'r' + r.id} value={'r:' + r.id}>{s.name} › {l.name} › {r.name}</option>)])}</optgroup>))}</select>);
 
-  // Which Frame (and slot) the unit sits in. Racks and Frames are added in Rack view.
-  const frameLabel = (f: any) => `${racks.find((r: any) => r.id === f.rack_id)?.name ?? 'No rack'} › ${f.name} (${f.slots} slot${f.slots === 1 ? '' : 's'})`;
-  const RackFields = ({ cur }: { cur?: any }) => (<div className="row" style={{ margin: 0 }}><select name="frame" defaultValue={cur?.frame_id ?? ''} aria-label="Frame" style={{ flex: '1 1 200px' }}><option value="">Not in a frame</option>{frames.map((f: any) => <option key={f.id} value={f.id}>{frameLabel(f)}</option>)}</select><label>Slot <input name="slot" type="number" min={1} max={64} defaultValue={cur?.slot ?? ''} placeholder="slot" style={{ width: 80 }} /></label></div>);
+  // Which Frame (and slot) the Unit sits in. Racks and Frames are added in Rack view.
+  const frameLabel = (f: any) => `${racks.find((r: any) => r.id === f.rack_id)?.name ?? 'No Rack'} › ${f.name} (${f.slots} slot${f.slots === 1 ? '' : 's'})`;
+  const RackFields = ({ cur }: { cur?: any }) => (<div className="row" style={{ margin: 0 }}><select name="frame" defaultValue={cur?.frame_id ?? ''} aria-label="Frame" style={{ flex: '1 1 200px' }}><option value="">Not in a Frame</option>{frames.map((f: any) => <option key={f.id} value={f.id}>{frameLabel(f)}</option>)}</select><label>Slot <input name="slot" type="number" min={1} max={64} defaultValue={cur?.slot ?? ''} placeholder="slot" style={{ width: 80 }} /></label></div>);
   const whereOpts = sites.flatMap((s: any) => [{ value: 's:' + s.id, label: `${s.name} (whole Site)` }, ...locs.filter((l: any) => l.site_id === s.id).flatMap((l: any) => [{ value: 'l:' + l.id, label: `${s.name} › ${l.name}` }, ...rooms.filter((r: any) => r.location_id === l.id).map((r: any) => ({ value: 'r:' + r.id, label: `${s.name} › ${l.name} › ${r.name}` }))])]);
   const u = q.id ? units.find(x => String(x.id) === q.id) : null;
   if (!u) {
     return (<><div className="pagehead"><h1 style={{ margin: 0 }}>MV Hardware</h1>
-      <AddDialog action={addHwUnit} inline label="Add Hardware" title="New hardware unit" placeholder="Name (e.g. MV Frame 1)">
+      <AddDialog action={addHwUnit} inline label="Add Hardware" title="New hardware Unit" placeholder="Name (e.g. MV Frame 1)">
         <input name="model" placeholder="Make / model (optional)" /><Where /><RackFields />
         <label>Inputs <input name="inputs" type="number" min={1} max={1024} defaultValue={48} /></label><label>Outputs <input name="outputs" type="number" min={1} max={256} defaultValue={4} /></label></AddDialog></div>
-      <p className="mut">MV hardware defines the monitors' MV Layouts. Give each unit its inputs and outputs, put it in a Site, Location or Room (any monitor in that Site can use it), then assign each output to a monitor. <Link href="/hardware/usage">Usage report</Link></p>
+      <p className="mut">MV hardware defines the monitors' MV Layouts. Give each Unit its inputs and outputs, put it in a Site, Location or Room (any monitor in that Site can use it), then assign each output to a monitor. <Link href="/hardware/usage">Usage report</Link></p>
       {units.length === 0 && <p className="mut">No hardware yet.</p>}
       {units.length > 0 && <div style={{ margin: '8px 0 0' }}><TreeControls target="#hwtree" store="teleplanner.hw" views /></div>}
       <div id="hwtree">{(() => {
-        // Each unit sits at the branch where its outputs are used: one Room, else the Location they share, else the Site. A unit with no outputs yet sits where it was put.
+        // Each Unit sits at the branch where its outputs are used: one Room, else the Location they share, else the Site. A Unit with no outputs yet sits where it was put.
         const place = (x: any) => { const rs = Array.from(new Set(outs.filter(o => o.unit_id === x.id).map(o => walls.find(w => w.id === o.room_wall_id)).filter(Boolean).map(w => w!.room_id)));
           if (rs.length === 0) return x.room_id ? { k: 'r', id: x.room_id } : x.location_id ? { k: 'l', id: x.location_id } : { k: 's', id: x.site_id };
           const ws = rs.map(id => walls.find(w => w.room_id === id)!); if (rs.length === 1) return { k: 'r', id: rs[0] };
@@ -51,10 +51,10 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
         const at = (k: string, id: number) => units.filter(x => { const p = place(x); return p.k === k && p.id === id; });
         const Card = ({ x }: { x: any }) => { const o = outs.filter(y => y.unit_id === x.id); const used = taken(x.id, outs, dests, layouts); const set = new Set<number>(); used.forEach(r => r.nums.forEach(i => set.add(i)));
           const fr = frames.find((f: any) => f.id === x.frame_id); const rk = fr && racks.find((r: any) => r.id === fr.rack_id);
-          return (<div className="card tile hwcard" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}><div className="hwline"><Link href={`/hardware?id=${x.id}`}><b>{x.name}</b></Link><span className="mut">{x.model ? x.model + ' · ' : ''}{o.length}/{x.outputs} out · {set.size}/{x.inputs} in · {fr ? `${rk ? rk.name + ' › ' : ''}${fr.name} › slot ${x.slot}` : 'not in a frame'}</span></div><div className="hwfull" style={{ display: 'contents' }}><Link href={`/hardware?id=${x.id}`} className="tilelink" style={{ minHeight: 0 }}><b>{x.name}</b><span className="mut">{x.model ? x.model + ' · ' : ''}{o.length}/{x.outputs} outputs · {set.size}/{x.inputs} inputs used</span></Link>
+          return (<div className="card tile hwcard" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}><div className="hwline"><Link href={`/hardware?id=${x.id}`}><b>{x.name}</b></Link><span className="mut">{x.model ? x.model + ' · ' : ''}{o.length}/{x.outputs} out · {set.size}/{x.inputs} in · {fr ? `${rk ? rk.name + ' › ' : ''}${fr.name} › slot ${x.slot}` : 'not in a Frame'}</span></div><div className="hwfull" style={{ display: 'contents' }}><Link href={`/hardware?id=${x.id}`} className="tilelink" style={{ minHeight: 0 }}><b>{x.name}</b><span className="mut">{x.model ? x.model + ' · ' : ''}{o.length}/{x.outputs} outputs · {set.size}/{x.inputs} inputs used</span></Link>
             {(() => { const ms = o.map(y => { const w = walls.find(z => z.id === y.room_wall_id), m = w?.mons.find(z => z.id === y.monitor_id); return { n: y.out_no, text: m ? `${m.name}` : 'missing monitor', full: w ? `${w.room} › ${w.name} › ${m?.name ?? 'missing monitor'}` : '' }; }); const shown = ms.slice(0, 6);
               return <div className="mut" style={{ fontSize: '.85rem' }}>{ms.length === 0 ? 'No monitors assigned' : <>{shown.map((m, i) => <span key={m.n} title={m.full}>{i ? ' · ' : ''}Out {m.n}: {m.text}</span>)}{ms.length > shown.length ? ` · +${ms.length - shown.length} more` : ''}</>}</div>; })()}
-            <Link href={fr ? `/hardware/racks#frame-${fr.id}` : '/hardware/racks'} className="mut" style={{ fontSize: '.85rem', textDecoration: 'underline' }} title="Show in Rack view">{whereOf(x)} · {fr ? `${rk ? rk.name + ' › ' : ''}${fr.name} › slot ${x.slot}` : 'not in a frame'}</Link></div></div>); };
+            <Link href={fr ? `/hardware/racks#frame-${fr.id}` : '/hardware/racks'} className="mut" style={{ fontSize: '.85rem', textDecoration: 'underline' }} title="Show in Rack view">{whereOf(x)} · {fr ? `${rk ? rk.name + ' › ' : ''}${fr.name} › slot ${x.slot}` : 'not in a Frame'}</Link></div></div>); };
         const Row = ({ list }: { list: any[] }) => list.length ? <div className="tiles">{list.map(x => <Card key={x.id} x={x} />)}</div> : null;
         const rmCount = (rm: any) => at('r', rm.id).length;
         const locCount = (l: any) => at('l', l.id).length + rooms.filter((r: any) => r.location_id === l.id).reduce((n: number, r: any) => n + rmCount(r), 0);
@@ -64,7 +64,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
               {rooms.filter((r: any) => r.location_id === l.id && rmCount(r)).map((r: any) => (<details key={r.id} data-k={'r' + r.id} style={{ margin: '8px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><summary style={{ cursor: 'pointer' }}><b>{r.name}</b> <span className="tag">{rmCount(r)}</span></summary><div style={{ marginTop: 6 }}><Row list={at('r', r.id)} /></div></details>))}</div></details>))}</div></details>); });
       })()}</div></>);
   }
-  // ---- One unit ----
+  // ---- One Unit ----
   const mine = outs.filter(o => o.unit_id === u.id);
   const usedRanges = taken(u.id, outs, dests, layouts); const used = new Set<number>(); usedRanges.forEach(r => r.nums.forEach(i => used.add(i)));
   const siteWalls = walls.filter(w => w.site_id === u.site_id);
@@ -75,7 +75,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
       <Menu><b>Edit hardware</b><form action={updateHwUnit} className="stack"><input type="hidden" name="id" value={u.id} /><input name="name" defaultValue={u.name} required /><input name="model" defaultValue={u.model} placeholder="Make / model" /><Where cur={u} /><RackFields cur={u} />
         <label>Inputs <input name="inputs" type="number" min={Math.max(1, usedRanges.reduce((m, r) => Math.max(m, r.to), 0))} max={1024} defaultValue={u.inputs} /></label>
         <label>Outputs <input name="outputs" type="number" min={Math.max(1, ...mine.map(o => o.out_no))} max={256} defaultValue={u.outputs} /></label><button className="sec">Save</button></form>
-        <form action={deleteHwUnit} className="del-row"><input type="hidden" name="id" value={u.id} /><span className="mut">Delete this unit? Its outputs and destination numbers are removed.</span><button className="del">Yes, delete</button></form></Menu></div>
+        <form action={deleteHwUnit} className="del-row"><input type="hidden" name="id" value={u.id} /><span className="mut">Delete this Unit? Its outputs and destination numbers are removed.</span><button className="del">Yes, delete</button></form></Menu></div>
     {q.err && <p role="alert" style={{ color: 'var(--bad)' }}>{q.err}</p>}
     <div className="card"><b>Inputs: {used.size} of {u.inputs} used</b>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 8 }} aria-label="Input usage">{Array.from({ length: u.inputs }, (_, i) => i + 1).map(n => <span key={n} title={used.has(n) ? 'In use' : 'Free'} style={{ minWidth: 26, textAlign: 'center', fontSize: '.72rem', padding: '2px 0', borderRadius: 4, background: used.has(n) ? '#1d6b3a' : 'transparent', border: '1px solid var(--line)', color: used.has(n) ? '#fff' : undefined }}>{n}</span>)}</div>
@@ -85,7 +85,7 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
         <CopyHardware key={u.id} u={{ id: u.id, name: u.name, model: u.model, inputs: u.inputs, outputs: u.outputs, where: u.room_id ? 'r:' + u.room_id : u.location_id ? 'l:' + u.location_id : 's:' + u.site_id, dest_names: u.dest_names ?? {}, dest_hw: u.dest_hw ?? {}, out_names: u.out_names ?? {}, out_hw: u.out_hw ?? {} }} where={whereOpts} /></div>
       <p className="mut" style={{ fontSize: '.85rem', margin: '6px 0 0' }}>Auto-assign stacks the monitors in output order. Each monitor takes as many destinations as its biggest MV Layout, and all of its layouts start at its first one (a full-screen layout sits on the first destination).</p></div>
     <h2 style={{ margin: '18px 0 6px' }}>Destination and output names</h2>
-    <div className="card"><div className="row" style={{ justifyContent: 'space-between' }}><span className="mut">Friendly names are what people see in Monitor Plans. The hardware name is the unit's own name for it. Names belong to this unit only.</span><ImportNames id={u.id} /></div>
+    <div className="card"><div className="row" style={{ justifyContent: 'space-between' }}><span className="mut">Friendly names are what people see in Monitor Plans. The hardware name is the Unit's own name for it. Names belong to this Unit only.</span><ImportNames id={u.id} /></div>
       <details key={u.id} style={{ marginTop: 8 }}><summary>Edit names here</summary>
         <form action={saveHwNames} className="stack" style={{ marginTop: 8 }}><input type="hidden" name="id" value={u.id} /><SaveNames />
           <b>Destinations (inputs)</b>
@@ -105,11 +105,11 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
             {Array.from({ length: u.outputs }, (_, i) => i + 1).map(n => (<div key={n} style={{ display: 'contents' }}><span style={{ textAlign: 'right' }}>{n}</span><input name={'oh_' + n} defaultValue={u.out_hw?.[n] ?? ''} maxLength={60} aria-label={`Output ${n} hardware name`} /><input name={'on_' + n} defaultValue={u.out_names?.[n] ?? ''} maxLength={60} aria-label={`Output ${n} friendly name`} /></div>))}</div>
           <SaveNames /></form></details></div>
     {(() => {
-      // Which layout choices cannot be on at the same time: two monitors of this unit whose chosen layouts share a destination.
+      // Which layout choices cannot be on at the same time: two monitors of this Unit whose chosen layouts share a destination.
       type Item = { key: string; mon: string; layout: string; nums: number[] };
       const items: Item[] = mine.flatMap(o => { const w = wallOf(o.room_wall_id), m = w?.mons.find(x => x.id === o.monitor_id); if (!w || !m) return []; return m.mvs.filter(l => layouts.has(l)).map(l => { const d = dests.find(x => x.room_wall_id === w.id && x.monitor_id === m.id && x.layout_id === l); return { key: w.id + ':' + m.id, mon: `${w.room} · ${m.name}`, layout: layouts.get(l)!.name, nums: d ? destNums(d, layouts.get(l)!.n).filter((x): x is number => x != null) : [] }; }); });
       const clashes: string[] = []; for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) { const a = items[i], b = items[j]; if (a.key === b.key) continue; const both = a.nums.filter(n => b.nums.includes(n)); if (both.length) clashes.push(`${a.mon} (${a.layout}) with ${b.mon} (${b.layout}): destination ${fmtNums(both)}`); }
-      return (<details className="card acc" style={{ margin: '18px 0 6px' }}><summary><b>Layout compatibility</b> <span className="mut">{clashes.length === 0 ? 'no clashes' : `${clashes.length} combination${clashes.length === 1 ? '' : 's'} can't be on together`}</span></summary>{clashes.length === 0 ? <p className="mut" style={{ margin: '6px 0 0' }}>No two monitors on this unit share a destination, so any layout choices work together.</p> : (<><p className="mut" style={{ margin: '6px 0 0' }}>These layout choices cannot be on together in a Monitor Plan (the plan highlights them, but still allows them):</p><ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{clashes.map((c, i) => <li key={i}>{c}</li>)}</ul></>)}</details>); })()}
+      return (<details className="card acc" style={{ margin: '18px 0 6px' }}><summary><b>Layout compatibility</b> <span className="mut">{clashes.length === 0 ? 'no clashes' : `${clashes.length} combination${clashes.length === 1 ? '' : 's'} can't be on together`}</span></summary>{clashes.length === 0 ? <p className="mut" style={{ margin: '6px 0 0' }}>No two monitors on this Unit share a destination, so any layout choices work together.</p> : (<><p className="mut" style={{ margin: '6px 0 0' }}>These layout choices cannot be on together in a Monitor Plan (the plan highlights them, but still allows them):</p><ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{clashes.map((c, i) => <li key={i}>{c}</li>)}</ul></>)}</details>); })()}
     <h2 style={{ margin: '18px 0 6px' }}>Outputs</h2>
     {siteWalls.every(w => w.mons.length === 0) && <p className="mut">No monitors in Wall Templates placed in Rooms of this Site yet.</p>}
     <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'minmax(0,1fr)' }}>{Array.from({ length: u.outputs }, (_, i) => i + 1).map(n => { const o = mine.find(x => x.out_no === n); const w = o ? wallOf(o.room_wall_id) : null; const m = w?.mons.find(x => x.id === o!.monitor_id);

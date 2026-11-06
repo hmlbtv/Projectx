@@ -177,7 +177,7 @@ export default function Plan({ walls, layouts, sources, sourceCats = {}, saved, 
   // A new plan starts from each Wall Template's chosen default MV configuration.
   const seed = () => Object.fromEntries(walls.filter(x => x.defaultMons).map(x => [x.id, { assign: {}, mons: x.defaultMons }])) as Data;
   const [data, setData] = useState<Data>((saved.find(x => x.name === start) ?? saved[0])?.data ?? seed());
-  // Hardware: two monitors on the same unit clash when the layouts chosen on them use the same destination. Shown, never blocked.
+  // Hardware: two monitors on the same Unit clash when the layouts chosen on them use the same destination. Shown, never blocked.
   const fmt = (v: number[]) => { const a = [...v].sort((x, y) => x - y), o: string[] = []; let i = 0; while (i < a.length) { let j = i; while (j + 1 < a.length && a[j + 1] === a[j] + 1) j++; o.push(j > i ? `${a[i]}–${a[j]}` : String(a[i])); i = j + 1; } return o.join(', '); };
   const hwSel: Record<string, number> = { ...(hw?.sel ?? {}) };
   for (const wl of walls) for (const a of (wl.assets ?? [])) if (isScreen(a.type)) { const ids: number[] = (Array.isArray(a.props?.mvs) ? a.props.mvs : []).map(Number).filter((id: number) => layouts.some(l => l.id === id)); const sv = data[wl.id]?.mons?.[a.id]; const v = ids.includes(Number(sv)) ? Number(sv) : ids[0]; if (v) hwSel[`${wl.id}:${a.id}`] = v; }

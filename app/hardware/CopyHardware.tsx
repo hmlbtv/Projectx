@@ -10,7 +10,7 @@ const NO_TICKS: Ticks = { name: false, model: false, hw: false, fn: false };
 const KEY = 'teleplanner.copyInc';
 // "prod 22" -> "prod 23", "CAM-007" -> "CAM-008". Only text that ends in a number can be incremented.
 export const bump = (v: string): string | null => { const m = /(\d+)$/.exec(v); return m ? v.slice(0, m.index) + String(Number(m[1]) + 1).padStart(m[1].length, '0') : null; };
-// "Copy hardware": a window with the unit's settings and names, all editable, that creates a new unit. Output assignments and destination numbers are not copied.
+// "Copy hardware": a window with the Unit's settings and names, all editable, that creates a new Unit. Output assignments and destination numbers are not copied.
 export default function CopyHardware({ u, where }: { u: U; where: Opt[] }) {
   const [st, act, pending] = useActionState(copyHwUnit, undefined); const ref = useRef<HTMLDialogElement>(null), form = useRef<HTMLFormElement>(null), router = useRouter();
   const [ticks, setTicks] = useState<Ticks>(NO_TICKS), [made, setMade] = useState<string[]>([]), [, redraw] = useState(0);
@@ -34,7 +34,7 @@ export default function CopyHardware({ u, where }: { u: U; where: Opt[] }) {
     <dialog ref={ref} className="dlg" onClick={e => { if (e.target === ref.current) ref.current?.close(); }} style={{ width: 'min(640px, 96vw)' }}>
       <form ref={form} action={act} className="stack"><input type="hidden" name="id" value={u.id} />
         <h2 style={{ margin: 0 }}>Copy hardware</h2>
-        <p className="mut" style={{ margin: 0 }}>Change anything you need. Output assignments and destination numbers are not copied; set them on the new unit.</p>
+        <p className="mut" style={{ margin: 0 }}>Change anything you need. Output assignments and destination numbers are not copied; set them on the new Unit.</p>
         <label>Name <input name="name" defaultValue={`${u.name} copy`} required maxLength={80} onInput={() => redraw(x => x + 1)} /></label>
         <label className="row" style={{ margin: 0, gap: 6 }}><input type="checkbox" checked={ticks.name} onChange={e => tick('name', e.target.checked)} /> <span>Add 1 to the number at the end of the name</span></label>
         {ticks.name && <div className="mut" role="status" style={{ fontSize: '.9rem' }}>{nextName() == null && !fields('name')[0]?.value ? '' : <>This copy is named <b>{fields('name')[0]?.value}</b>{nextName() ? <>; the next Copy Inc will be <b>{nextName()}</b>.</> : <>. The name doesn’t end in a number, so there is nothing to add 1 to.</>}</>}</div>}

@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 type Res = { created: number; updated: number; addedSources: number; skipped: number; notAdded: number } | { error: string };
-// Import sources into ONE Source Set (the card it sits on) from an Excel (.xlsx) or CSV file; the sheet downloads with that set's sources already in it.
+// Import sources into ONE Source Set (the Card it sits on) from an Excel (.xlsx) or CSV file; the sheet downloads with that set's sources already in it.
 export default function ImportSources({ setId, setName }: { setId: number; setName: string }) {
   const ref = useRef<HTMLDialogElement>(null), input = useRef<HTMLInputElement>(null), router = useRouter();
   const [busy, setBusy] = useState(false), [res, setRes] = useState<Res | null>(null);

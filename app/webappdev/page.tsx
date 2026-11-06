@@ -81,7 +81,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
     <form method="get" className="searchbar"><input name="q" defaultValue={q} placeholder="Search tenants, users or emails" aria-label="Search" />
       <select name="s" defaultValue={sf ?? ''} aria-label="Status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="archived">Archived</option></select>
       <button>Search</button>{(q || sf) && <a href="/webappdev"><button type="button" className="sec">Clear filters</button></a>}</form>
-    <p className="mut">{ts.length} tenant{ts.length === 1 ? '' : 's'}{q ? ` matching “${q}”` : ''}. Open a card for details.</p>
+    <p className="mut">{ts.length} tenant{ts.length === 1 ? '' : 's'}{q ? ` matching “${q}”` : ''}. Open a Card for details.</p>
     {ts.length === 0 && <div className="card mut">No tenants match.</div>}
     {ts.map((t: any) => { const m: any = msById.get(t.id) ?? {}; const mine = found.filter((u: any) => u.tenant_id === t.id); const own = t.id === me.tenant_id; return (
       <details key={t.id} className={'card acc tenant st-' + t.status} open={!!q && ts.length <= 3}>
