@@ -62,7 +62,9 @@ export default async function Subscriptions({ searchParams }: { searchParams: Pr
         {p && <span className="mut">{p.used} workspace{p.used === 1 ? '' : 's'} on it</span>}
       </div></form>); };
 
-  return (<><div className="crumbs"><Link href="/webappdev" className="btn sec small">← Site admin</Link></div>
+  return (<><div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 50, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      <span style={{ transform: 'rotate(-30deg)', fontSize: 'clamp(48px, 14vw, 180px)', fontWeight: 800, letterSpacing: '.05em', whiteSpace: 'nowrap', color: 'rgba(229,53,43,.13)', textTransform: 'uppercase', userSelect: 'none' }}>In development</span></div>
+    <div className="crumbs"><Link href="/webappdev" className="btn sec small">← Site admin</Link></div>
     <h1>Site admin · Subscriptions</h1>
     <p className="mut">Plans (tiers), who is on which one and until when. No payment provider is connected: you record subscriptions here, and the limits, reminder emails and the fall back to Demo all follow from what you record.</p>
     {err && <p role="alert" className="err" style={{ color: 'var(--bad)' }}>{err}</p>}
