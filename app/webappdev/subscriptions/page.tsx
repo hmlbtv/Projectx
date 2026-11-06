@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import AutoSelect from './AutoSelect';
+import AutoSelect from '../../AutoSelect';
 import { rows } from '@/lib/db';
 import { requireMe } from '@/lib/session';
 import { emailOn } from '@/lib/mail';
