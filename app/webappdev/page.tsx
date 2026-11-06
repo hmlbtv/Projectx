@@ -95,7 +95,6 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
           <Stat k="Sign-ins (30d)" v={m.logins30 ?? 0} /><Stat k="Active users 7d / 30d" v={`${m.active7 ?? 0} / ${m.active30 ?? 0}`} /><Stat k="Avg session" v={m.logins30 ? dur(m.avg_secs) : '—'} /><Stat k="Total time (30d)" v={m.logins30 ? dur(m.total_secs) : '—'} />
           <Stat k="Invited, not joined" v={m.pending ?? 0} /><Stat k="Never signed in" v={m.never ?? 0} /><Stat k="Guest links (joined)" v={`${m.links ?? 0} (${m.links_joined ?? 0})`} />
         </div>
-        <p className="mut">Plan: <b>{t.plan}</b> · <Link href={`/webappdev/subscriptions?q=${encodeURIComponent(t.name)}`}>Manage subscription and limits</Link></p>
         {own ? <p className="mut">This is your own workspace, so it cannot be suspended, archived or deleted.</p> : (
         <div className="acts">
           {t.status !== 'suspended' && <form action={setTenantStatus}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="status" value="suspended" /><button className="sec" title="Members are signed out and see a suspended page">Suspend</button></form>}
