@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import AutoSelect from './AutoSelect';
 import { rows } from '@/lib/db';
 import { requireMe } from '@/lib/session';
 import { emailOn } from '@/lib/mail';
@@ -28,7 +29,7 @@ export default async function Subscriptions({ searchParams }: { searchParams: Pr
       (select coalesce(max(c),0)::int from (select count(*) c from productions pr join broadcasters b on b.id=pr.broadcaster_id where b.tenant_id=t.id group by b.id) x) prods,
       (select coalesce(max(c),0)::int from (select count(*) c from jobs j join productions pr on pr.id=j.production_id join broadcasters b on b.id=pr.broadcaster_id where b.tenant_id=t.id and (j.expires_at is null or j.expires_at >= current_date) group by pr.id) x) jobs
     from tenants t join plans p on p.key=t.plan left join subscriptions s on s.tenant_id=t.id
-    where t.id<>1 and ($1='' or t.name ilike '%'||$1||'%' or exists(select 1 from users u where u.tenant_id=t.id and u.email ilike '%'||$1||'%'))
+    where t.id<>1 and ($1='' or t.name ilike '%'||$1||'%' or exists(select 1 from users u where u.tenant_id=t.id and (u.email ilike '%'||$1||'%' or u.name ilike '%'||$1||'%')))
       and ($2='' or ($2='demo' and t.plan='demo') or ($2='cancelling' and s.cancel_at_period_end) or ($2 in ('active','grace','expired') and s.status=$2))
     order by (t.plan='demo'), s.current_period_end nulls last, t.id desc limit 300`, [q, f]);
   const events = await rows<any>(`select e.*, t.name tname from subscription_events e left join tenants t on t.id=e.tenant_id where e.kind not like 'reminder%' order by e.at desc limit 100`);
@@ -75,8 +76,8 @@ export default async function Subscriptions({ searchParams }: { searchParams: Pr
     <p className="row" style={{ gap: 8, margin: '6px 0 14px' }}><a className="btn sec small" href="/webappdev/subscriptions/export">Download workspaces (CSV)</a><a className="btn sec small" href="/webappdev/subscriptions/export?events=1">Download history (CSV)</a></p>
 
     <details className="card acc" open><summary><b>Plans</b> <span className="mut">tiers, prices and what each one allows. Change a number and it applies to every workspace on that plan straight away.</span></summary>
-      <div style={{ display: 'grid', gap: 12 }}>{plans.map(p => (<div key={p.key} className="card" style={{ margin: 0 }}><div className="row" style={{ margin: '0 0 6px', gap: 8 }}><b>{p.name}</b><span className="tag">{p.key}</span>{p.free && <span className="tag">free</span>}{!p.active && <span className="tag">draft / off</span>}
-          {p.key !== 'demo' && p.key !== 'owner' && <span className="mut">{money(p.price_month, p.currency)} / month · {money(p.price_year, p.currency)} / year</span>}</div><PlanForm p={p} /></div>))}</div>
+      <div style={{ display: 'grid', gap: 12 }}>{plans.map(p => (<details key={p.key} className="card acc" style={{ margin: 0 }}><summary><div className="row" style={{ margin: 0, gap: 8, display: 'inline-flex' }}><b>{p.name}</b><span className="tag">{p.key}</span>{p.free && <span className="tag">free</span>}{!p.active && <span className="tag">draft / off</span>}
+          {p.key !== 'demo' && p.key !== 'owner' && <span className="mut">{money(p.price_month, p.currency)} / month · {money(p.price_year, p.currency)} / year</span>}<span className="mut">· {p.used} workspace{p.used === 1 ? '' : 's'}</span></div></summary><PlanForm p={p} /></details>))}</div>
       <details className="sub"><summary><b>+ Add a plan</b></summary><PlanForm /></details>
       <p className="mut" style={{ marginTop: 8 }}>To add a new kind of limit (for example Sites or team size), it is added once in the code and then appears here on every plan.</p></details>
 
@@ -86,8 +87,8 @@ export default async function Subscriptions({ searchParams }: { searchParams: Pr
       <form action={runSweepNow}><button className="sec small">Run the check now</button></form></details>
 
     <h2 style={{ margin: '18px 0 6px' }}>Workspaces</h2>
-    <form method="get" className="searchbar"><input name="q" defaultValue={q} placeholder="Search workspaces or emails" aria-label="Search" />
-      <select name="f" defaultValue={f} aria-label="Show"><option value="">All</option><option value="active">Subscribed</option><option value="grace">In grace period</option><option value="cancelling">Not renewing</option><option value="expired">Ended (back on Demo)</option><option value="demo">On Demo</option></select><button className="sec">Filter</button>{(q || f) && <Link href="/webappdev/subscriptions" className="btn small">Clear filters</Link>}</form>
+    <form method="get" className="searchbar"><input name="q" defaultValue={q} placeholder="Search workspaces, users or emails" aria-label="Search" />
+      <AutoSelect name="f" value={f} label="Show" options={[['', 'All'], ['active', 'Subscribed'], ['grace', 'In grace period'], ['cancelling', 'Not renewing'], ['expired', 'Ended (back on Demo)'], ['demo', 'On Demo']]} /><button className="sec">Filter</button>{(q || f) && <Link href="/webappdev/subscriptions" className="btn small">Clear filters</Link>}</form>
     {ts.length === 0 ? <p className="mut">No workspaces match.</p> : ts.map(t => { const st = t.status ?? (t.plan === 'demo' ? 'demo' : 'active'); const lim = Object.fromEntries(LIMIT_DEFS.map(d => [d.key, Number(t.ov?.[d.key] ?? plans.find(p => p.key === t.plan)?.limits?.[d.key] ?? d.def)]));
       return (<details key={t.id} className="card acc" style={{ margin: '6px 0' }}><summary><b>{t.name}</b> <span className="tag">{t.pname}</span>{st === 'grace' && <span className="tag" style={{ color: 'var(--bad)' }}>grace period</span>}{t.cancel && <span className="tag">won&apos;t renew</span>}
           <span className="mut">{t.owner ?? 'no owner'}{t.pe ? ` · ends ${dayStr(t.pe)} (${left(t.pe)})` : ''}{t.price ? ` · ${money(t.price, t.currency)} ${t.period === 'yearly' ? '/ year' : t.period === 'monthly' ? '/ month' : ''}` : ''} · signed up {dayStr(t.created_at)} · last sign-in {ago(t.last_login)}</span></summary>

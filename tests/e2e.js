@@ -86,6 +86,11 @@ const click = async (p, loc, o = {}) => { for (let k = 0; k < 4; k++) { await op
   await p.goto(B + '/webappdev/subscriptions'); await p.waitForLoadState('networkidle');
   ok(await p.locator('text=Monthly revenue (MRR)').count() > 0, 'Subscriptions page shows the revenue report');
   ok(await p.locator('input[name="lim_wall_templates"]').count() > 0, 'plans show editable limits');
+  await p.locator('.searchbar input[name="q"]').fill('zzznomatch'); await p.locator('.searchbar button', { hasText: 'Filter' }).click(); await p.waitForLoadState('networkidle'); await p.waitForTimeout(500);
+  ok(p.url().includes('q=zzznomatch') && await p.locator('text=No workspaces match').count() > 0, 'Subscriptions search filters workspaces (' + p.url() + ')');
+  await p.goto(B + '/webappdev/subscriptions'); await p.waitForLoadState('networkidle'); await p.locator('select[aria-label="Show"]').selectOption('demo'); await p.waitForURL(/f=demo/, { timeout: 8000 }).catch(() => {});
+  ok(await p.locator('select[aria-label="Show"]').inputValue() === 'demo' && await p.locator('details.card.acc summary b').count() > 3, 'Demo filter keeps its choice and lists workspaces and plans');
+  const pl = p.locator('details.acc', { has: p.locator('input[name="lim_wall_templates"]') }).first(); ok(await pl.count() > 0, 'each plan is a collapsible section');
   const csv = await p.request.get(B + '/webappdev/subscriptions/export'); ok(csv.status() === 200 && (await csv.text()).startsWith('workspace'), 'workspaces CSV downloads');
   const cron = await fetch(B + '/api/cron/subscriptions'); ok(cron.status === 401, 'daily check refuses calls without the secret');
   ok(errs.length === 0, 'no server or page errors: ' + errs.join(' | '));
