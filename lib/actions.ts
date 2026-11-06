@@ -107,8 +107,8 @@ export async function signUp(_: FormState, f: FormData): Promise<FormState> {
     { const t = T.signupExists(`${await baseUrl()}/signin`); await brandedMail(email, t.subject, t.text, t.b); };
     return { ok: `We sent a verification link to ${email}. Open it to finish creating your account.` };
   }
+  if (signupBlocked()) return { error: SIGNUP_BLOCKED_MSG }; // checked before anything is created, so a refused sign-up leaves no empty workspace behind
   const t = await one('insert into tenants(name,plan,max_walls_per_broadcaster) values($1,\'demo\',1) returning id', [org]);
-  if (signupBlocked()) return { error: SIGNUP_BLOCKED_MSG };
   const verify = emailOn(), token = newToken();
   const u = await one(`insert into users(tenant_id,email,name,role,password_hash,email_verified,verify_hash,verify_expires)
     values($1,$2,$3,'master_admin',$4,$5,$6,now() + interval '2 days') returning id`, [t.id, email, name, await hashPassword(pw), !verify, verify ? sha256(token) : null]);
