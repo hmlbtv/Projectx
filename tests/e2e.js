@@ -63,6 +63,16 @@ const click = async (p, loc, o = {}) => { for (let k = 0; k < 4; k++) { await op
   await p.locator('button', { hasText: /^Save$/ }).first().click(); await p.waitForTimeout(1500);
   await p.reload(); await p.waitForTimeout(1000);
   ok(await nums() === '1,2,3', 'saved layout reopens numbered 1,2,3 in the new order (got ' + await nums() + ')');
+
+  // ---- Back links return to the same place ----
+  await p.setViewportSize({ width: 1100, height: 500 });
+  await p.goto(B + '/layouts'); await p.waitForLoadState('networkidle'); await p.waitForTimeout(500);
+  const h = await p.evaluate(() => document.documentElement.scrollHeight); ok(h > 800, 'layout list is tall enough to scroll (' + h + ')');
+  await p.evaluate(() => window.scrollTo(0, 400)); await p.waitForTimeout(300); const before = await p.evaluate(() => Math.round(window.scrollY));
+  const links = p.locator('a[href*="/layouts?id="]'); await links.nth(Math.min(8, (await links.count()) - 1)).click({ force: true }); await p.waitForTimeout(1500);
+  await p.locator('a', { hasText: /^← All/ }).first().click(); await p.waitForTimeout(2500);
+  const after = await p.evaluate(() => Math.round(window.scrollY)); ok(Math.abs(after - before) < 40, `back link returns to the same scroll position (left at ${before}, back at ${after})`);
+  await p.goto(B + '/productions?j=' + jobId); await p.waitForLoadState('networkidle'); await p.waitForTimeout(400);
   ok(errs.length === 0, 'no server or page errors: ' + errs.join(' | '));
   await b.close(); await stop(); fs.rmSync(DIR, { recursive: true, force: true });
   console.log(fails.length ? `\n${fails.length} failed` : '\nall passed'); process.exit(fails.length ? 1 : 0);

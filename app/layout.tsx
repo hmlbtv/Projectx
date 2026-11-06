@@ -1,5 +1,7 @@
 import DevVersion from './DevVersion';
 import ConfirmDelete from './ConfirmDelete';
+import BackScroll from './BackScroll';
+import { Suspense } from 'react';
 import './globals.css';
 import Link from 'next/link';
 import { getMe, myOrgs, pendingInvites, canManage, isAdmin } from '@/lib/session';
@@ -44,5 +46,5 @@ export default async function Root({ children }: { children: React.ReactNode }) 
         <Link href="/account" className="who">{me.name} <span className="tag">{me.role}</span></Link>
         <ThemeToggle />
         <form action={signOut}><button className="sec">Sign out</button></form>
-      </NavMenu></nav>}{me && me.role !== 'webappdev' && orgs.length > 1 && (() => { const c = orgs.find(o => o.key === (me.membership_id ? String(me.membership_id) : 'home')); return c ? <OrgBanner name={c.name} role={c.role} hue={hueOf(c.name)} /> : null; })()}{DevStamp && <DevVersion />}<main>{children}</main><ConfirmDelete />{dev?.on && DevBar && <DevBar owner={dev.owner} />}</body></html>);
+      </NavMenu></nav>}{me && me.role !== 'webappdev' && orgs.length > 1 && (() => { const c = orgs.find(o => o.key === (me.membership_id ? String(me.membership_id) : 'home')); return c ? <OrgBanner name={c.name} role={c.role} hue={hueOf(c.name)} /> : null; })()}{DevStamp && <DevVersion />}<main>{children}</main><ConfirmDelete /><Suspense fallback={null}><BackScroll /></Suspense>{dev?.on && DevBar && <DevBar owner={dev.owner} />}</body></html>);
 }
