@@ -38,7 +38,7 @@ export default async function Root({ children }: { children: React.ReactNode }) 
         ...(isAdmin(me) ? [{ label: 'Designers', children: [{ href: '/walls', label: 'Wall Designer' }, { href: '/layouts', label: 'MV Designer' }, { href: '/tiles', label: 'Tile Designer' }] }] : []),
         ...(me.role === 'onetime' ? [] : [{ href: '/plans', label: 'Monitor Plans' }, { href: '/archive', label: 'Archive' }]),
         { href: '/shared', label: 'Shared with me' },
-        ...((orgs.length > 1 || pend.length) && me.role !== 'webappdev' ? [{ href: '/organizations', label: pend.length ? `Organizations (${pend.length})` : 'Organizations' }] : []),
+        ...((orgs.length > 1 || pend.length || me.role !== 'master_admin') && me.role !== 'webappdev' ? [{ href: '/organizations', label: pend.length ? `Organizations (${pend.length})` : 'Organizations' }] : []),
         ...(dev?.on ? [{ href: '/my-comments', label: 'My comments' }] : []),
         ...(me.role === 'webappdev' ? [{ href: '/webappdev', label: 'Site admin' }, { href: '/mail', label: 'Email' }, ...(devSite() ? [{ href: '/webappdev/markup', label: 'Markup' }, { href: '/interest', label: 'Interest' }] : [])] : []),
       ]}>

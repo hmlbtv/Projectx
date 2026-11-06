@@ -109,7 +109,7 @@ export async function signUp(_: FormState, f: FormData): Promise<FormState> {
   const bad = passwordProblem(pw); if (bad) return { error: bad };
   if (await one('select 1 from users where email=$1', [email])) {
     // With email set up, answer exactly as for a new sign-up so nobody can use this form to find out who has an account; the real owner gets a note instead.
-    if (!emailOn()) return { error: 'An account with this email already exists. Sign in instead.' };
+    if (!emailOn()) return { error: 'An account with this email already exists. Sign in instead. If you were invited to another organization, you can start your own workspace from Organizations after signing in.' };
     { const t = T.signupExists(`${await baseUrl()}/signin`); await brandedMail(email, t.subject, t.text, t.b); };
     return { ok: `We sent a verification link to ${email}. Open it to finish creating your account.` };
   }

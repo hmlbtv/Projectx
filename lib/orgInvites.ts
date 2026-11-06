@@ -2,7 +2,9 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { one, rows } from './db';
-import { requireMe } from './session';
+import { requireMe, setActiveOrg } from './session';
+import { signupBlocked, SIGNUP_BLOCKED_MSG } from './mail';
+import { giveDemoOnLogin } from './demoSite';
 const n = (f: FormData, k: string) => Number(f.get(k)) || 0;
 // Accept or decline an invitation to another organization. Only the invited account can do this.
 export async function acceptInvite(f: FormData) {
@@ -32,4 +34,23 @@ export async function leaveOrg(f: FormData) {
   }
   await rows('update sessions set membership_id=null where user_id=$1', [me.id]); // everyone goes back to their (possibly new) home
   revalidatePath('/', 'layout'); redirect('/organizations');
+}
+
+// Someone who joined another organization by invitation can still start their own workspace (on the Demo plan) with the same login, instead of signing up again.
+// One workspace of their own per person. They switch between it and the organizations they belong to from the Organizations page.
+export async function ownsWorkspace(userId: number): Promise<boolean> {
+  return !!(await one("select 1 from users where id=$1 and role='master_admin' union all select 1 from memberships where user_id=$1 and role='master_admin' and accepted limit 1", [userId]));
+}
+export async function createOwnWorkspace(f: FormData) {
+  const me = await requireMe(); if (me.role === 'webappdev') return;
+  const name = String(f.get('name') ?? '').trim().slice(0, 100);
+  const bad = (m: string): never => redirect('/organizations?err=' + encodeURIComponent(m));
+  if (!name) bad('Enter a name for your workspace.');
+  if (await ownsWorkspace(me.id)) bad('You already have a workspace of your own.');
+  if (signupBlocked()) bad(SIGNUP_BLOCKED_MSG);
+  const t = await one<{ id: number }>("insert into tenants(name,plan,max_walls_per_broadcaster) values($1,'demo',1) returning id", [name]);
+  const m = await one<{ id: number }>("insert into memberships(user_id,tenant_id,role,accepted) values($1,$2,'master_admin',true) returning id", [me.id, t!.id]);
+  await giveDemoOnLogin(t!.id);
+  await setActiveOrg(String(m!.id));
+  revalidatePath('/', 'layout'); redirect('/');
 }
