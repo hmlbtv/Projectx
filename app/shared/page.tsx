@@ -3,6 +3,7 @@ import { rows } from '@/lib/db';
 import { myEmails } from '@/lib/emails';
 import { requireMe, myOrgs } from '@/lib/session';
 import ArchiveFilter from '../ArchiveFilter';
+import WallThumb from '../walls/WallThumb';
 import DetailTable from './DetailTable';
 import AutoSelect from '../AutoSelect';
 import Calendar from '../productions/Calendar';
@@ -15,9 +16,9 @@ export default async function Shared({ searchParams }: { searchParams: Promise<{
   const me = await requireMe();
   // People who belong to several organizations only see shares that belong to the organization they are working in (and, in their home organization, shares from organizations they are not a member of), so two companies never appear together.
   const multi = (await myOrgs(me.id)).length > 1;
-  const items = await rows(`select j.job_date, j.final_date, t.id tenant_id, wl.id, wl.job_id, wl.room_wall_id, wl.access, (j.expires_at < current_date) expired, t.name tenant, b.name broadcaster, p.name prod, j.name job, r.name room, rw.name wall, j.expires_at
+  const items = await rows(`select j.job_date, j.final_date, t.id tenant_id, wt.data->'assets' wassets, wl.id, wl.job_id, wl.room_wall_id, wl.access, (j.expires_at < current_date) expired, t.name tenant, b.name broadcaster, p.name prod, j.name job, r.name room, rw.name wall, j.expires_at
     from wall_links wl join jobs j on j.id=wl.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id join tenants t on t.id=b.tenant_id
-    join room_walls rw on rw.id=wl.room_wall_id join rooms r on r.id=rw.room_id
+    join room_walls rw on rw.id=wl.room_wall_id join wall_templates wt on wt.id=rw.wall_template_id join rooms r on r.id=rw.room_id
     where lower(wl.email) in ${myEmails(1)} and ($2::boolean = false or t.id=$3 or ($4::boolean and t.id not in (select tenant_id from users where id=$1 union select tenant_id from memberships where user_id=$1))) and not wl.revoked and (select tn.status from tenants tn join broadcasters bb on bb.tenant_id=tn.id join productions pp on pp.broadcaster_id=bb.id where pp.id=j.production_id)='active' order by t.name, j.job_date desc nulls last, wl.id`, [me.id, multi, me.tenant_id ?? 0, !me.membership_id]);
   const unread = await unreadByWall(me.id);
   const dt = (x: any) => x ? new Date(x).toISOString().slice(0, 10) : '';
@@ -30,7 +31,7 @@ export default async function Shared({ searchParams }: { searchParams: Promise<{
   const shown = needle ? filtered.filter((x: any) => `${x.tenant} ${x.broadcaster} ${x.prod} ${x.job} ${x.room} ${x.wall} ${x.access === 'edit' ? 'can edit' : 'view only'}`.toLowerCase().includes(needle)) : filtered;
 
   const render = (list: any[], archived: boolean) => [...new Set(list.map((x: any) => x.tenant))].map(g => (<div key={g}><h2>{g}</h2>{list.filter((i: any) => i.tenant === g).map((i: any) => (
-      <div key={i.id} className="card" style={unread[`${i.job_id}:${i.room_wall_id}`] > 0 ? { borderLeft: '6px solid #e5352b', boxShadow: '0 0 0 2px rgba(229,53,43,.35)' } : undefined}><div className="row" style={{ justifyContent: 'space-between' }}><div><b>{i.wall}</b> <div className="mut" style={{ fontSize: '.85rem' }}>{i.broadcaster} \ {i.prod} \ {i.job} · {i.room}</div></div>
+      <div key={i.id} className="card" style={unread[`${i.job_id}:${i.room_wall_id}`] > 0 ? { borderLeft: '6px solid #e5352b', boxShadow: '0 0 0 2px rgba(229,53,43,.35)' } : undefined}><div className="row" style={{ justifyContent: 'space-between' }}><div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}><div style={{ width: 84, flex: 'none' }} title={i.wall}><WallThumb assets={i.wassets} h={46} /></div><div style={{ minWidth: 0 }}><b>{i.wall}</b> <div className="mut" style={{ fontSize: '.85rem' }}>{i.broadcaster} \ {i.prod} \ {i.job} · {i.room}</div></div></div>
         <div>{unread[`${i.job_id}:${i.room_wall_id}`] > 0 && <Link href={`/shared/${i.id}`} style={{ textDecoration: 'none', marginRight: 8 }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#e5352b', color: '#fff', fontWeight: 800, fontSize: '.9rem', padding: '7px 13px', borderRadius: 999, boxShadow: '0 0 0 4px rgba(229,53,43,.25)' }}>🔔 {unread[`${i.job_id}:${i.room_wall_id}`]} new</span></Link>}<span className="tag">{archived ? 'Expired' : i.access === 'edit' ? 'Can edit' : 'View only'}</span> <Link href={`/shared/${i.id}`}><button className="sec" type="button">Open</button></Link></div></div></div>))}</div>));
   const live = shown.filter((x: any) => !x.expired), old = shown.filter((x: any) => x.expired);
   const evs = shown.filter((i: any) => i.job_date).map((i: any) => { const st = dt(i.job_date), en = dt(i.final_date); return { id: i.id, title: i.wall, prod: `${i.prod} › ${i.job}`, bc: i.tenant_id ?? 0, bcName: i.tenant, start: st, end: en && en >= st ? en : st }; });
