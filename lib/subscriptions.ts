@@ -85,7 +85,10 @@ export async function logEvent(tid: number | null, kind: string, o: { from?: str
 }
 
 // ---- Who to tell ----
-const owners = (tid: number) => rows<{ email: string; name: string }>("select email, name from users where tenant_id=$1 and role in ('master_admin','admin') and suspended=false and email_verified=true order by role desc, id", [tid]);
+// Admins of a workspace, whether it is their home organization or one they hold through a membership (a workspace they started themselves).
+const owners = (tid: number) => rows<{ email: string; name: string }>(`select email, name from (
+    select email, name, role, id from users where tenant_id=$1 and role in ('master_admin','admin') and suspended=false and email_verified=true
+    union select u.email, u.name, m.role, u.id from memberships m join users u on u.id=m.user_id where m.tenant_id=$1 and m.accepted and not m.suspended and m.role in ('master_admin','admin') and not u.suspended and u.email_verified=true) x order by role desc, id`, [tid]);
 const siteAdmins = () => rows<{ email: string; name: string }>("select email, name from users where role='webappdev' and suspended=false and email_verified=true");
 async function tell(tid: number, build: (name: string, org: string, url: string) => ReturnType<typeof T.subscriptionStarted>, toAdmins = true) {
   if (!emailOn()) return; const url = `${await baseUrl().catch(() => '')}/account`;

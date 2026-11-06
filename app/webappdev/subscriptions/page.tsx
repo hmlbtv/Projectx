@@ -21,7 +21,7 @@ export default async function Subscriptions({ searchParams }: { searchParams: Pr
   const plans = await rows<any>('select p.*, (select count(*)::int from tenants t where t.plan=p.key) used from plans p order by sort, key');
   const ts = await rows<any>(`select t.id, t.name, t.plan, t.status tstatus, t.created_at, t.plan_since, t.limit_overrides ov, p.name pname,
       s.status, s.period, s.price, s.currency, s.started_at, s.current_period_end pe, s.grace_until gu, s.cancel_at_period_end cancel, s.notes,
-      (select min(u.email) from users u where u.tenant_id=t.id and u.role='master_admin') owner,
+      coalesce((select min(u.email) from users u where u.tenant_id=t.id and u.role='master_admin'), (select min(u.email) from memberships m join users u on u.id=m.user_id where m.tenant_id=t.id and m.role='master_admin')) owner,
       (select max(e.started_at) from login_events e where e.tenant_id=t.id) last_login,
       (select count(*)::int from login_events e where e.tenant_id=t.id and e.started_at > now()-interval '30 days') logins30,
       (select count(*)::int from wall_templates w where w.tenant_id=t.id) walls,
