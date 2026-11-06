@@ -1,0 +1,1 @@
+export const money = (pence: number, cur = 'GBP') => { try { return new Intl.NumberFormat('en-GB', { style: 'currency', currency: cur }).format((pence || 0) / 100); } catch { return `${(pence / 100).toFixed(2)} ${cur}`; } };

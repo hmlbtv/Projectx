@@ -1,4 +1,5 @@
 import { escMail as e, type Brand } from './brandMail';
+import { money } from './money';
 
 // Every email the site sends is defined here, so they all share one look (see brandMail.ts) and wording lives in one place.
 export type Tpl = { subject: string; text: string; b: Brand };
@@ -12,6 +13,33 @@ export const mailTemplates = {
   interestThanks: (name: string): Tpl => ({ subject: 'Thank you for your interest in TelePlanner',
     text: `Hi ${name},\n\nThank you for your interest in TelePlanner. We will email you when the site is ready.\n\nTelePlanner.tv`,
     b: { heading: 'Thank you for your interest', lines: [`Hi ${e(name)},`, 'Thank you for your interest in <b>TelePlanner</b>. We will email you when the site is ready.'], small: 'You are receiving this because you registered your interest at teleplanner.tv.' } }),
+  // ---- Subscriptions (no payment provider yet: these follow what the site admin records) ----
+  subscriptionStarted: (name: string, org: string, plan: string, period: string, price: number, cur: string, end: string, kind: string, url: string): Tpl => {
+    const cost = price > 0 ? `${money(price, cur)} ${period === 'yearly' ? 'a year' : period === 'monthly' ? 'a month' : ''}`.trim() : 'no charge';
+    const head = kind === 'renewed' ? `Your ${plan} plan has been renewed` : kind === 'changed' ? `Your plan is now ${plan}` : `Thank you for subscribing to ${plan}`;
+    const line = `${org} is on the ${plan} plan (${cost})${end ? `, paid up to ${end}` : ''}.`;
+    return { subject: `${head} - TelePlanner`, text: `Hi ${name},\n\n${head}.\n${line}\nSee your plan and what it includes: ${url}\n\nTelePlanner.tv`,
+      b: { heading: e(head), lines: [`Hi ${e(name)},`, e(line), 'Your new limits are in place now. You can see what your plan includes, and how much of it you have used, on your Account page.'], button: { label: 'View your plan', url } } };
+  },
+  subscriptionEnding: (name: string, org: string, plan: string, end: string, days: number, url: string): Tpl => ({ subject: `Your ${plan} plan ends ${days <= 1 ? 'tomorrow' : `in ${days} days`} - TelePlanner`,
+    text: `Hi ${name},\n\nThe ${plan} plan for ${org} ends on ${end}. After that your workspace returns to the Demo plan. Nothing is deleted, but you will not be able to add more than Demo allows.\nTo keep your plan, contact us before then: ${url}\n\nTelePlanner.tv`,
+    b: { heading: `Your ${e(plan)} plan ends on ${e(end)}`, lines: [`Hi ${e(name)},`, `After that, <b>${e(org)}</b> returns to the Demo plan. <b>Nothing is deleted</b>, but you will not be able to add more than the Demo plan allows until you subscribe again.`, 'To keep your plan, contact us before it ends.'], button: { label: 'View your plan', url } } }),
+  subscriptionGrace: (name: string, org: string, plan: string, until: string, url: string): Tpl => ({ subject: `Your ${plan} plan has ended - extra time until ${until}`,
+    text: `Hi ${name},\n\nThe ${plan} plan for ${org} has ended. To give you time, everything keeps working until ${until}. After that your workspace returns to the Demo plan (nothing is deleted).\nContact us to continue: ${url}\n\nTelePlanner.tv`,
+    b: { heading: `Your ${e(plan)} plan has ended`, lines: [`Hi ${e(name)},`, `To give you time, everything keeps working until <b>${e(until)}</b>. After that, <b>${e(org)}</b> returns to the Demo plan. Nothing is deleted.`, 'Contact us to continue your plan.'], button: { label: 'View your plan', url } } }),
+  subscriptionEnded: (name: string, org: string, plan: string, url: string): Tpl => ({ subject: `${org} is back on the Demo plan - TelePlanner`,
+    text: `Hi ${name},\n\nThe ${plan} plan for ${org} has ended, so your workspace is back on the Demo plan.\nEverything you made is kept. You can still open and edit it; you just cannot add more than Demo allows. Subscribe again at any time to get everything back.\n${url}\n\nTelePlanner.tv`,
+    b: { heading: 'You are back on the Demo plan', lines: [`Hi ${e(name)},`, `The ${e(plan)} plan for <b>${e(org)}</b> has ended, so your workspace is back on the Demo plan.`, '<b>Everything you made is kept.</b> You can still open and edit it. You just cannot add more than the Demo plan allows. Subscribe again at any time to carry on where you left off.'], button: { label: 'View your plan', url } } }),
+  subscriptionCancelled: (name: string, org: string, plan: string, end: string, url: string): Tpl => ({ subject: `Your ${plan} plan will not renew - TelePlanner`,
+    text: `Hi ${name},\n\nThe ${plan} plan for ${org} will end${end ? ` on ${end}` : ''} and will not renew. Nothing is deleted when it ends.\n${url}\n\nTelePlanner.tv`,
+    b: { heading: `Your ${e(plan)} plan will not renew`, lines: [`Hi ${e(name)},`, `It stays active${end ? ` until <b>${e(end)}</b>` : ''}, then <b>${e(org)}</b> returns to the Demo plan. Nothing is deleted.`], button: { label: 'View your plan', url } } }),
+  adminSubscription: (org: string, subject: string, url: string): Tpl => ({ subject: `[TelePlanner] ${org}: ${subject}`,
+    text: `${org}: ${subject}\n${url}`, b: { heading: e(org), lines: [e(subject)], button: { label: 'Open Subscriptions', url } } }),
+  welcomeDemo: (name: string, org: string, url: string): Tpl => ({ subject: 'Welcome to TelePlanner',
+    text: `Hi ${name},\n\nYour demo workspace ${org} is ready. It includes a small set of Wall Templates, Broadcasters, Productions and Jobs so you can try everything out.\nSign in: ${url}\nWhen you need more, contact us about a plan.\n\nTelePlanner.tv`,
+    b: { heading: 'Welcome to TelePlanner', lines: [`Hi ${e(name)},`, `Your demo workspace <b>${e(org)}</b> is ready. It includes a small set of Wall Templates, Broadcasters, Productions and Jobs so you can try everything out.`, 'When you need more, contact us about a plan. Your work is always kept.'], button: { label: 'Open TelePlanner', url } } }),
+  adminNewSignup: (name: string, org: string, email: string, url: string): Tpl => ({ subject: `[TelePlanner] New sign-up: ${org}`,
+    text: `New demo sign-up.\nName: ${name}\nWorkspace: ${org}\nEmail: ${email}\n${url}`, b: { heading: 'New demo sign-up', lines: [`<b>${e(name)}</b> (${e(email)}) created the workspace <b>${e(org)}</b>.`], button: { label: 'Open Subscriptions', url } } }),
   announcement: (subject: string, body: string, btn: { label: string; url: string } | undefined, cat: 'marketing' | 'important', unsub: string): Tpl => {
     const noun = cat === 'marketing' ? 'marketing emails' : 'important update emails';
     return { subject, text: `${body}${btn ? `\n\n${btn.label}: ${btn.url}` : ''}\n\nYou are receiving this ${cat === 'marketing' ? 'marketing' : 'important update'} email from TelePlanner.tv.\nUnsubscribe from ${noun}: ${unsub}`,

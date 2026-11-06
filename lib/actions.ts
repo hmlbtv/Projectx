@@ -1,4 +1,5 @@
 'use server';
+import { notifySignup } from './signupMail';
 import { audited } from '@/lib/audit';
 import { redirect } from 'next/navigation';
 import { loadJobPlans, saveJobPlans, planMeta } from './plans';
@@ -12,6 +13,7 @@ import { requireMe, canManage, isAdmin, createSession, destroySession, resetLimi
 import { allow, clientIp } from './security';
 import { brandedMail, brandedMailDetailed } from './brandMail';
 import { mailTemplates as T } from './mailTemplates';
+import { getLimits, limitCheck } from './subscriptions';
 import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, sendMail, sendMailDetailed, mailFrom, baseUrl } from './mail';
 import { verifyPassword, hashPassword, passwordProblem, newToken, sha256 } from './password';
 
@@ -119,6 +121,7 @@ export async function signUp(_: FormState, f: FormData): Promise<FormState> {
     await rows('delete from users where id=$1', [u.id]); await rows('delete from tenants where id=$1', [t.id]);
     return { error: 'We could not send the verification email, so the account was not created. Please check the address and try again, or contact the site administrator.' };
   }
+  await notifySignup(u.id);
   await createSession(u.id);
   redirect('/');
 }
@@ -316,8 +319,8 @@ async function saveSessionSettings_(f: FormData) {
 type WDef = { id: string; name: string; mons: Record<string, number>; active?: boolean };
 async function wallDefs(me: Me, wall: number) {
   const w = await one('select id, defaults from wall_templates where id=$1 and tenant_id=$2', [wall, tid(me)]); if (!w) throw new Error('Not found');
-  const lim = (await one('select max_wall_defaults m from tenants where id=$1', [tid(me)]))?.m ?? 5;
-  return { list: (Array.isArray(w.defaults) ? w.defaults : []) as WDef[], lim: me.role === 'webappdev' && !me.tenant_id ? 100000 : lim as number };
+  const lim = (await getLimits(tid(me))).limits.wall_defaults;
+  return { list: (Array.isArray(w.defaults) ? w.defaults : []) as WDef[], lim: me.role === 'webappdev' && !me.tenant_id ? 100000 : lim };
 }
 const putDefs = async (wall: number, list: WDef[]) => { await rows('update wall_templates set defaults=$1::jsonb where id=$2', [JSON.stringify(list), wall]); revalidatePath('/walls'); revalidatePath('/plans'); };
 export async function saveWallDefault(wall: number, id: string | null, name: string, mons: Record<string, number>): Promise<{ id?: string; error?: string }> {
@@ -326,7 +329,7 @@ export async function saveWallDefault(wall: number, id: string | null, name: str
   const nm = String(name ?? '').trim().slice(0, 60) || `Default ${list.length + 1}`;
   const at = id ? list.findIndex(x => x.id === id) : -1;
   if (at >= 0) list[at] = { ...list[at], name: nm, mons: clean };
-  else { if (list.length >= lim) return { error: `This workspace can keep ${lim} default configuration${lim === 1 ? '' : 's'} per Wall Template.` }; id = Math.random().toString(36).slice(2, 10); list.push({ id, name: nm, mons: clean, active: list.length === 0 }); }
+  else { { const m = me.role === 'webappdev' ? null : await limitCheck(tid(me), 'wall_defaults', list.length); if (m) return { error: m }; } id = Math.random().toString(36).slice(2, 10); list.push({ id, name: nm, mons: clean, active: list.length === 0 }); }
   await putDefs(Number(wall), list); return { id: id! };
 }
 export async function deleteWallDefault(wall: number, id: string) {
@@ -429,8 +432,7 @@ async function saveWall_(id: number | null, name: string, assets: any[], _unused
       align: ['left', 'center', 'right'].includes(q.align) ? q.align : 'left', font: ['Sans', 'Serif', 'Mono'].includes(q.font) ? q.font : 'Sans', color: /^#[0-9a-f]{6}$/i.test(String(q.color)) ? q.color : '#e6e9ef' }; });
   assets.forEach((a, i) => { const mp = Math.round(+a.props?.maxPip); if (mp >= 1 && mp <= 64) (clean[i] as any).props = { ...(clean[i] as any).props, maxPip: mp }; });
   if (id) { await own('myWalls', id, me); await rows('update wall_templates set name=$1,data=$2 where id=$3', [name, JSON.stringify({ assets: clean }), id]); revalidatePath('/walls'); return { id }; }
-  const t = (await one('select max_walls_per_broadcaster m, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [tid(me)]))!;
-  if (me.role !== 'webappdev' && t.c >= t.m) return { error: `Your plan allows ${t.m} Wall Template${t.m === 1 ? '' : 's'} per workspace (you have ${t.c}). Contact us to upgrade.` };
+  if (me.role !== 'webappdev') { const c = (await one('select count(*)::int c from wall_templates where tenant_id=$1', [tid(me)]))!.c; const m = await limitCheck(tid(me), 'wall_templates', c); if (m) return { error: m }; }
   const r = (await one('insert into wall_templates(tenant_id,name,data) values($1,$2,$3) returning id', [tid(me), name, JSON.stringify({ assets: clean })]))!;
   revalidatePath('/walls'); return { id: r.id };
 }
@@ -597,17 +599,18 @@ async function deleteLayout_(f: FormData) { const me = await adm(); await rows(m
 // Plan limits (demo default: 2 Broadcasters, 3 Productions each, 4 active Jobs each; the site admin can change them per tenant)
 // The site admin (webappdev) is never limited.
 const NO_LIMIT = { b: 1e9, p: 1e9, j: 1e9 };
-async function limits(me: Me) { if (me.role === 'webappdev') return NO_LIMIT; return (await one('select max_broadcasters b, max_productions p, max_jobs_per_production j from tenants where id=$1', [tid(me)]))!; }
+async function limits(me: Me) { if (me.role === 'webappdev') return NO_LIMIT; const g = (await getLimits(tid(me))).limits; return { b: g.broadcasters, p: g.productions, j: g.jobs_per_production }; }
+const planMsg = async (me: Me, key: 'broadcasters' | 'productions' | 'jobs_per_production', count: number) => me.role === 'webappdev' ? null : limitCheck(tid(me), key, count);
 async function addBroadcaster_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const l = await limits(me);
   const c = (await one('select count(*)::int c from broadcasters where tenant_id=$1', [tid(me)]))!.c;
-  if (c >= l.b) return { error: `Your plan allows ${l.b} Broadcaster${l.b === 1 ? '' : 's'}. Contact us to upgrade.` };
+  if (c >= l.b) return { error: (await planMsg(me, 'broadcasters', c)) ?? 'Plan limit reached.' };
   if (s(f,'name')) await rows('insert into broadcasters(tenant_id,name) values($1,$2)', [tid(me), s(f,'name')]); revalidatePath('/productions'); return { ok: 'Added.' };
 }
 async function addProduction_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const p = Number(s(f,'parent')); await own('broadcasters', p, me); const l = await limits(me);
   const c = (await one('select count(*)::int c from productions where broadcaster_id=$1', [p]))!.c;
-  if (c >= l.p) return { error: `Your plan allows ${l.p} Production${l.p === 1 ? '' : 's'} per Broadcaster.` };
+  if (c >= l.p) return { error: (await planMsg(me, 'productions', c)) ?? 'Plan limit reached.' };
   if (s(f,'name')) await rows('insert into productions(broadcaster_id,name) values($1,$2)', [p, s(f,'name')]); revalidatePath('/productions'); return { ok: 'Added.' };
 }
 async function addSourceSet_(_: FormState, f: FormData): Promise<FormState> {
@@ -845,7 +848,7 @@ async function copyJobToNew_(f: FormData) {
   const me = await mgr(); const id = Number(s(f,'id')); await own('jobs', id, me); const l = await limits(me);
   const src = await one('select * from jobs where id=$1', [id]); if (!src) throw new Error('Not found');
   const c = (await one('select count(*)::int c from jobs where production_id=$1 and (expires_at is null or expires_at >= current_date)', [src.production_id]))!.c;
-  if (c >= l.j) throw new Error(`Your plan allows ${l.j} active Job${l.j === 1 ? '' : 's'} per Production.`);
+  if (c >= l.j) throw new Error((await planMsg(me, 'jobs_per_production', c)) ?? 'Plan limit reached.');
   const nj = (await one('insert into jobs(production_id,name,source_set_id) values($1,$2,$3) returning id', [src.production_id, `${src.name} (copy)`.slice(0, 120), src.source_set_id]))!.id;
   await rows('insert into job_walls(job_id,room_wall_id) select $1, room_wall_id from job_walls where job_id=$2', [nj, id]);
   await rows('insert into job_wall_plans(job_id,room_wall_id,data,updated_by) select $1, room_wall_id, data, $3 from job_wall_plans where job_id=$2', [nj, id, me.id]);
@@ -854,7 +857,7 @@ async function copyJobToNew_(f: FormData) {
 async function addJob_(_: FormState, f: FormData): Promise<FormState> {
   const me = await mgr(); const p = Number(s(f,'parent')); await own('productions', p, me); const l = await limits(me);
   const c = (await one('select count(*)::int c from jobs where production_id=$1 and (expires_at is null or expires_at >= current_date)', [p]))!.c;
-  if (c >= l.j) return { error: `Your plan allows ${l.j} active Job${l.j === 1 ? '' : 's'} per Production.` };
+  if (c >= l.j) return { error: (await planMsg(me, 'jobs_per_production', c)) ?? 'Plan limit reached.' };
   const ss = Number(s(f,'sourceSet')) || null; if (ss) await own('sourceSets', ss, me);
   const fin = s(f,'final') || s(f,'date') || null, exp = s(f,'expires') || null;
   await rows(`insert into jobs(production_id,name,job_date,final_date,expires_at,source_set_id)

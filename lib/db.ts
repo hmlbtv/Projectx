@@ -147,6 +147,15 @@ create table if not exists hw_frames(id serial primary key, tenant_id int not nu
 create index if not exists ix_hw_frames_tenant on hw_frames(tenant_id);
 alter table hw_units add column if not exists frame_id int references hw_frames(id) on delete set null;
 alter table hw_units add column if not exists slot int;
+-- Subscriptions: plans (tiers) are rows the site admin edits, a workspace's subscription says which tier it is on and until when. No payment provider is connected yet.
+-- Money is stored in minor units (pence). limits holds one number per limit key (see lib/subscriptions.ts), so a new limit needs no new column.
+create table if not exists plans(key text primary key, name text not null, sort int not null default 0, price_month int not null default 0, price_year int not null default 0, currency text not null default 'GBP', limits jsonb not null default '{}', description text not null default '', public boolean not null default true, active boolean not null default true, free boolean not null default false, created_at timestamptz not null default now());
+create table if not exists subscriptions(tenant_id int primary key references tenants(id) on delete cascade, plan_key text not null references plans(key), status text not null default 'active', period text not null default 'monthly', price int not null default 0, currency text not null default 'GBP', started_at timestamptz not null default now(), current_period_end timestamptz, grace_until timestamptz, cancel_at_period_end boolean not null default false, provider text, provider_ref text, notes text not null default '', updated_at timestamptz not null default now());
+create table if not exists subscription_events(id serial primary key, tenant_id int references tenants(id) on delete cascade, at timestamptz not null default now(), kind text not null, from_plan text, to_plan text, amount int, detail text not null default '', by_user int);
+create index if not exists ix_sub_events_tenant on subscription_events(tenant_id, at desc);
+create index if not exists ix_sub_events_at on subscription_events(at desc);
+alter table tenants add column if not exists limit_overrides jsonb not null default '{}';
+alter table tenants add column if not exists plan_since timestamptz;
 create index if not exists ix_hw_units_tenant on hw_units(tenant_id);
 create table if not exists hw_outputs(unit_id int not null references hw_units(id) on delete cascade, out_no int not null, room_wall_id int not null references room_walls(id) on delete cascade, monitor_id text not null, primary key(unit_id, out_no), unique(room_wall_id, monitor_id));
 create table if not exists hw_dests(room_wall_id int not null references room_walls(id) on delete cascade, monitor_id text not null, layout_id int not null, first_dest int not null, primary key(room_wall_id, monitor_id, layout_id));
@@ -235,9 +244,35 @@ async function init(): Promise<Client> {
   // Layouts are called N-way, not N up.
   await client.exec("update mv_layouts set name=regexp_replace(name,'^([0-9]+) up\\M','\\1-way') where name ~ '^[0-9]+ up\\M'");
   await bootstrap(client);
+  await seedPlans(client);
   if (!hadTiles) await seedTiles(client);
   await client.query("insert into settings(key,value) values('schema_ver',$1) on conflict (key) do update set value=excluded.value", [ver]);
   return client;
+}
+
+// Plans (tiers): the built-in Demo and Site owner tiers, three draft tiers for the site admin to price, and anything the old free-text plan names need. Safe to run again.
+async function seedPlans(db: Client) {
+  const q = async (s: string, p: any[] = []) => (await db.query(s, p)).rows as any[];
+  const L = (w: number, b: number, p: number, j: number, d: number) => JSON.stringify({ wall_templates: w, broadcasters: b, productions: p, jobs_per_production: j, wall_defaults: d });
+  const ins = "insert into plans(key,name,sort,limits,description,public,active,free) values($1,$2,$3,$4,$5,$6,$7,$8) on conflict (key) do nothing";
+  await q(ins, ['demo', 'Demo', 0, L(1, 2, 3, 4, 5), 'Free demo workspace', true, true, true]);
+  await q(ins, ['owner', 'Site owner', 99, L(100000, 100000, 100000, 100000, 100000), 'Unlimited, for the site owner', false, true, true]);
+  await q(ins, ['starter', 'Starter', 10, L(5, 5, 10, 10, 10), 'Draft tier: set a price and switch it on', true, false, false]);
+  await q(ins, ['professional', 'Professional', 20, L(25, 20, 20, 25, 20), 'Draft tier: set a price and switch it on', true, false, false]);
+  await q(ins, ['studio', 'Studio', 30, L(100, 100, 100, 100, 50), 'Draft tier: set a price and switch it on', true, false, false]);
+  // Plan names typed by hand before tiers existed become tiers of their own, keeping the numbers they had.
+  for (const t of await q("select distinct on (plan) plan, max_wall_templates, max_walls_per_broadcaster, max_broadcasters, max_productions, max_jobs_per_production, max_wall_defaults from tenants where plan not in (select key from plans) order by plan, id")) {
+    await q(ins, [t.plan, t.plan, 50, L(t.max_walls_per_broadcaster, t.max_broadcasters, t.max_productions, t.max_jobs_per_production, t.max_wall_defaults), 'Created from an older plan name', false, true, false]);
+  }
+  // Workspaces whose numbers differ from their tier's keep them as overrides, so nothing they could do before is taken away.
+  const keys = ['wall_templates', 'broadcasters', 'productions', 'jobs_per_production', 'wall_defaults'] as const;
+  for (const t of await q("select t.id, t.max_walls_per_broadcaster w, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j, t.max_wall_defaults d, p.limits from tenants t join plans p on p.key=t.plan where t.limit_overrides='{}'::jsonb and not exists (select 1 from settings where key='plans_migrated')")) {
+    const cur: Record<string, number> = { wall_templates: t.w, broadcasters: t.b, productions: t.p, jobs_per_production: t.j, wall_defaults: t.d }; const ov: Record<string, number> = {};
+    for (const k of keys) if (cur[k] !== Number(t.limits?.[k])) ov[k] = cur[k];
+    if (Object.keys(ov).length) await q('update tenants set limit_overrides=$1 where id=$2', [JSON.stringify(ov), t.id]);
+  }
+  await q("insert into settings(key,value) values('plans_migrated','1') on conflict (key) do nothing");
+  await q("insert into settings(key,value) values('subscription_grace_days','5') on conflict (key) do nothing");
 }
 
 // Standard MV Tiles from the site admin, shared with every tenant (created once, when the table is first made).

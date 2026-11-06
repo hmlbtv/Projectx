@@ -82,6 +82,12 @@ const click = async (p, loc, o = {}) => { for (let k = 0; k < 4; k++) { await op
   const s0 = await state(); ok(s0.y > 100, 'Job page is tall enough to scroll (' + s0.y + ')');
   await p.locator('select[aria-label^="Default configuration"]').last().selectOption('d2'); await p.waitForTimeout(1500);
   const s1 = await state(); ok(Math.abs(s1.y - s0.y) < 10 && s1.open === s0.open, `changing a starting configuration keeps the page still and the trees open (y ${s0.y} to ${s1.y}, open ${s0.open} to ${s1.open})`);
+  // ---- Subscriptions (site admin) ----
+  await p.goto(B + '/webappdev/subscriptions'); await p.waitForLoadState('networkidle');
+  ok(await p.locator('text=Monthly revenue (MRR)').count() > 0, 'Subscriptions page shows the revenue report');
+  ok(await p.locator('input[name="lim_wall_templates"]').count() > 0, 'plans show editable limits');
+  const csv = await p.request.get(B + '/webappdev/subscriptions/export'); ok(csv.status() === 200 && (await csv.text()).startsWith('workspace'), 'workspaces CSV downloads');
+  const cron = await fetch(B + '/api/cron/subscriptions'); ok(cron.status === 401, 'daily check refuses calls without the secret');
   ok(errs.length === 0, 'no server or page errors: ' + errs.join(' | '));
   await b.close(); await stop(); fs.rmSync(DIR, { recursive: true, force: true });
   console.log(fails.length ? `\n${fails.length} failed` : '\nall passed'); process.exit(fails.length ? 1 : 0);

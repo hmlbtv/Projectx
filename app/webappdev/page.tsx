@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
 import { requireMe, sessionLimits } from '@/lib/session';
-import { setTenantPlan, setTenantStatus, deleteTenant, setUserSuspended, saveSessionSettings, importKaleidoLayouts, tidyStandardLayouts } from '@/lib/actions';
+import { setTenantStatus, deleteTenant, setUserSuspended, saveSessionSettings, importKaleidoLayouts, tidyStandardLayouts } from '@/lib/actions';
 import { emailOn, mailFrom, baseUrl } from '@/lib/mail';
 import TestEmail from './TestEmail';
 import Link from 'next/link';
@@ -56,7 +56,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
     ['Site address in emails (APP_URL)', process.env.APP_URL ? await baseUrl() : `${await baseUrl()} (not set, using fallback)`, !!process.env.APP_URL],
   ];
   const lim = await sessionLimits();
-  return (<><h1>Site admin · Tenants</h1>
+  return (<><h1>Site admin · Tenants</h1><p><Link href="/webappdev/subscriptions" className="btn sec small">Subscriptions, plans and revenue →</Link></p>
     <details className="card acc" open={imported !== undefined}><summary><b>Kaleido MV Layouts</b> <span className="mut">add the MV Layouts converted from the Kaleido database</span></summary>
       {imported !== undefined && <p><b>{imported}</b> new Standard MV Layout{imported === '1' ? '' : 's'} added{of ? ` (${of} in the file${Number(imported) < Number(of) ? ', the rest were already there' : ''})` : ''}.</p>}
       <form action={importKaleidoLayouts} className="stack"><p className="mut">47 layouts from the KMX database: even grids, one-big-plus-small, and with-timecode variants. Each monitor is placed and sized as in Kaleido and numbered left to right, top to bottom. Clock-only layouts are left out, and clocks inside layouts are not added as monitors. Safe to press again; layouts already added are skipped.</p><button className="sec">Add Kaleido MV Layouts</button></form></details>
@@ -95,14 +95,7 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
           <Stat k="Sign-ins (30d)" v={m.logins30 ?? 0} /><Stat k="Active users 7d / 30d" v={`${m.active7 ?? 0} / ${m.active30 ?? 0}`} /><Stat k="Avg session" v={m.logins30 ? dur(m.avg_secs) : '—'} /><Stat k="Total time (30d)" v={m.logins30 ? dur(m.total_secs) : '—'} />
           <Stat k="Invited, not joined" v={m.pending ?? 0} /><Stat k="Never signed in" v={m.never ?? 0} /><Stat k="Guest links (joined)" v={`${m.links ?? 0} (${m.links_joined ?? 0})`} />
         </div>
-        <form action={setTenantPlan} className="limits"><input type="hidden" name="id" value={t.id} />
-          <label>Plan<input name="plan" defaultValue={t.plan} /></label>
-          <label>Wall Templates per workspace<input name="max" type="number" min="0" defaultValue={t.m} /></label>
-          <label>Broadcasters<input name="b" type="number" min="0" defaultValue={t.b} /></label>
-          <label>Productions per Broadcaster<input name="p" type="number" min="0" defaultValue={t.p} /></label>
-          <label>Jobs per Production<input name="j" type="number" min="0" defaultValue={t.j} /></label>
-          <label>Default configurations per Wall Template<input name="wd" type="number" min="0" defaultValue={t.wd} /></label>
-          <button className="sec">Save limits</button></form>
+        <p className="mut">Plan: <b>{t.plan}</b> · <Link href={`/webappdev/subscriptions?q=${encodeURIComponent(t.name)}`}>Manage subscription and limits</Link></p>
         {own ? <p className="mut">This is your own workspace, so it cannot be suspended, archived or deleted.</p> : (
         <div className="acts">
           {t.status !== 'suspended' && <form action={setTenantStatus}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="status" value="suspended" /><button className="sec" title="Members are signed out and see a suspended page">Suspend</button></form>}

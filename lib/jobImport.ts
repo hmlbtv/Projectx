@@ -1,3 +1,4 @@
+import { getLimits } from './subscriptions';
 import { rows, one } from './db';
 import { record } from './audit';
 import type { Me } from './session';
@@ -21,7 +22,7 @@ const ok = (y: number, mo: number, d: number) => { const x = new Date(Date.UTC(y
 // Creates any missing Broadcasters and Productions, then the Jobs. A Job that already exists (same Production, name and date) is left alone.
 export async function importJobs(me: Me, recs: Rec[], source: string): Promise<Result> {
   const t = me.tenant_id ?? 0, res: Result = { broadcasters: 0, productions: 0, jobs: 0, skipped: 0, duplicates: 0, problems: [] };
-  const lim = me.role === 'webappdev' ? { b: 1e9, p: 1e9, j: 1e9 } : (await one('select max_broadcasters b, max_productions p, max_jobs_per_production j from tenants where id=$1', [t]))!;
+  const lim = me.role === 'webappdev' ? { b: 1e9, p: 1e9, j: 1e9 } : await (async () => { const g = (await getLimits(t)).limits; return { b: g.broadcasters, p: g.productions, j: g.jobs_per_production }; })();
   const bs = await rows<{ id: number; name: string }>('select id, name from broadcasters where tenant_id=$1', [t]);
   const ps = await rows<{ id: number; name: string; broadcaster_id: number }>('select p.id, p.name, p.broadcaster_id from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1', [t]);
   const ss = await rows<{ id: number; name: string }>('select id, name from source_sets where tenant_id=$1', [t]);

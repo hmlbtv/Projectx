@@ -9,6 +9,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Menu from '../Menu';
 import DefPick from './DefPick';
+import { getLimits, limitText } from '@/lib/subscriptions';
 import TreeControls from '../hardware/TreeControls';
 import { addBroadcaster, addProduction, addJob, assignWall, setWallDef, unassignWall, assignWalls, unassignWalls, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob, copyJobToNew } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   const me = await requireMe(); if (!canManage(me)) redirect('/');
   const t = me.tenant_id ?? 0;
   const q = await searchParams; const onlyJob = Number(q.j) || 0; // on a Job page only that Job's walls, links and users are needed
-  const lim = (await rows('select max_broadcasters b, max_productions p, max_jobs_per_production j from tenants where id=$1', [t]))[0];
+  const plan = await getLimits(t); const lim = { b: plan.limits.broadcasters, p: plan.limits.productions, j: plan.limits.jobs_per_production };
   const bs_p = rows('select * from broadcasters where tenant_id=$1 order by id', [t]);
   const ps_p = rows('select p.* from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 order by p.id', [t]);
   const js_p = rows('select j.*, (j.expires_at < current_date) expired, ss.name ss_name from jobs j left join source_sets ss on ss.id=j.source_set_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 order by j.job_date desc nulls last', [t]);
@@ -29,7 +30,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
   const [bs, ps, js, rw, sets, allWalls, tree] = await Promise.all([bs_p, ps_p, js_p, rw_p, sets_p, allWalls_p, tree_p]); // run the page's queries together instead of one after another
   const adm = isAdmin(me); const d = (x: any) => x ? new Date(x).toISOString().slice(0, 10) : '';
   const Del = ({ action, id, what }: { action: any; id: number; what: string }) => adm ? (<form action={action} className="del-row"><input type="hidden" name="id" value={id} /><span className="mut">Delete this {what} and everything inside it? This cannot be undone.</span><button className="del">Yes, delete</button></form>) : null;
-  const note = <p className="mut">{me.role === 'webappdev' ? 'No limits on this account.' : <>Limits: {lim.b} Broadcaster{lim.b === 1 ? '' : 's'}, {lim.p} Productions each, {lim.j} active Jobs each.</>} Jobs are archived when they expire.</p>;
+  const note = <p className="mut">{me.role === 'webappdev' ? 'No limits on this account.' : <>{plan.name} plan: {limitText(lim.b)} Broadcaster{lim.b === 1 ? '' : 's'}, {limitText(lim.p)} Productions each, {limitText(lim.j)} active Jobs each. <Link href="/account">See your plan</Link></>} Jobs are archived when they expire.</p>;
   const Bar = ({ back }: { back: string }) => (<div className="crumbs"><Link href={back} className="btn sec small">← Back</Link><Link href="/productions" className="btn sec small">Productions home</Link></div>);
   const jobId = Number(q.j) || 0, prodId = Number(q.p) || 0, bcId = Number(q.b) || 0;
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
