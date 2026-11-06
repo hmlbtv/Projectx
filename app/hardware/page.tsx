@@ -59,9 +59,9 @@ export default async function Hardware({ searchParams }: { searchParams: Promise
         const rmCount = (rm: any) => at('r', rm.id).length;
         const locCount = (l: any) => at('l', l.id).length + rooms.filter((r: any) => r.location_id === l.id).reduce((n: number, r: any) => n + rmCount(r), 0);
         return sites.map((st: any) => { const ls = locs.filter((l: any) => l.site_id === st.id); const n = at('s', st.id).length + ls.reduce((m: number, l: any) => m + locCount(l), 0); if (!n) return null;
-          return (<details key={st.id} data-k={'s' + st.id} style={{ margin: '14px 0' }}><summary style={{ cursor: 'pointer' }}><b style={{ fontSize: '1.25rem' }}>{st.name}</b> <span className="tag">{n}</span></summary><div style={{ marginTop: 6 }}><Row list={at('s', st.id)} />
-            {ls.filter((l: any) => locCount(l)).map((l: any) => (<details key={l.id} data-k={'l' + l.id} style={{ margin: '10px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><summary style={{ cursor: 'pointer' }}><b style={{ fontSize: '1.1rem' }}>{l.name}</b> <span className="tag">{locCount(l)}</span></summary><div style={{ marginTop: 6 }}><Row list={at('l', l.id)} />
-              {rooms.filter((r: any) => r.location_id === l.id && rmCount(r)).map((r: any) => (<details key={r.id} data-k={'r' + r.id} style={{ margin: '8px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><summary style={{ cursor: 'pointer' }}><b>{r.name}</b> <span className="tag">{rmCount(r)}</span></summary><div style={{ marginTop: 6 }}><Row list={at('r', r.id)} /></div></details>))}</div></details>))}</div></details>); });
+          return (<details key={st.id} data-k={'s' + st.id} className="tree l1"><summary><b>{st.name}</b> <span className="tag">{n}</span></summary><div style={{ marginTop: 6 }}><Row list={at('s', st.id)} />
+            {ls.filter((l: any) => locCount(l)).map((l: any) => (<details key={l.id} data-k={'l' + l.id} className="tree l2"><summary><b>{l.name}</b> <span className="tag">{locCount(l)}</span></summary><div style={{ marginTop: 6 }}><Row list={at('l', l.id)} />
+              {rooms.filter((r: any) => r.location_id === l.id && rmCount(r)).map((r: any) => (<details key={r.id} data-k={'r' + r.id} className="tree l3"><summary><b>{r.name}</b> <span className="tag">{rmCount(r)}</span></summary><div style={{ marginTop: 6 }}><Row list={at('r', r.id)} /></div></details>))}</div></details>))}</div></details>); });
       })()}</div></>);
   }
   // ---- One Unit ----

@@ -17,6 +17,6 @@ export default function TreeControls({ target, store, views }: { target: string;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const all = (open: boolean) => document.querySelectorAll<HTMLDetailsElement>(`${target} details:not(.dots)`).forEach(d => { d.open = open; });
   const show = (v: 'cards' | 'list') => { setView(v); const r = root(); if (r) r.dataset.view = v; try { localStorage.setItem(store + '.view', v); } catch { /* ignore */ } };
-  return (<span className="row" style={{ margin: 0 }}><button type="button" className="sec small" onClick={() => all(true)}>Expand all</button><button type="button" className="sec small" onClick={() => all(false)}>Collapse all</button>
+  return (<span className="row" style={{ margin: 0, gap: 6 }}><button type="button" className="sec small" onClick={() => all(true)}>Expand all</button><button type="button" className="sec small" onClick={() => all(false)}>Collapse all</button>
     {views && <span className="row" style={{ margin: 0, gap: 0 }} role="group" aria-label="View"><button type="button" className={view === 'cards' ? 'small' : 'sec small'} aria-pressed={view === 'cards'} onClick={() => show('cards')}>Cards</button><button type="button" className={view === 'list' ? 'small' : 'sec small'} aria-pressed={view === 'list'} onClick={() => show('list')}>List</button></span>}</span>);
 }

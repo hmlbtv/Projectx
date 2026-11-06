@@ -42,7 +42,7 @@ export default async function Racks() {
     <div className="row" style={{ margin: 0 }}>
       <AddDialog action={addHwRack} inline label="Add Rack" title="New Rack" placeholder="Rack name (e.g. Rack A)"><WhereSel /><label>Height (RU) <input name="ru" type="number" min={1} max={100} defaultValue={42} style={{ width: 80 }} /></label></AddDialog>
       <AddDialog action={addHwFrame} inline label="Add Frame" title="New Frame" placeholder="Frame name (e.g. MV Frame 1)"><FrameFields /></AddDialog></div></div>
-    <p className="mut"><Link href="/hardware">MV Hardware</Link> · Put an MV Unit in a Frame slot under Edit hardware. Use ⋯ on a Rack or frame to change it.</p>
+    <p className="mut"><Link href="/hardware">MV Hardware</Link> · Put an MV Unit in a Frame slot under Edit hardware. Use ⋯ on a Rack or Frame to change it.</p>
     {racks.length === 0 && frames.length === 0 && <p className="mut">No Racks yet. Add a Rack, then add frames to it.</p>}
     {racks.length > 0 && <div style={{ margin: '8px 0 0' }}><TreeControls target="#racktree" store="teleplanner.racks" /></div>}
     <div id="racktree">{[...bySite.entries()].map(([site, rs]) => { const draw = (r: Rack) => { const fs = framesIn(r).filter(f => f.rack_ru); const nopos = framesIn(r).filter(f => !f.rack_ru); const top = Math.max(r.ru, ...fs.map(f => (f.rack_ru ?? 1) + f.rack_h - 1)); const clash = new Set<number>();
@@ -74,10 +74,10 @@ export default async function Racks() {
       // Site > Location > racks, each level collapsible. A Rack put at Site level sits directly under the Site.
       const locOf = (r: Rack) => rooms.find((x: any) => x.id === r.room_id)?.location_id ?? r.location_id;
       const lids = Array.from(new Set(rs.map(locOf).filter(Boolean))) as number[];
-      const wrap = (list: Rack[]) => <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start', padding: '6px 0 14px' }}>{list.map(draw)}</div>;
-      return (<details key={site} data-k={'S' + site} style={{ margin: '14px 0' }}><summary style={{ cursor: 'pointer' }}><b style={{ fontSize: '1.25rem' }}>{site || 'No site'}</b> <span className="tag">{rs.length}</span></summary>
+      const wrap = (list: Rack[]) => !list.length ? null : <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start', padding: '6px 0 14px' }}>{list.map(draw)}</div>;
+      return (<details key={site} data-k={'S' + site} className="tree l1"><summary><b>{site || 'No site'}</b> <span className="tag">{rs.length}</span></summary>
         {wrap(rs.filter(r => !locOf(r)))}
-        {lids.map(id => { const lr = rs.filter(r => locOf(r) === id); return (<details key={id} data-k={'L' + id} style={{ margin: '10px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}><summary style={{ cursor: 'pointer' }}><b style={{ fontSize: '1.1rem' }}>{locs.find((l: any) => l.id === id)?.name}</b> <span className="tag">{lr.length}</span></summary>{wrap(lr)}</details>); })}</details>); })}</div>
+        {lids.map(id => { const lr = rs.filter(r => locOf(r) === id); return (<details key={id} data-k={'L' + id} className="tree l2"><summary><b>{locs.find((l: any) => l.id === id)?.name}</b> <span className="tag">{lr.length}</span></summary>{wrap(lr)}</details>); })}</details>); })}</div>
     {loneFrames.length > 0 && (<><h2 style={{ margin: '18px 0 6px' }}>Frames not in a Rack</h2><div className="card"><ul style={{ margin: 0, paddingLeft: 18 }}>{loneFrames.map(f => <li key={f.id} className="inlmenu" style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span><b>{f.name}</b> <span className="mut">· {f.slots} slots{f.model ? ' · ' + f.model : ''}{f.serial ? ' · S/N ' + f.serial : ''}</span></span><FrameMenu f={f} /></li>)}</ul></div></>)}
     {loose.length > 0 && (<><h2 style={{ margin: '18px 0 6px' }}>MV units not in a Frame yet</h2><div className="card"><ul style={{ margin: 0, paddingLeft: 18 }}>{loose.map(u => <li key={u.id}><Link href={`/hardware?id=${u.id}`}>{u.name}</Link> <span className="mut">· {place(u)}</span></li>)}</ul></div></>)}
   </>);

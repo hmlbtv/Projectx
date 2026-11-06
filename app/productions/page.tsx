@@ -9,6 +9,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import Menu from '../Menu';
 import DefPick from './DefPick';
+import TreeControls from '../hardware/TreeControls';
 import { addBroadcaster, addProduction, addJob, assignWall, setWallDef, unassignWall, assignWalls, unassignWalls, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob, copyJobToNew } from '@/lib/actions';
 export const dynamic = 'force-dynamic';
 
@@ -52,14 +53,14 @@ export default async function Productions({ searchParams }: { searchParams: Prom
           <Del action={deleteJob} id={j.id} what="Job" /></Menu></div>
       <div className="card">
       <div>Wall Templates: {rw.filter((x: any) => x.job_id === j.id).length === 0 && <span className="mut">none assigned yet</span>}{rw.filter((x: any) => x.job_id === j.id).map((x: any) => <form key={x.id} action={unassignWall} style={{ display: 'inline' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="wall" value={x.id} /><span className="tag">{x.rname} / {x.wname} <button title="Remove from Job" style={{ background: 'none', color: 'inherit', padding: 0 }}>×</button></span></form>)}</div>
-      <div style={{ margin: '8px 0' }}><b>Choose Wall Templates</b> <span className="mut">(open a Site, Location and Room, then add the walls this Job uses)</span>
+      <div style={{ margin: '8px 0' }}><b>Choose Wall Templates</b> <span className="mut">(open a Site, Location and Room, then add the walls this Job uses)</span>{tree.length > 0 && <div style={{ margin: '8px 0 0' }}><TreeControls target="#jobtree" store="teleplanner.jobtree" /></div>}<div id="jobtree">
         {tree.length === 0 && <p className="mut">Add Rooms and Wall Templates on the Sites page first.</p>}
         {[...new Set(tree.map((x: any) => x.sid))].map((sid: any) => { const sr = tree.filter((x: any) => x.sid === sid); const inUseS = sr.filter((r: any) => rw.some((x: any) => x.job_id === j.id && allWalls.find((w: any) => w.id === x.id && w.room === r.room && w.loc === r.loc && w.site === r.site))).length;
-          return (<details key={sid} open={inUseS > 0} style={{ margin: '4px 0' }}><summary style={{ cursor: 'pointer' }}><b>{sr[0].site}</b></summary><Bulk ids={wallsIn((r: any) => r.sid === sid)} what={sr[0].site} />
+          return (<details key={sid} data-k={'s' + sid} className="tree l1" open={inUseS > 0}><summary><b>{sr[0].site}</b></summary><Bulk ids={wallsIn((r: any) => r.sid === sid)} what={sr[0].site} />
             {[...new Set(sr.map((x: any) => x.lid))].map((lid: any) => { const lr = sr.filter((x: any) => x.lid === lid);
-              return (<details key={lid} open={lr.some((r: any) => allWalls.some((w: any) => w.room === r.room && w.loc === r.loc && rw.some((x: any) => x.job_id === j.id && x.id === w.id)))} style={{ marginLeft: 16 }}><summary style={{ cursor: 'pointer' }}>{lr[0].loc}</summary><Bulk ids={wallsIn((r: any) => r.lid === lid)} what={lr[0].loc} />
+              return (<details key={lid} data-k={'l' + lid} className="tree l2" open={lr.some((r: any) => allWalls.some((w: any) => w.room === r.room && w.loc === r.loc && rw.some((x: any) => x.job_id === j.id && x.id === w.id)))}><summary><b>{lr[0].loc}</b></summary><Bulk ids={wallsIn((r: any) => r.lid === lid)} what={lr[0].loc} />
                 {lr.map((r: any) => { const ws = allWalls.filter((w: any) => w.room === r.room && w.loc === r.loc && w.site === r.site); const used = ws.filter((w: any) => rw.some((x: any) => x.job_id === j.id && x.id === w.id));
-                  return (<details key={r.rid} open={used.length > 0} style={{ marginLeft: 16 }}><summary style={{ cursor: 'pointer' }}>{r.room} <span className="mut">· {used.length} of {ws.length} in use</span></summary>{ws.length > 1 && <Bulk ids={ws.map((w: any) => w.id as number)} what={r.room} />}
+                  return (<details key={r.rid} data-k={'r' + r.rid} className="tree l3" open={used.length > 0}><summary><b>{r.room}</b> <span className="tag">{used.length} of {ws.length} in use</span></summary>{ws.length > 1 && <Bulk ids={ws.map((w: any) => w.id as number)} what={r.room} />}
                     {ws.length === 0 && <p className="mut" style={{ marginLeft: 16 }}>No Wall Templates in this Room.</p>}
                     {ws.map((w: any) => { const on = used.some((u: any) => u.id === w.id); const defs: any[] = Array.isArray(w.defaults) ? w.defaults : []; const plan = on ? jobPlans.find((x: any) => x.room_wall_id === w.id)?.data : undefined;
                       const same = (a: any, b: any) => JSON.stringify(a ?? {}) === JSON.stringify(b ?? {});
@@ -70,7 +71,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
                           <span><b>{w.name}</b> {on && <span className="tag">in use</span>}</span>
                           <button className={on ? 'del' : 'sec'} style={{ minHeight: 0, padding: '2px 10px' }}>{on ? 'Remove' : 'Use in this Job'}</button></form>
                         {on && (defs.length > 0 ? <div style={{ marginTop: 6 }}><DefPick action={setWallDef} job={j.id} wall={w.id} value={cur} options={defs.map((x: any) => ({ id: x.id, name: x.name, active: x.active }))} locked={locked} /></div> : <div className="mut" style={{ marginTop: 4, fontSize: 13 }}>This Wall Template has no default configurations.</div>)}
-                      </div>); })}</details>); })}</details>); })}</details>); })}</div>
+                      </div>); })}</details>); })}</details>); })}</details>); })}</div></div>
       </div></>);
   }
 

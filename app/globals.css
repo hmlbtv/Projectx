@@ -74,10 +74,12 @@ svg{max-width:100%;height:auto}
 .limits label{display:flex;flex-direction:column;gap:4px;font-size:.8rem}.limits input{width:100%}
 .stack{display:flex;flex-direction:column;gap:10px}.stack textarea{width:100%}
 
-details.acc>summary{cursor:pointer;list-style:none;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;padding:6px 0;position:relative;padding-left:22px}
-details.acc>summary::-webkit-details-marker{display:none}
-details.acc>summary::before{content:"";position:absolute;left:4px;top:.85em;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
-details.acc[open]>summary::before{transform:rotate(45deg)}
+details:not(.dots):not(.dz-sec)>summary{cursor:pointer;list-style:none;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;padding:6px 0;position:relative;padding-left:22px}
+details:not(.dots):not(.dz-sec)>summary::-webkit-details-marker{display:none}
+details:not(.dots):not(.dz-sec)>summary::before{content:"";position:absolute;left:4px;top:.85em;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+details:not(.dots):not(.dz-sec)[open]>summary::before{transform:rotate(45deg)}
+details.tree{margin:10px 0 0}details.tree.l1{margin:14px 0}details.tree.l1>summary b{font-size:1.25rem}details.tree.l2>summary b{font-size:1.1rem}
+details.tree details.tree{margin-left:14px;padding-left:12px;border-left:2px solid var(--line)}details.tree>summary .tag{margin:0}
 details.acc.card>summary{font-size:1.05rem}
 details.sub{margin:4px 0 4px 22px}details.sub>summary{cursor:pointer;font-size:.85rem}
 
