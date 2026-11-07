@@ -17,7 +17,7 @@ export default async function Walls({ searchParams }: { searchParams: Promise<{ 
   const lim_p = one('select max_walls_per_broadcaster m, plan, (select count(*)::int from wall_templates where tenant_id=$1) c from tenants where id=$1', [t]);
   const rooms_p = rows(`select r.id, s.id sid, l.id lid, s.name sname, l.name lname, r.name from rooms r join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1 order by s.name,l.name,r.whole desc,r.name`, [t]);
   const used_p = rows(`select rw.wall_template_id w, rw.room_id from room_walls rw join rooms r on r.id=rw.room_id join locations l on l.id=r.location_id join sites s on s.id=l.site_id where s.tenant_id=$1`, [t]);
-  const mvs_p = rows('select id, name, (tenant_id is null) standard, jsonb_array_length(tiles)::int n, tiles from mv_layouts where tenant_id is null or tenant_id=$1 order by (tenant_id is null), name', [t]);
+  const mvs_p = rows('select id, name, (tenant_id is null) standard, jsonb_array_length(tiles)::int n, tags, tiles from mv_layouts where tenant_id is null or tenant_id=$1 order by (tenant_id is null), name', [t]);
   const [list, lim0, rooms, used, mvs0] = await Promise.all([list_p, lim_p, rooms_p, used_p, mvs_p]); // queries run together
   const lim = lim0!; const mvs = (mvs0 as any[]).map(m => ({ ...m, tiles: (m.tiles ?? []).map((x: any) => ({ x: x.x, y: x.y, w: x.w, h: x.h })) }));
   const sites = Array.from(new Map(rooms.map((r: any) => [r.sid, { id: r.sid, name: r.sname }])).values()) as any[];

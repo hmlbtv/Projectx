@@ -539,7 +539,9 @@ async function cleanExtras(raw: any, tenant: number) {
   }
   return { ...(mine.has(bg) ? { bg, ...(raw?.bgHasAlpha ? { bgHasAlpha: true } : {}), ...(raw?.bgHasAlpha && raw?.bgUseAlpha === false ? { bgUseAlpha: false } : {}) } : {}), items };
 }
-async function saveLayoutTiles_(p: { id: number; name: string; tiles: any[]; asNew: boolean; flags?: Record<string, boolean>; extras?: any }): Promise<{ id?: number; error?: string }> {
+// Tags are short labels used to find layouts: at most 12 per layout, 24 characters each, no repeats (ignoring capitals).
+const cleanTags = (v: any): string[] => { const out: string[] = []; for (const x of (Array.isArray(v) ? v : [])) { const t = String(x ?? '').replace(/[\s,]+/g, ' ').trim().slice(0, 24); if (t && !out.some(o => o.toLowerCase() === t.toLowerCase())) out.push(t); if (out.length >= 12) break; } return out; };
+async function saveLayoutTiles_(p: { id: number; name: string; tiles: any[]; asNew: boolean; flags?: Record<string, boolean>; extras?: any; tags?: string[] }): Promise<{ id?: number; error?: string }> {
   const me = await adm(); const top = me.role === 'webappdev';
   if (!Array.isArray(p.tiles) || p.tiles.length > 64) return { error: 'A layout can have at most 64 monitors (0 is fine, for a layout with no monitors).' };
   const src = await one('select tenant_id from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(p.id), tid(me)]); if (!src) return { error: 'Layout not found.' };
@@ -559,8 +561,9 @@ async function saveLayoutTiles_(p: { id: number; name: string; tiles: any[]; asN
   if (fork) { const o = await one('select name from mv_layouts where id=$1', [Number(p.id)]); if (o && o.name === name) name = (name + ' (mine)').slice(0, 80); }
   // Only the site admin can make a layout Standard (shared with every tenant) or take that away again.
   const owner = top && p.flags && 'standard' in p.flags ? (p.flags.standard ? null : tid(me)) : src.tenant_id;
-  if (!p.asNew) { await rows('update mv_layouts set name=$1, tiles=$2, tenant_id=$4, extras=$5 where id=$3', [name, JSON.stringify(tiles), Number(p.id), top ? owner : src.tenant_id, extras]); revalidatePath('/layouts'); revalidatePath('/plans'); return { id: Number(p.id) }; }
-  const r = (await one('insert into mv_layouts(tenant_id,name,tiles,extras) values($1,$2,$3,$4) returning id', [top ? owner : tid(me), name, JSON.stringify(tiles), extras]))!; revalidatePath('/layouts'); return { id: r.id };
+  const tags = cleanTags(p.tags);
+  if (!p.asNew) { await rows('update mv_layouts set name=$1, tiles=$2, tenant_id=$4, extras=$5' + (p.tags ? ', tags=$6' : '') + ' where id=$3', [name, JSON.stringify(tiles), Number(p.id), top ? owner : src.tenant_id, extras, ...(p.tags ? [tags] : [])]); revalidatePath('/layouts'); revalidatePath('/plans'); return { id: Number(p.id) }; }
+  const r = (await one('insert into mv_layouts(tenant_id,name,tiles,extras,tags) values($1,$2,$3,$4,$5) returning id', [top ? owner : tid(me), name, JSON.stringify(tiles), extras, p.tags ? tags : cleanTags((await one('select tags from mv_layouts where id=$1', [Number(p.id)]))?.tags)]))!; revalidatePath('/layouts'); return { id: r.id };
 }
 // Site admin: add a manufacturer's layouts (from its built-in database or an uploaded layout/config file) to the Standard MV Layouts. Safe to repeat: names that already exist are skipped.
 export async function importFromManufacturer(f: FormData) {
@@ -592,9 +595,9 @@ export async function tidyStandardLayouts() {
   revalidatePath('/layouts'); redirect('/webappdev/tidy-layouts?tidied=' + n);
 }
 async function copyLayout_(f: FormData) {
-  const me = await adm(); const src = await one('select name,tiles,extras,tenant_id from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
+  const me = await adm(); const src = await one('select name,tiles,extras,tags,tenant_id from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
   const ex = JSON.stringify(src.tenant_id ? src.extras : await cleanExtras(src.extras, tid(me))); // a Standard layout's pictures belong to the site owner, so a copy keeps only ones this workspace has
-  const r = (await one('insert into mv_layouts(tenant_id,name,tiles,extras) values($1,$2,$3,$4) returning id', [tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.tiles), ex]))!;
+  const r = (await one('insert into mv_layouts(tenant_id,name,tiles,extras,tags) values($1,$2,$3,$4,$5) returning id', [tid(me), (src.name + ' copy').slice(0, 80), JSON.stringify(src.tiles), ex, cleanTags(src.tags)]))!;
   revalidatePath('/layouts'); redirect('/layouts?id=' + r.id);
 }
 // Site admin: promote a layout to Standard (shared with every tenant) or move it back to the site admin's own tenant.

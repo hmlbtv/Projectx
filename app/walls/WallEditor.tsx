@@ -8,7 +8,7 @@ import { saveWall } from '@/lib/actions';
 import ImagePicker from './ImagePicker';
 import type { PaletteItem } from '../designer/assets';
 
-export type MvOpt = { id: number; name: string; standard: boolean; n: number; tiles: { x: number; y: number; w: number; h: number }[] };
+export type MvOpt = { id: number; name: string; standard: boolean; tags?: string[]; n: number; tiles: { x: number; y: number; w: number; h: number }[] };
 const LayThumb = ({ tiles, small }: { tiles: MvOpt['tiles']; small?: boolean }) => (<svg viewBox="0 0 1920 1080" width={small ? 48 : 64} height={small ? 27 : 36} style={{ display: 'block', background: '#0b1118', borderRadius: 3, border: '1px solid #3a414c' }} aria-hidden>{tiles.map((t, i) => <rect key={i} x={t.x + 6} y={t.y + 6} width={Math.max(1, t.w - 12)} height={Math.max(1, t.h - 12)} fill="#2b6cb0" />)}</svg>);
 const isScreen = (t: string) => /^(mon|monitor|bvm|pvm)/.test(t);
 
@@ -21,7 +21,7 @@ function MvPick({ a, mvs, setProps, filt, setFilt, copied, setCopied, touch, set
   const setQ = (v: string) => setFilt({ ...filt, q: v }), setSort = (v: string) => setFilt({ ...filt, sort: v }), setMax = (v: number) => setFilt({ ...filt, max: v });
   const assigned = have.map(id => mvs.find(m => m.id === id)).filter(Boolean) as MvOpt[];
   const cmp: Record<string, (a: MvOpt, b: MvOpt) => number> = { name: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }), namez: (a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }), fewest: (a, b) => a.n - b.n || a.name.localeCompare(b.name, undefined, { numeric: true }), most: (a, b) => b.n - a.n || a.name.localeCompare(b.name, undefined, { numeric: true }), standard: (a, b) => +b.standard - +a.standard || a.name.localeCompare(b.name, undefined, { numeric: true }), mine: (a, b) => +a.standard - +b.standard || a.name.localeCompare(b.name, undefined, { numeric: true }), ticked: (a, b) => +pick.includes(b.id) - +pick.includes(a.id) || a.name.localeCompare(b.name, undefined, { numeric: true }) };
-  const shown = mvs.filter(m => m.n <= (max || 1) && m.name.toLowerCase().includes(q.toLowerCase())).sort(cmp[sort] ?? cmp.name);
+  const shown = mvs.filter(m => m.n <= (max || 1) && (m.name.toLowerCase().includes(q.toLowerCase()) || (m.tags ?? []).some(t => t.toLowerCase().includes(q.toLowerCase())))).sort(cmp[sort] ?? cmp.name);
   return (<>
     <div className="dz-grp">Multiview templates</div>
     <label className="dz-row dz-chk" style={{ flexDirection: 'row', alignItems: 'center' }}><span>Limit Max PiP</span><input type="checkbox" checked={!!a.props?.maxPip} onChange={e => setProps(e.target.checked ? { maxPip: 1 } : { maxPip: undefined })} /></label>
@@ -44,13 +44,13 @@ function MvPick({ a, mvs, setProps, filt, setFilt, copied, setCopied, touch, set
       <b style={{ display: 'block', lineHeight: 1.3 }}>Assign multiview templates to {a.name}</b>
       <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, margin: '10px 0 0', fontSize: '.9rem' }}><span>Max PiP<span className="mut" style={{ display: 'block', fontSize: '.75rem', fontWeight: 400 }}>Only templates with this many windows or fewer are shown</span></span>
         <input type="number" min={1} max={64} value={max || ''} onChange={e => setMax(Math.min(64, Math.max(0, Math.round(+e.target.value) || 0)))} onBlur={() => { if (!max) setMax(1); }} style={{ width: 80, margin: 0 }} aria-label="Max PiP" /></label>
-      <div style={{ display: 'flex', gap: 8, margin: '10px 0' }}><input placeholder="Search" value={q} onChange={e => setQ(e.target.value)} style={{ flex: 1, minWidth: 0, boxSizing: 'border-box' }} />
+      <div style={{ display: 'flex', gap: 8, margin: '10px 0' }}><input placeholder="Search names or tags" value={q} onChange={e => setQ(e.target.value)} style={{ flex: 1, minWidth: 0, boxSizing: 'border-box' }} />
         <select value={sort} onChange={e => setSort(e.target.value)} aria-label="Sort" style={{ flex: 'none' }}><option value="name">Name A–Z</option><option value="namez">Name Z–A</option><option value="fewest">Fewest windows</option><option value="most">Most windows</option><option value="standard">Standard first</option><option value="mine">My own first</option><option value="ticked">Ticked first</option></select></div>
       <div style={{ maxHeight: 'min(340px,50vh)', overflow: 'auto', display: 'grid', gap: 2 }}>
         {shown.length === 0 && <span className="mut">No multiview templates found.</span>}
         {shown.map(m => <label key={m.id} style={{ display: 'grid', gridTemplateColumns: 'auto 64px 1fr', gap: 10, alignItems: 'center', flexDirection: 'unset', padding: '5px 4px', borderBottom: '1px solid var(--line)', fontSize: '.9rem' }}>
           <input type="checkbox" style={{ margin: 0 }} checked={pick.includes(m.id)} onChange={e => setPick(e.target.checked ? [...pick, m.id] : pick.filter(x => x !== m.id))} /><LayThumb tiles={m.tiles} />
-          <span style={{ minWidth: 0 }}><span style={{ display: 'block', fontWeight: 600, overflowWrap: 'anywhere', lineHeight: 1.25 }}>{m.name}</span><span className="mut" style={{ fontSize: '.78rem' }}>{m.n} window{m.n === 1 ? '' : 's'}{m.standard ? ' · Standard' : ''}</span></span></label>)}</div>
+          <span style={{ minWidth: 0 }}><span style={{ display: 'block', fontWeight: 600, overflowWrap: 'anywhere', lineHeight: 1.25 }}>{m.name}</span><span className="mut" style={{ fontSize: '.78rem' }}>{m.n} window{m.n === 1 ? '' : 's'}{m.standard ? ' · Standard' : ''}{(m.tags ?? []).length ? ' · ' + (m.tags ?? []).join(', ') : ''}</span></span></label>)}</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, marginTop: 14 }}>
         <button type="button" className="sec" onClick={() => setPick([])}>Deselect all</button>
         <span style={{ display: 'flex', gap: 8 }}><button type="button" className="sec" onClick={() => ref.current?.close()}>Cancel</button>
