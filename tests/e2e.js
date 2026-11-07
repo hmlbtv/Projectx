@@ -17,7 +17,7 @@ const click = async (p, loc, o = {}) => { for (let k = 0; k < 4; k++) { await op
   await stop(); fs.rmSync(DIR, { recursive: true, force: true }); await start();
   const b = await chromium.launch(); const p = await b.newPage(); globalThis.PAGE = p; const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('response', r => { if (r.status() >= 500) errs.push(r.status() + ' ' + r.url()); });
   const signin = async () => { await p.goto(B + '/signin'); if (!(await p.$('input[name=email]'))) return; await p.fill('input[name=email]', env.ADMIN_EMAIL); await p.fill('input[name=password]', env.ADMIN_PASSWORD); await p.click('form button'); await p.waitForTimeout(2500); };
-  await signin(); await stop();
+  await signin(); await p.goto('about:blank'); await stop(); // leave the app page first: with the server down its background requests would fail and be mistaken for site errors
   const { PGlite } = require('@electric-sql/pglite'); const db = new PGlite(DIR); const q = async (s, a) => (await db.query(s, a)).rows;
   const s = (await q("insert into sites(tenant_id,name) values(1,'S') returning id"))[0].id, l = (await q("insert into locations(site_id,name) values($1,'L') returning id", [s]))[0].id, r = (await q("insert into rooms(location_id,name) values($1,'R') returning id", [l]))[0].id;
   const wt = (await q("insert into wall_templates(name,defaults) values('WT',$1) returning id", [JSON.stringify([{ id: 'd1', name: 'Layout A', mons: { m1: 1 }, active: true }, { id: 'd2', name: 'Layout B', mons: { m1: 2 }, active: false }])]))[0].id;
