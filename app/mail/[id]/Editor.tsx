@@ -1,5 +1,5 @@
 'use client';
-import { useActionState, useRef, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { mailAction } from '@/lib/mailLib';
 type M = { id: number; subject: string; body: string; btn_label: string; btn_url: string; status: string; category: string };
 export default function Editor({ m, opts, test }: { m: M; opts: { tok: string; label: string; n: number; emails: string[] }[]; test: string }) {
@@ -12,6 +12,9 @@ export default function Editor({ m, opts, test }: { m: M; opts: { tok: string; l
   const [sel, setSel] = useState<Set<string>>(new Set());
   const all = [...new Set(opts.flatMap(o => o.emails))];
   const setMany = (l: string[], on: boolean) => setSel(x => { const n = new Set(x); l.forEach(e => on ? n.add(e) : n.delete(e)); return n; });
+  const msgRef = useRef<HTMLDivElement>(null);
+  // The buttons are at the bottom of a long form: bring the result (saved, test sent, error) into view.
+  useEffect(() => { if (st) msgRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, [st]);
   const signed = m.status === 'signed_off';
   return (<form action={act} className="card" style={{ display: 'grid', gap: 10 }}>
     <input type="hidden" name="id" value={m.id} /><input type="hidden" name="act" defaultValue="save" ref={actRef} />
@@ -24,7 +27,7 @@ export default function Editor({ m, opts, test }: { m: M; opts: { tok: string; l
     <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))' }}>
       <label>Button text (optional)<input {...bind('btn_label')} maxLength={60} style={{ width: '100%' }} /></label>
       <label>Button link (optional)<input {...bind('btn_url')} placeholder="https://" maxLength={500} style={{ width: '100%' }} /></label></div>
-    {st?.error && <div role="alert" style={{ color: 'var(--bad)' }}>{st.error}</div>}{st?.msg && <div role="status">{st.msg}</div>}
+    <div ref={msgRef}>{st?.error && <div role="alert" style={{ color: 'var(--bad)' }}>{st.error}</div>}{st?.msg && <div role="status">{st.msg}</div>}</div>
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       <button type="submit" onClick={pick('save')} className="sec" disabled={pending}>Save draft</button>
       <button type="submit" onClick={pick('test')} className="sec" disabled={pending}>Send test to {test}</button>

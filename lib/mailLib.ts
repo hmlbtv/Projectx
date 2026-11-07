@@ -75,7 +75,7 @@ export async function mailAction(_: any, f: FormData): Promise<{ msg?: string; e
     let n = 0;
     for (let i = 0; i < list.length; i += 8) await Promise.all(list.slice(i, i + 8).map(async e => { const tt = mk(e); const s = await brandedMail(e, tt.subject, tt.text, tt.b); if (s) n++; await rows('insert into mail_sends(message_id,email,ok) values($1,$2,$3)', [id, e, s]); }));
     await rows("update mail_messages set status='sent',sent_at=now(),sent_by=$2,audience=$3,sent_count=$4,skipped=$5,sent_html=$6 where id=$1", [id, me.id, labels.join(', '), n, skipped, renderBrandedHtml(mk(list[0]).b)]);
-    revalidatePath('/mail'); redirect('/mail/' + id);
+    revalidatePath('/mail/library'); redirect('/mail/' + id + '?sent=1');
   }
   return undefined;
 }
