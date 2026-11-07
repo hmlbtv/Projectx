@@ -15,7 +15,7 @@ export default async function SiteAdmin() {
       {([['/webappdev/tenants', 'Tenants', `${c.n} workspace${c.n === 1 ? '' : 's'}${c.off ? ` · ${c.off} not active` : ''} · ${c.u} user${c.u === 1 ? '' : 's'}`], ['/webappdev/subscriptions', 'Subscriptions', 'plans, revenue and who is subscribed'],
         ['/webappdev/demo-site', 'Demo Site', demo ? `published ${new Date(demo.at).toISOString().slice(0, 10)}` : 'not published yet'],
         ['/webappdev/import-layouts', 'Import from manufacturer', 'add MV Layouts from a manufacturer'], ['/webappdev/tidy-layouts', 'Tidy Standard MV Layouts', 'neat 16:9 versions'],
-        ['/webappdev/sign-in-length', 'Sign-in length', `${lim.idleHours ? lim.idleHours + ' h idle' : 'no idle sign-out'} · ${lim.maxDays} day maximum`], ['/webappdev/email', 'Email', emailOn() ? 'Resend is set up · test and log' : 'Not set up']] as const).map(([href, title, sub]) => (
+        ['/webappdev/sign-in-length', 'Sign-in length', `${lim.idleHours ? lim.idleHours + ' h idle' : 'no idle sign-out'} · ${lim.maxDays} day maximum`], ['/mail', 'Email', emailOn() ? 'Resend is set up · library, groups and log' : 'Not set up']] as const).map(([href, title, sub]) => (
         <div key={href} className="card tile"><Link href={href} className="tilelink"><b>{title}</b><span className="mut">{sub}</span></Link></div>))}</div>
   </>);
 }

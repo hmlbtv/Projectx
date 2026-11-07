@@ -19,10 +19,10 @@ export default async function MailLibrary({ searchParams }: { searchParams: Prom
     order by coalesce(m.sent_at,m.updated_at) desc limit 300`, [q, status, cat, from, to]);
   const filtered = !!(q || status || cat || from || to);
   const d = (x: any) => new Date(x).toISOString().slice(0, 16).replace('T', ' ');
-  return (<><p><Link href="/mail">← Email</Link></p><h1>Library</h1>
+  return (<><div className="crumbs"><Link href="/mail" className="btn sec small">← Email</Link><a className="btn sec small" href="/webappdev/export?kind=campaigns">Export CSV</a></div>
+    <h1>Email · Library</h1>
     <p className="mut">Every email is kept here with who it went to.</p>
     <form action={newMail}><button>New email</button></form>
-    <h2>Search <a className="btn sec small" style={{ marginLeft: 8 }} href="/webappdev/export?kind=campaigns">Export CSV</a></h2>
     <form method="get" className="card" style={{ display: 'grid', gap: 8 }}>
       <input name="q" defaultValue={q} placeholder="Search subject, message, audience or recipient address" style={{ width: '100%' }} />
       <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))' }}>

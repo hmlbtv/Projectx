@@ -18,13 +18,12 @@ export default async function Page() {
     ['Sender (MAIL_FROM)', process.env.MAIL_FROM ? mailFrom() : `${mailFrom()} (default test sender)`, !!process.env.MAIL_FROM],
     ['Site address in emails (APP_URL)', process.env.APP_URL ? await baseUrl() : `${await baseUrl()} (not set, using fallback)`, !!process.env.APP_URL],
   ];
-  return (<><div className="crumbs"><Link href="/webappdev" className="btn sec small">← Site admin</Link></div>
-    <h1>Site admin · Email</h1><p className="mut">Sending, test email and the email log.</p>
-
-      <p className="mut">Verification, password reset and invitation emails are sent through Resend. Values come from this deployment's environment variables; the key itself is never shown.</p>
+  return (<><div className="crumbs"><Link href="/mail" className="btn sec small">← Email</Link></div>
+    <h1>Email · Log</h1><p className="mut">Sending, test email and the email log.</p>
+    <p className="mut">Verification, password reset and invitation emails are sent through Resend. Values come from this deployment's environment variables; the key itself is never shown.</p>
       <div className="stats" style={{ gridTemplateColumns: '1fr' }}>{mailRows.map(([k, v, ok]) => (<div key={k} className="stat"><b>{v}</b><span>{k} {ok ? '✓' : '⚠'}</span></div>))}</div>
       <TestEmail defaultTo={me.email} />
-      <h3 style={{ margin: '16px 0 6px' }}>Email log <a className="btn sec small" style={{ marginLeft: 8 }} href="/webappdev/export?kind=email">Export CSV</a></h3>
+      <h2>Email log <a className="btn sec small" style={{ marginLeft: 8 }} href="/webappdev/export?kind=email">Export CSV</a></h2>
       <p className="mut" style={{ margin: '0 0 8px' }}>Last 24 hours: {mailCount.sent} sent, {mailCount.failed} failed. Newest 50 attempts, kept 30 days. Addresses of people without an account (such as client contacts) are partly hidden, and email content is never stored.</p>
       {mails.length === 0 ? <p className="mut">Nothing sent yet.</p> : (<div className="tablewrap"><table className="mlog"><thead><tr><th>Time</th><th>To</th><th>Email</th><th>Result</th></tr></thead><tbody>
         {mails.map((m: any, i: number) => (<tr key={i}><td title={new Date(m.at).toISOString()}>{ago(m.at)}</td><td>{m.who}</td><td>{m.subject}</td>
