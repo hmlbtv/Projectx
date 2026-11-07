@@ -46,7 +46,7 @@ export default async function Productions({ searchParams }: { searchParams: Prom
     const p = ps.find((x: any) => x.id === j.production_id)!; const b = bs.find((x: any) => x.id === p.broadcaster_id)!;
     const shUsers = await rows('select u.id, u.name, u.email, coalesce(m.role, u.role) role from job_users ju join users u on u.id=ju.user_id left join memberships m on m.user_id=u.id and m.tenant_id=$2 and m.accepted where ju.job_id=$1 order by u.name', [j.id, t]);
     const shRaw = await rows('select lower(wl.email) email, wl.access, r.name || \' / \' || rw.name wall from wall_links wl join room_walls rw on rw.id=wl.room_wall_id join rooms r on r.id=rw.room_id where wl.job_id=$1 and not wl.revoked order by wl.email, r.name, rw.name', [j.id]);
-    const shGuests = [...new Set(shRaw.map((x: any) => x.email as string))].map(e => { const mine = shRaw.filter((x: any) => x.email === e); return { email: e, access: mine.some((x: any) => x.access === 'edit') ? 'edit' : 'view', walls: mine.map((x: any) => x.wall as string) }; });
+    const shGuests = [...new Set(shRaw.map((x: any) => x.email as string))].map(e => { const mine = shRaw.filter((x: any) => x.email === e); return { email: e, access: mine.some((x: any) => x.access === 'edit') ? 'edit' : 'view', walls: mine.map((x: any) => ({ name: x.wall as string, access: x.access as string })) }; });
     const jobPlans = await rows('select room_wall_id, data from job_wall_plans where job_id=$1', [j.id]);
     const inUse = (id: number) => rw.some((x: any) => x.job_id === j.id && x.id === id);
     // Add or remove every wall under a Site, Location or Room in one click.
@@ -84,9 +84,11 @@ export default async function Productions({ searchParams }: { searchParams: Prom
                       </div>); })}</details>); })}</details>); })}</details>); })}</div></div>
       </KeepDetails></div>
       <div className="card"><b>Shared with</b> <span className="tag">{shUsers.length + shGuests.length}</span>
-        {shUsers.length + shGuests.length === 0 ? <p className="mut" style={{ margin: '6px 0 0' }}>Not shared with anyone yet. Invite people from this Job&apos;s Monitor Plans.</p> : <div className="tablewrap"><table><thead><tr><th>Person</th><th>How</th><th>Access</th><th>Walls</th></tr></thead><tbody>
-          {shUsers.map((u: any) => <tr key={'u' + u.id}><td>{u.name} <span className="mut">{u.email}</span></td><td>Team member ({u.role === 'master_admin' ? 'Master Admin' : u.role === 'admin' ? 'Admin' : u.role === 'manager' ? 'Manager' : 'User'})</td><td>Can edit</td><td>All walls in this Job</td></tr>)}
-          {shGuests.map((g: any) => <tr key={'g' + g.email}><td>{g.email}</td><td>Guest invitation</td><td>{g.access === 'edit' ? 'Can edit' : 'View only'}</td><td>{g.walls.join(', ')}</td></tr>)}</tbody></table></div>}</div></>);
+        {shUsers.length + shGuests.length === 0 ? <p className="mut" style={{ margin: '6px 0 0' }}>Not shared with anyone yet. Invite people from this Job&apos;s Monitor Plans.</p> : <div style={{ marginTop: 8 }}>
+          {shUsers.map((u: any) => <details key={'u' + u.id} className="tree l1"><summary><b>{u.name}</b> <span className="mut">{u.email}</span> <span className="tag">Team member</span> <span className="tag">{u.role === 'master_admin' ? 'Master Admin' : u.role === 'admin' ? 'Admin' : u.role === 'manager' ? 'Manager' : 'User'}</span> <span className="tag">Can edit</span></summary>
+            <ul className="mut" style={{ margin: '4px 0 8px', paddingLeft: 22 }}><li>Access to every wall in this Job.</li></ul></details>)}
+          {shGuests.map((g: any) => <details key={'g' + g.email} className="tree l1"><summary><b>{g.email}</b> <span className="tag">Guest invitation</span> <span className="tag">{g.access === 'edit' ? 'Can edit' : 'View only'}</span> <span className="tag">{g.walls.length} wall{g.walls.length === 1 ? '' : 's'}</span></summary>
+            <ul style={{ margin: '4px 0 8px', paddingLeft: 22 }}>{g.walls.map((w: any) => <li key={w.name}>{w.name} <span className="mut">· {w.access === 'edit' ? 'can edit' : 'view only'}</span></li>)}</ul></details>)}</div>}</div></>);
   }
 
   // ---- Jobs of a Production ----
