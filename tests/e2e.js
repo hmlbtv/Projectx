@@ -87,6 +87,7 @@ const click = async (p, loc, o = {}) => { for (let k = 0; k < 4; k++) { await op
   await p.goto(B + '/webappdev'); await p.waitForLoadState('networkidle'); await p.locator('a', { hasText: 'Import from manufacturer' }).click(); await p.waitForURL(/import-layouts/); await p.locator('button', { hasText: 'Import layouts' }).click(); await p.waitForURL(/imported=/, { timeout: 15000 }).catch(() => {});
   ok(/imported=\d+&of=47&mfr=kaleido/.test(p.url()), 'Import from manufacturer adds the Kaleido layouts (' + p.url() + ')');
   for (const pg of ['demo-site', 'import-layouts', 'tidy-layouts', 'sign-in-length', 'email', 'tenants']) { const r = await p.goto(B + '/webappdev/' + pg); ok(r.status() === 200 && await p.locator('a', { hasText: '← Site admin' }).count() > 0, 'Site admin page opens: ' + pg); }
+  for (const k of ['email', 'campaigns', 'signins']) { const r = await p.request.get(B + '/webappdev/export?kind=' + k); ok(r.status() === 200 && (r.headers()['content-type'] || '').includes('csv'), 'CSV export works: ' + k); }
   await p.goto(B + '/webappdev/tenants?v=detail'); await p.waitForLoadState('networkidle'); ok(await p.locator('.dtab th').count() > 5 && await p.locator('select[aria-label="Plan"]').count() === 1, 'Tenants details table and filters show');
   // ---- Subscriptions (site admin) ----
   await p.goto(B + '/webappdev/subscriptions'); await p.waitForLoadState('networkidle');

@@ -31,7 +31,7 @@ export default async function Mail({ searchParams }: { searchParams: Promise<SP>
   return (<><h1>Email</h1>
     <p className="mut">Draft press releases, updates and other news. Test it to {'info@teleplanner.tv'}, sign it off, then send it to groups or individuals. Every email is kept here with who it went to.</p>
     <form action={newMail}><button>New email</button></form>
-    <h2>Library</h2>
+    <h2>Library <a className="btn sec small" style={{ marginLeft: 8 }} href="/webappdev/export?kind=campaigns">Export CSV</a></h2>
     <form method="get" className="card" style={{ display: 'grid', gap: 8 }}>
       <input name="q" defaultValue={q} placeholder="Search subject, message, audience or recipient address" style={{ width: '100%' }} />
       <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))' }}>
