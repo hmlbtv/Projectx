@@ -4,7 +4,7 @@ import { getMe } from './session';
 // Audit trail: who changed what, and when, per workspace (tenant). Written after a change succeeds; never stores passwords, tokens or file contents.
 const LABEL: Record<string, string> = {
   inviteUser: 'Invited a person', inviteTeam: 'Invited a person', resendInvite: 'Re-sent an invite', removeMember: 'Removed a team member', setUserRole: 'Changed a role', setUserSuspended: 'Suspended / restored a person', setUserMaxJobs: 'Changed a Job limit for a person', removeJobUser: 'Removed a person from a Job', saveSessionSettings: 'Changed sign-in length settings',
-  changePassword: 'Changed own password', reset2fa: 'Reset someone’s two-step sign-in', disable2fa: 'Turned off two-step sign-in',
+  renameWorkspace: 'Renamed the workspace', changePassword: 'Changed own password', reset2fa: 'Reset someone’s two-step sign-in', disable2fa: 'Turned off two-step sign-in',
   addSite: 'Added a Site', addLocation: 'Added a Location', addRoom: 'Added a Room', renameNode: 'Renamed a Site, Location or Room', deleteNode: 'Deleted a Site, Location or Room',
   addRoomWall: 'Added a Wall Template to a Room', renameRoomWall: 'Renamed a wall in a Room', removeRoomWall: 'Removed a Wall Template from a Room', setWallRooms: 'Applied a Wall Template to Rooms', wallToRoom: 'Added a Wall Template to a Room', wallFromRoom: 'Removed a Wall Template from a Room',
   saveWall: 'Saved a Wall Template', deleteWall: 'Deleted a Wall Template',
