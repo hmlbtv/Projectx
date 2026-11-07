@@ -43,6 +43,7 @@ const click = async (p, loc, o = {}) => { for (let k = 0; k < 4; k++) { await op
   await p.goto(B + '/layouts?id=' + mvId); await p.locator('svg text', { hasText: /^3$/ }).first().waitFor({ timeout: 15000 });
   const nums = async () => (await p.locator('svg text').allTextContents()).filter(t => /^(\d+|\+)$/.test(t.trim())).join();
   ok(await nums() === '1,2,3', 'Layout Designer shows windows numbered 1,2,3 (got ' + await nums() + ')');
+  { const fl = p.locator('button', { hasText: 'Flip left–right' }); const box = async () => (await p.locator('.dzi').first().boundingBox())?.x ?? 0; const x0 = await box(); await fl.click(); await p.waitForTimeout(200); const x1 = await box(); await fl.click(); await p.waitForTimeout(200); ok(x1 !== x0 && Math.abs(await box() - x0) < 1, 'Flip left-right mirrors the layout and flipping twice restores it'); }
   await p.locator('svg text', { hasText: /^3$/ }).first().click({ force: true });
   const num = p.locator('label.dz-row', { hasText: 'Number' }).locator('input');
   ok(await num.count() === 1 && await num.inputValue() === '3', 'selecting a window shows its Number');
