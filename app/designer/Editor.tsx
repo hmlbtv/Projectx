@@ -164,6 +164,8 @@ export default function Editor(p: Props) {
   function onMove(e: React.PointerEvent) {
     const d = drag.current; if (!d) return;
     if (d.mode === 'marquee') { const r = stage.current!.getBoundingClientRect(); setMarq(m => m && { ...m, x1: (e.clientX - r.left) / px, y1: (e.clientY - r.top) / px }); return; }
+    // A quick click must never nudge an item: a move only starts once the pointer has really travelled (about 8 screen pixels).
+    if (d.mode === 'move' && !d.started) { if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 8) return; d.started = true; }
     const rx = (e.clientX - d.sx) / px, ry = (e.clientY - d.sy) / px; let next: DAsset[];
     if (d.mode === 'move') {
       const prim = d.orig.find((a: DAsset) => a.id === d.primary) ?? d.orig.find((a: DAsset) => d.ids.includes(a.id)); // the grabbed item lands on the grid; the rest keep their offsets
