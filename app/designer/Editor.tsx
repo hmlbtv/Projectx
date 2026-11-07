@@ -106,12 +106,14 @@ export default function Editor(p: Props) {
     document.addEventListener('pointerdown', close, true); document.addEventListener('keydown', esc); window.addEventListener('scroll', () => setCtx(null), true);
     return () => { document.removeEventListener('pointerdown', close, true); document.removeEventListener('keydown', esc); }; }, [ctx]);
   const remove = () => { if (!sel.length) return; apply(items.filter(a => !sel.includes(a.id))); setSel([]); };
-  // Duplicates sit beside the original (to the right); duplicating again carries on in the same line, wrapping below if the row is full.
+  // Duplicates go on the side chosen with the "Add next" arrows (to the right by default); duplicating again carries on in the same direction, and another side is used if that one is full.
   // inc: the copies' names have the number on the end counted up by one (Prod 3 becomes Prod 4); names with no number stay the same.
   const incName = (n?: string) => { const m = n ? /(\d+)(\D*)$/.exec(n) : null; return n && m ? n.slice(0, m.index) + String(Number(m[1]) + 1).padStart(m[1].length, '0') + m[2] : n; };
   const duplicate = (inc?: boolean | React.MouseEvent) => { const S = items.filter(a => sel.includes(a.id)); if (!S.length) return;
     const bw = Math.max(...S.map(a => a.x + a.w)) - Math.min(...S.map(a => a.x)), bh = Math.max(...S.map(a => a.y + a.h)) - Math.min(...S.map(a => a.y)), gap = snapOn ? grid : 10;
-    for (const [dx, dy] of [[bw + gap, 0], [0, bh + gap], [-(bw + gap), 0], [0, -(bh + gap)]]) {
+    // The side chosen by the "Add next" arrows (right by default) is tried first; if it is blocked the other sides are tried in turn.
+    const tries: Record<string, [number, number]> = { right: [bw + gap, 0], down: [0, bh + gap], left: [-(bw + gap), 0], up: [0, -(bh + gap)] };
+    for (const [dx, dy] of [side, ...['right', 'down', 'left', 'up'].filter(k => k !== side)].map(k => tries[k])) {
       const copies = S.map(a => ({ ...a, id: rid(), x: a.x + dx, y: a.y + dy, props: { ...a.props }, ...(inc === true && a.name ? { name: incName(a.name) } : {}) }));
       if (free([...items, ...copies], copies)) { apply([...items, ...copies]); setSel(copies.map(c => c.id)); return; }
     }
