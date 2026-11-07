@@ -1,85 +1,21 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { rows } from '@/lib/db';
 import { requireMe, sessionLimits } from '@/lib/session';
-import { setTenantStatus, deleteTenant, setUserSuspended } from '@/lib/actions';
 import { emailOn } from '@/lib/mail';
 import { demoInfo } from '@/lib/demoSite';
-import Link from 'next/link';
-import { loadOptouts } from '@/lib/interestList';
 export const dynamic = 'force-dynamic';
-export default async function SiteAdmin({ searchParams }: { searchParams: Promise<{ q?: string; s?: string }> }) {
-  const { q: q0, s: sf } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
+export default async function SiteAdmin() {
   const me = await requireMe(); if (me.role !== 'webappdev') redirect('/');
-  const demo = await demoInfo();
-  const ts = await rows(`select t.id,t.name,t.plan,t.max_walls_per_broadcaster m, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j, t.max_wall_defaults wd, t.status,
-    ((select count(*)::int from users u where u.tenant_id=t.id) + (select count(*)::int from memberships mm where mm.tenant_id=t.id)) members,
-    (select count(*)::int from wall_templates w where w.tenant_id=t.id) walls,
-    (select count(*)::int from contacts c where c.tenant_id=t.id) contacts,
-    (select min(u.email) from users u where u.tenant_id=t.id and u.role='master_admin') owner from tenants t where ($1='' or t.name ilike '%'||$1||'%' or exists(select 1 from users u where u.tenant_id=t.id and (u.email ilike '%'||$1||'%' or u.name ilike '%'||$1||'%')))
-    and ($2='' or t.status=$2) order by t.id desc`, [q.replace(/[%_\\]/g, ''), ['active', 'suspended', 'archived'].includes(sf ?? '') ? sf : '']);
-  const found = await rows(`select u.id,u.tenant_id,u.name,u.email,u.role,u.suspended from users u where u.tenant_id is not null and ($1='' or u.email ilike '%'||$1||'%' or u.name ilike '%'||$1||'%') order by u.name limit 500`, [q.replace(/[%_\\]/g, '')]);
-  const emailAddrs = found.map((u: any) => String(u.email).toLowerCase());
-  const sentBy = new Map((await rows('select lower(email) e,count(*)::int n from mail_sends where lower(email)=any($1) group by 1', [emailAddrs])).map((r: any) => [r.e, r.n]));
-  const optBy = new Map<string, string[]>(); try { for (const o of await loadOptouts()) { const k = String(o.email).toLowerCase(); optBy.set(k, [...(optBy.get(k) ?? []), o.category === 'important' ? 'important updates' : 'marketing']); } } catch { /* none */ }
-  const ms = await rows(`select t.id,t.name,t.created_at,
-    (select max(e.started_at) from login_events e where e.tenant_id=t.id) last_login,
-    (select max(e.last_seen_at) from login_events e where e.tenant_id=t.id) last_seen,
-    (select count(*)::int from login_events e where e.tenant_id=t.id and e.started_at > now()-interval '30 days') logins30,
-    (select count(distinct e.user_id)::int from login_events e where e.tenant_id=t.id and e.started_at > now()-interval '7 days') active7,
-    (select count(distinct e.user_id)::int from login_events e where e.tenant_id=t.id and e.started_at > now()-interval '30 days') active30,
-    (select coalesce(avg(extract(epoch from e.last_seen_at-e.started_at)),0)::int from login_events e where e.tenant_id=t.id and e.started_at > now()-interval '30 days') avg_secs,
-    (select coalesce(sum(extract(epoch from e.last_seen_at-e.started_at)),0)::int from login_events e where e.tenant_id=t.id and e.started_at > now()-interval '30 days') total_secs,
-    ((select count(*)::int from users u where u.tenant_id=t.id) + (select count(*)::int from memberships mm where mm.tenant_id=t.id)) members,
-    (select count(*)::int from users u where u.tenant_id=t.id and u.invite_hash is not null) pending,
-    (select count(*)::int from users u where u.tenant_id=t.id and u.login_count=0 and u.invite_hash is null) never,
-    (select count(*)::int from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id) prods,
-    (select count(*)::int from jobs j join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id) jobs,
-    (select count(*)::int from job_wall_plans m join jobs j on j.id=m.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id) plans,
-    (select count(*)::int from wall_links l join jobs j on j.id=l.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id) links,
-    (select count(*)::int from wall_links l join jobs j on j.id=l.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id
-       and exists(select 1 from users g where g.role='onetime' and lower(g.email)=lower(l.email))) links_joined
-    from tenants t order by last_login desc nulls last, t.id desc`);
-  const g = (await rows(`select (select count(*)::int from users where role='onetime') guests,
-    (select count(*)::int from users where role='onetime' and last_login_at > now()-interval '30 days') guests30`))[0];
-  const ago = (d: any) => { if (!d) return 'never'; const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
-    return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.floor(m / 60) + ' h ago' : Math.floor(m / 1440) + ' d ago'; };
-  const dur = (s: number) => s < 60 ? s + 's' : s < 3600 ? Math.round(s / 60) + ' min' : (s / 3600).toFixed(1) + ' h';
-  const day = (d: any) => d ? new Date(d).toISOString().slice(0, 10) : '';
-  const msById = new Map(ms.map((m: any) => [m.id, m]));
-  const Stat = ({ k, v }: { k: string; v: any }) => (<div className="stat"><b>{v}</b><span>{k}</span></div>);
-  const lim = await sessionLimits();
-  return (<><h1>Site admin · Tenants</h1>
+  const demo = await demoInfo(), lim = await sessionLimits();
+  const c = (await rows(`select (select count(*)::int from tenants where id<>1) n, (select count(*)::int from tenants where id<>1 and status<>'active') off,
+    (select count(*)::int from users where tenant_id is not null and tenant_id<>1) u`))[0];
+  return (<><h1>Site admin</h1>
     <div className="tiles" style={{ margin: '8px 0 16px' }}>
-      {([['/webappdev/subscriptions', 'Subscriptions', 'plans, revenue and who is subscribed'], ['/webappdev/demo-site', 'Demo Site', demo ? `published ${new Date(demo.at).toISOString().slice(0, 10)}` : 'not published yet'],
+      {([['/webappdev/tenants', 'Tenants', `${c.n} workspace${c.n === 1 ? '' : 's'}${c.off ? ` · ${c.off} not active` : ''} · ${c.u} user${c.u === 1 ? '' : 's'}`], ['/webappdev/subscriptions', 'Subscriptions', 'plans, revenue and who is subscribed'],
+        ['/webappdev/demo-site', 'Demo Site', demo ? `published ${new Date(demo.at).toISOString().slice(0, 10)}` : 'not published yet'],
         ['/webappdev/import-layouts', 'Import from manufacturer', 'add MV Layouts from a manufacturer'], ['/webappdev/tidy-layouts', 'Tidy Standard MV Layouts', 'neat 16:9 versions'],
         ['/webappdev/sign-in-length', 'Sign-in length', `${lim.idleHours ? lim.idleHours + ' h idle' : 'no idle sign-out'} · ${lim.maxDays} day maximum`], ['/webappdev/email', 'Email', emailOn() ? 'Resend is set up · test and log' : 'Not set up']] as const).map(([href, title, sub]) => (
         <div key={href} className="card tile"><Link href={href} className="tilelink"><b>{title}</b><span className="mut">{sub}</span></Link></div>))}</div>
-    <p className="mut">Counts only, never contact emails. Time logged in runs from sign-in to the last page seen. Activity is for the last 30 days unless stated. New sign-ups start on the demo plan: 1 Wall Template per Broadcaster, 2 Broadcasters, 3 Productions each, 4 Jobs each. One-Time guests (no tenant): {g.guests} accounts, {g.guests30} signed in during the last 30 days.</p>
-    <form method="get" className="searchbar"><input name="q" defaultValue={q} placeholder="Search tenants, users or emails" aria-label="Search" />
-      <select name="s" defaultValue={sf ?? ''} aria-label="Status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="archived">Archived</option></select>
-      <button>Search</button>{(q || sf) && <a href="/webappdev"><button type="button" className="sec">Clear filters</button></a>}</form>
-    <p className="mut">{ts.length} tenant{ts.length === 1 ? '' : 's'}{q ? ` matching “${q}”` : ''}. Open a Card for details.</p>
-    {ts.length === 0 && <div className="card mut">No tenants match.</div>}
-    {ts.map((t: any) => { const m: any = msById.get(t.id) ?? {}; const mine = found.filter((u: any) => u.tenant_id === t.id); const own = t.id === me.tenant_id; return (
-      <details key={t.id} className={'card acc tenant st-' + t.status} open={!!q && ts.length <= 3}>
-        <summary><b>{t.name}</b> {t.status !== 'active' && <span className={'badge ' + t.status}>{t.status}</span>}
-          <span className="mut">{t.owner || 'No owner'} · {t.members} member{t.members === 1 ? '' : 's'} · last login {ago(m.last_login)}</span></summary>
-        <div className="mut" style={{ margin: '4px 0 12px' }}>Signed up {day(m.created_at)}</div>
-        {mine.length > 0 && <div className="matches"><b>{q ? 'Matching users' : 'Users'}</b>{mine.map((u: any) => <div key={u.email} className="urow"><span className="mut">{u.name} · {u.email} · {u.role}{u.suspended ? ' · suspended' : ''}</span> <span className="mut">· <Link href={`/mail?q=${encodeURIComponent(String(u.email).toLowerCase())}`}>{sentBy.get(String(u.email).toLowerCase()) ?? 0} email{(sentBy.get(String(u.email).toLowerCase()) ?? 0) === 1 ? '' : 's'}</Link>{optBy.get(String(u.email).toLowerCase()) ? ` · unsubscribed: ${optBy.get(String(u.email).toLowerCase())!.join(', ')}` : ''}</span>
-          {u.id !== me.id && u.role !== 'webappdev' && <form action={setUserSuspended}><input type="hidden" name="id" value={u.id} /><input type="hidden" name="suspend" value={u.suspended ? '0' : '1'} /><button className="sec small">{u.suspended ? 'Reactivate' : 'Suspend'}</button></form>}</div>)}</div>}
-        <div className="stats">
-          <Stat k="Members" v={t.members} /><Stat k="Contacts" v={t.contacts} /><Stat k="Wall Templates" v={t.walls} /><Stat k="Productions" v={m.prods ?? 0} /><Stat k="Jobs" v={m.jobs ?? 0} /><Stat k="Monitor Plans" v={m.plans ?? 0} />
-          <Stat k="Sign-ins (30d)" v={m.logins30 ?? 0} /><Stat k="Active users 7d / 30d" v={`${m.active7 ?? 0} / ${m.active30 ?? 0}`} /><Stat k="Avg session" v={m.logins30 ? dur(m.avg_secs) : '—'} /><Stat k="Total time (30d)" v={m.logins30 ? dur(m.total_secs) : '—'} />
-          <Stat k="Invited, not joined" v={m.pending ?? 0} /><Stat k="Never signed in" v={m.never ?? 0} /><Stat k="Guest links (joined)" v={`${m.links ?? 0} (${m.links_joined ?? 0})`} />
-        </div>
-        {own ? <p className="mut">This is your own workspace, so it cannot be suspended, archived or deleted.</p> : (
-        <div className="acts">
-          {t.status !== 'suspended' && <form action={setTenantStatus}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="status" value="suspended" /><button className="sec" title="Members are signed out and see a suspended page">Suspend</button></form>}
-          {t.status !== 'archived' && <form action={setTenantStatus}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="status" value="archived" /><button className="sec" title="Same as suspend, kept for finished accounts">Archive</button></form>}
-          {t.status !== 'active' && <form action={setTenantStatus}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="status" value="active" /><button>Reactivate</button></form>}
-          <form action={deleteTenant} className="delete"><input type="hidden" name="id" value={t.id} />
-            <input name="confirm" placeholder={`Type “${t.name}” to delete`} autoComplete="off" aria-label="Type the tenant name to confirm deletion" />
-            <button className="danger" data-noconfirm>Delete</button></form>
-        </div>)}
-      </details>); })}</>);
+  </>);
 }

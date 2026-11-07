@@ -86,7 +86,7 @@ const click = async (p, loc, o = {}) => { for (let k = 0; k < 4; k++) { await op
   for (const v of ['list', 'detail', 'cal']) { const r = await p.goto(B + '/plans?v=' + v + '&q=x&when=upcoming'); ok(r.status() === 200 && await p.locator('h1', { hasText: 'Monitor Plans' }).count() > 0, 'Monitor Plans opens in ' + v + ' view'); }
   await p.goto(B + '/webappdev'); await p.waitForLoadState('networkidle'); await p.locator('a', { hasText: 'Import from manufacturer' }).click(); await p.waitForURL(/import-layouts/); await p.locator('button', { hasText: 'Import layouts' }).click(); await p.waitForURL(/imported=/, { timeout: 15000 }).catch(() => {});
   ok(/imported=\d+&of=47&mfr=kaleido/.test(p.url()), 'Import from manufacturer adds the Kaleido layouts (' + p.url() + ')');
-  for (const pg of ['demo-site', 'import-layouts', 'tidy-layouts', 'sign-in-length', 'email']) { const r = await p.goto(B + '/webappdev/' + pg); ok(r.status() === 200 && await p.locator('a', { hasText: '← Site admin' }).count() > 0, 'Site admin page opens: ' + pg); }
+  for (const pg of ['demo-site', 'import-layouts', 'tidy-layouts', 'sign-in-length', 'email', 'tenants']) { const r = await p.goto(B + '/webappdev/' + pg); ok(r.status() === 200 && await p.locator('a', { hasText: '← Site admin' }).count() > 0, 'Site admin page opens: ' + pg); }
   // ---- Subscriptions (site admin) ----
   await p.goto(B + '/webappdev/subscriptions'); await p.waitForLoadState('networkidle');
   ok(await p.locator('text=Monthly revenue (MRR)').count() > 0, 'Subscriptions page shows the revenue report');
