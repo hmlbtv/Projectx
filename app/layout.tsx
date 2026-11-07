@@ -35,7 +35,7 @@ export default async function Root({ children }: { children: React.ReactNode }) 
         ...(isAdmin(me) ? [{ href: '/tenant', label: 'Sites' }] : []),
         ...(canManage(me) ? [{ href: '/team', label: 'Team' }, { href: '/productions', label: 'Productions' }, { href: '/sources', label: 'Source Sets' }, { href: '/contacts', label: 'Contacts' }] : []),
         ...(isAdmin(me) ? [{ label: 'Hardware', children: [{ href: '/hardware', label: 'MV Hardware' }, { href: '/hardware/usage', label: 'Usage report' }, { href: '/hardware/racks', label: 'Rack view' }] }] : []),
-        ...(isAdmin(me) ? [{ label: 'Designers', children: [{ href: '/walls', label: 'Wall Designer' }, { href: '/layouts', label: 'MV Designer' }, { href: '/tiles', label: 'Tile Designer' }] }] : []),
+        ...(isAdmin(me) ? [{ label: 'Designers', children: [{ href: '/walls', label: 'Wall Designer' }, { href: '/layouts', label: 'Layout Designer' }, { href: '/tiles', label: 'Tile Designer' }] }] : []),
         ...(me.role === 'onetime' ? [{ href: '/shared', label: 'Shared with me' }] : [{ label: 'Monitor Plans', children: [{ href: '/plans', label: 'My Monitor Plans' }, { href: '/shared', label: 'Shared with me' }] }]),
         ...((orgs.length > 1 || pend.length || me.role !== 'master_admin') && me.role !== 'webappdev' ? [{ href: '/organizations', label: pend.length ? `Organizations (${pend.length})` : 'Organizations' }] : []),
         ...(dev?.on && me.role !== 'webappdev' ? [{ href: '/my-comments', label: 'My comments' }] : []),

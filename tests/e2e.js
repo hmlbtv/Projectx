@@ -39,10 +39,10 @@ const click = async (p, loc, o = {}) => { for (let k = 0; k < 4; k++) { await op
   await click(p, p.locator('button', { hasText: 'Remove' }).first()); await p.waitForTimeout(500);
   ok(await p.locator('text=Are you sure').count() + await p.locator('dialog[open]').count() >= 1, 'removing asks for confirmation');
 
-  // ---- MV Designer: window numbers and undo ----
+  // ---- Layout Designer: window numbers and undo ----
   await p.goto(B + '/layouts?id=' + mvId); await p.locator('svg text', { hasText: /^3$/ }).first().waitFor({ timeout: 15000 });
   const nums = async () => (await p.locator('svg text').allTextContents()).filter(t => /^(\d+|\+)$/.test(t.trim())).join();
-  ok(await nums() === '1,2,3', 'MV Designer shows windows numbered 1,2,3 (got ' + await nums() + ')');
+  ok(await nums() === '1,2,3', 'Layout Designer shows windows numbered 1,2,3 (got ' + await nums() + ')');
   await p.locator('svg text', { hasText: /^3$/ }).first().click({ force: true });
   const num = p.locator('label.dz-row', { hasText: 'Number' }).locator('input');
   ok(await num.count() === 1 && await num.inputValue() === '3', 'selecting a window shows its Number');

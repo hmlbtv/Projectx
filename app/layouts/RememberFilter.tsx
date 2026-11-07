@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-// Remembers the MV Designer's filter, sort and view in this browser. Opening the list with nothing chosen brings back the last choice;
+// Remembers the Layout Designer's filter, sort and view in this browser. Opening the list with nothing chosen brings back the last choice;
 // choosing something saves it. (The search words are not remembered.)
 export default function RememberFilter() {
   const router = useRouter();
