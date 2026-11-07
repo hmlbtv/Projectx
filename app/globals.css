@@ -294,3 +294,8 @@ a.btn.small.on{background:var(--ink);color:var(--onink);border-color:var(--ink)}
 .tagpop label:hover{background:var(--bg)}
 .tagpop input[type=checkbox]{width:16px;height:16px;min-height:0;padding:0;margin:0;accent-color:var(--ink)}
 .tagbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.tagbtn{cursor:pointer;text-decoration:none;color:inherit;user-select:none}.tagbtn:hover{border-color:var(--text)}.tagbtn.on{background:var(--ink);color:var(--onink);border-color:var(--ink)}.tagbtn.clear{border-style:dashed}
+
+@media(max-width:700px){.laytop{flex-direction:column-reverse;gap:8px!important}.laytop .lay-view{margin-left:0;align-self:stretch}.laytop .lay-view a{flex:1;text-align:center}
+.laytop .tagbar{gap:4px;width:100%}.laytop .tagbtn{font-size:.78rem;padding:3px 9px}}
+@media(max-width:700px){.lay-bar select{flex:1 1 42%;min-width:0;padding:8px 10px}.lay-bar .small{flex:1 1 100%}}
+@media(max-width:700px){.lay-bar input[type=search]{flex:1 1 100%}}
