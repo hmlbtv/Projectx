@@ -1,17 +1,14 @@
 import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
 import { requireMe, sessionLimits } from '@/lib/session';
-import { setTenantStatus, deleteTenant, setUserSuspended, saveSessionSettings, importFromManufacturer, tidyStandardLayouts } from '@/lib/actions';
-import { emailOn, mailFrom, baseUrl } from '@/lib/mail';
-import TestEmail from './TestEmail';
-import { MANUFACTURERS } from '@/lib/manufacturers';
-import { demoInfo, DEMO_NAME } from '@/lib/demoSite';
-import { publishDemoSite } from '@/lib/demoActions';
+import { setTenantStatus, deleteTenant, setUserSuspended } from '@/lib/actions';
+import { emailOn } from '@/lib/mail';
+import { demoInfo } from '@/lib/demoSite';
 import Link from 'next/link';
 import { loadOptouts } from '@/lib/interestList';
 export const dynamic = 'force-dynamic';
-export default async function SiteAdmin({ searchParams }: { searchParams: Promise<{ mfr?: string; mfrerr?: string; demo?: string; demoerr?: string; q?: string; s?: string; imported?: string; of?: string; tidied?: string }> }) {
-  const { demo: demoMsg, demoerr, q: q0, s: sf, imported, of, tidied, mfr, mfrerr } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
+export default async function SiteAdmin({ searchParams }: { searchParams: Promise<{ q?: string; s?: string }> }) {
+  const { q: q0, s: sf } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
   const me = await requireMe(); if (me.role !== 'webappdev') redirect('/');
   const demo = await demoInfo();
   const ts = await rows(`select t.id,t.name,t.plan,t.max_walls_per_broadcaster m, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j, t.max_wall_defaults wd, t.status,
@@ -42,10 +39,6 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
     (select count(*)::int from wall_links l join jobs j on j.id=l.job_id join productions p on p.id=j.production_id join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=t.id
        and exists(select 1 from users g where g.role='onetime' and lower(g.email)=lower(l.email))) links_joined
     from tenants t order by last_login desc nulls last, t.id desc`);
-  const mails = await rows(`select l.at, l.subject, l.ok, l.error,
-    case when exists(select 1 from users u where lower(u.email)=lower(l.to_email)) then l.to_email
-      else left(l.to_email,1)||'***'||substring(l.to_email from '@.*$') end as who from email_log l order by l.at desc limit 50`);
-  const mailCount = (await rows(`select count(*) filter (where ok)::int sent, count(*) filter (where not ok)::int failed from email_log where at > now() - interval '24 hours'`))[0];
   const g = (await rows(`select (select count(*)::int from users where role='onetime') guests,
     (select count(*)::int from users where role='onetime' and last_login_at > now()-interval '30 days') guests30`))[0];
   const ago = (d: any) => { if (!d) return 'never'; const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
@@ -54,43 +47,13 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
   const day = (d: any) => d ? new Date(d).toISOString().slice(0, 10) : '';
   const msById = new Map(ms.map((m: any) => [m.id, m]));
   const Stat = ({ k, v }: { k: string; v: any }) => (<div className="stat"><b>{v}</b><span>{k}</span></div>);
-  const mailRows: [string, string, boolean][] = [
-    ['Email key (RESEND_API_KEY)', emailOn() ? 'Set' : 'Not set - no emails can be sent', emailOn()],
-    ['Sender (MAIL_FROM)', process.env.MAIL_FROM ? mailFrom() : `${mailFrom()} (default test sender)`, !!process.env.MAIL_FROM],
-    ['Site address in emails (APP_URL)', process.env.APP_URL ? await baseUrl() : `${await baseUrl()} (not set, using fallback)`, !!process.env.APP_URL],
-  ];
   const lim = await sessionLimits();
-  return (<><h1>Site admin · Tenants</h1><p><Link href="/webappdev/subscriptions" className="btn sec small">Subscriptions, plans and revenue →</Link></p>
-    <details className="card acc" id="demosite" open={!!demoMsg}><summary><b>Demo Site</b> <span className="mut">{DEMO_NAME}: the example every Demo workspace starts with{demo ? ` · published ${new Date(demo.at).toISOString().slice(0, 10)}` : ' · not published yet'}</span></summary>
-      {demoMsg && <p role="status" style={{ color: demoerr ? 'var(--bad)' : undefined }}>{demoMsg}</p>}
-      <p className="mut">Build it in your own workspace: add a Broadcaster called <b>{DEMO_NAME}</b> with Productions, Jobs, Wall Templates, walls, a Source Set and Monitor Plans, exactly as a customer would. Then press Publish. Every Demo workspace gets its own copy the first time someone signs in (anyone already signed up gets it at their next sign-in), can change it freely, and can reset it to what you published. Publishing again does not change copies people already have until they reset. The example does not count against plan limits.</p>
-      {demo && <p className="mut">Published: {demo.prods} Production{demo.prods === 1 ? '' : 's'}, {demo.jobs} Job{demo.jobs === 1 ? '' : 's'}, {demo.walls} wall{demo.walls === 1 ? '' : 's'}.</p>}
-      <form action={publishDemoSite}><button>{demo ? 'Publish the current version' : 'Publish the Demo Site'}</button> <Link href="/productions" className="btn sec small">Open my Productions</Link></form></details>
-    <details className="card acc" open={imported !== undefined || !!mfrerr}><summary><b>Import from manufacturer</b> <span className="mut">add multiviewer layouts from a manufacturer to the MV Layouts page</span></summary>
-      {mfrerr && <p role="alert" style={{ color: 'var(--bad)' }}>{mfrerr}</p>}
-      {imported !== undefined && <p role="status"><b>{imported}</b> new Standard MV Layout{imported === '1' ? '' : 's'} added{mfr ? ` from ${MANUFACTURERS.find(x => x.id === mfr)?.name ?? mfr}` : ''}{of ? ` (${of} found${Number(imported) < Number(of) ? ', the rest were already there' : ''})` : ''}.</p>}
-      <form action={importFromManufacturer} className="stack"><label className="mut">Manufacturer<select name="manufacturer" defaultValue={mfr ?? MANUFACTURERS[0].id}>{MANUFACTURERS.map(m => <option key={m.id} value={m.id}>{m.name}{m.file ? ' (upload a file)' : ''}</option>)}</select></label>
-        {MANUFACTURERS.map(m => <p key={m.id} className="mut" style={{ margin: 0 }}><b>{m.name}:</b> {m.about}{m.file ? ` Upload: ${m.file.hint}.` : ''}</p>)}
-        {MANUFACTURERS.some(m => m.file) && <label className="mut">Layout or config file (only for manufacturers marked &quot;upload a file&quot;)<input type="file" name="file" accept={MANUFACTURERS.filter(m => m.file).map(m => m.file!.accept).join(',')} /></label>}
-        <p className="mut" style={{ margin: 0 }}>Imported layouts become Standard MV Layouts that every workspace can use. Safe to press again: layouts already added are skipped. More manufacturers will be added here as they are built and tested.</p>
-        <button className="sec">Import layouts</button></form></details>
-    <details className="card acc" open={tidied !== undefined}><summary><b>Tidy Standard MV Layouts</b> <span className="mut">neat 16:9 versions of the Standard MV Layouts</span></summary>
-      {tidied !== undefined && <p><b>{tidied}</b> layout{tidied === '1' ? '' : 's'} updated.</p>}
-      <form action={tidyStandardLayouts} className="stack"><p className="mut">Replaces the shapes of the Standard MV Layouts (the built-in grids, 1 + 5 and the Kaleido ones) so every window is exactly 16:9, small windows around a big one are the same size, edges line up and the layout is centred. Tiles already on a window stay with it. Six layouts with unusual shapes (9-WAY-PGM-PRV, the 9-WAY-SMALL ones and PROD STCK MIMIC) are left as they are. Tenants' own layouts are not touched.</p><button className="sec">Tidy Standard MV Layouts</button></form></details>
-    <details className="card acc"><summary><b>Sign-in length</b> <span className="mut">{lim.idleHours ? `signed out after ${lim.idleHours} h idle` : 'no idle sign-out'} · {lim.maxDays} day maximum</span></summary>
-      <form action={saveSessionSettings} className="stack"><label className="mut">Sign out after this many hours with no activity (0 = never)<input name="idle" type="number" min="0" max="720" defaultValue={lim.idleHours} /></label>
-        <label className="mut">Always sign out after this many days (1 to 90)<input name="days" type="number" min="1" max="90" defaultValue={lim.maxDays} /></label>
-        <button className="sec">Save</button>
-        <p className="mut">Applies to everyone. Idle time resets whenever a page is used. A new maximum applies to people who sign in after you save; the idle limit applies straight away.</p></form></details>
-    <details className="card acc"><summary><b>Email</b> <span className="mut">{emailOn() ? 'Resend is set up' : 'Not set up'} · send a test email</span></summary>
-      <p className="mut">Verification, password reset and invitation emails are sent through Resend. Values come from this deployment's environment variables; the key itself is never shown.</p>
-      <div className="stats" style={{ gridTemplateColumns: '1fr' }}>{mailRows.map(([k, v, ok]) => (<div key={k} className="stat"><b>{v}</b><span>{k} {ok ? '✓' : '⚠'}</span></div>))}</div>
-      <TestEmail defaultTo={me.email} />
-      <h3 style={{ margin: '16px 0 6px' }}>Email log</h3>
-      <p className="mut" style={{ margin: '0 0 8px' }}>Last 24 hours: {mailCount.sent} sent, {mailCount.failed} failed. Newest 50 attempts, kept 30 days. Addresses of people without an account (such as client contacts) are partly hidden, and email content is never stored.</p>
-      {mails.length === 0 ? <p className="mut">Nothing sent yet.</p> : (<div className="tablewrap"><table className="mlog"><thead><tr><th>Time</th><th>To</th><th>Email</th><th>Result</th></tr></thead><tbody>
-        {mails.map((m: any, i: number) => (<tr key={i}><td title={new Date(m.at).toISOString()}>{ago(m.at)}</td><td>{m.who}</td><td>{m.subject}</td>
-          <td style={{ color: m.ok ? 'inherit' : 'var(--bad)' }}>{m.ok ? 'Sent ✓' : 'Failed: ' + (m.error ?? '')}</td></tr>))}</tbody></table></div>)}</details>
+  return (<><h1>Site admin · Tenants</h1>
+    <div className="tiles" style={{ margin: '8px 0 16px' }}>
+      {([['/webappdev/subscriptions', 'Subscriptions', 'plans, revenue and who is subscribed'], ['/webappdev/demo-site', 'Demo Site', demo ? `published ${new Date(demo.at).toISOString().slice(0, 10)}` : 'not published yet'],
+        ['/webappdev/import-layouts', 'Import from manufacturer', 'add MV Layouts from a manufacturer'], ['/webappdev/tidy-layouts', 'Tidy Standard MV Layouts', 'neat 16:9 versions'],
+        ['/webappdev/sign-in-length', 'Sign-in length', `${lim.idleHours ? lim.idleHours + ' h idle' : 'no idle sign-out'} · ${lim.maxDays} day maximum`], ['/webappdev/email', 'Email', emailOn() ? 'Resend is set up · test and log' : 'Not set up']] as const).map(([href, title, sub]) => (
+        <div key={href} className="card tile"><Link href={href} className="tilelink"><b>{title}</b><span className="mut">{sub}</span></Link></div>))}</div>
     <p className="mut">Counts only, never contact emails. Time logged in runs from sign-in to the last page seen. Activity is for the last 30 days unless stated. New sign-ups start on the demo plan: 1 Wall Template per Broadcaster, 2 Broadcasters, 3 Productions each, 4 Jobs each. One-Time guests (no tenant): {g.guests} accounts, {g.guests30} signed in during the last 30 days.</p>
     <form method="get" className="searchbar"><input name="q" defaultValue={q} placeholder="Search tenants, users or emails" aria-label="Search" />
       <select name="s" defaultValue={sf ?? ''} aria-label="Status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="archived">Archived</option></select>

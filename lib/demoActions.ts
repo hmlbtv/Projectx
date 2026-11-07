@@ -9,7 +9,7 @@ import { audited } from './audit';
 async function publishDemoSite_() {
   const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
   const r = await publishDemo(me.tenant_id ?? 1);
-  revalidatePath('/webappdev'); redirect('/webappdev?demo=' + encodeURIComponent(r.error ?? r.ok ?? '') + (r.error ? '&demoerr=1' : '') + '#demosite');
+  revalidatePath('/webappdev'); redirect('/webappdev/demo-site?demo=' + encodeURIComponent(r.error ?? r.ok ?? '') + (r.error ? '&demoerr=1' : '') );
 }
 // Admin of a workspace: put the Demo Site back to the published version (or add it if it was deleted). Their own work outside the Demo Site is not touched.
 async function resetDemoSite_() {

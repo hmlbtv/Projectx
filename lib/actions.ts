@@ -565,7 +565,7 @@ async function saveLayoutTiles_(p: { id: number; name: string; tiles: any[]; asN
 // Site admin: add a manufacturer's layouts (from its built-in database or an uploaded layout/config file) to the Standard MV Layouts. Safe to repeat: names that already exist are skipped.
 export async function importFromManufacturer(f: FormData) {
   const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
-  const m = MANUFACTURERS.find(x => x.id === String(f.get('manufacturer') ?? '')); const back = (msg: string): never => redirect('/webappdev?mfrerr=' + encodeURIComponent(msg));
+  const m = MANUFACTURERS.find(x => x.id === String(f.get('manufacturer') ?? '')); const back = (msg: string): never => redirect('/webappdev/import-layouts?mfrerr=' + encodeURIComponent(msg));
   if (!m) return back('Choose a manufacturer.');
   let text: string | undefined;
   if (m.file) { const file = f.get('file'); if (!(file instanceof File) || file.size === 0) return back(`Choose the ${m.name} file to import.`); if (file.size > 5_000_000) return back('That file is too large.'); text = await file.text(); }
@@ -574,7 +574,7 @@ export async function importFromManufacturer(f: FormData) {
   if (data.length === 0) return back(`No layouts were found in the ${m.name} data.`);
   const have = new Set((await rows('select name from mv_layouts where tenant_id is null')).map((r: any) => r.name)); let added = 0;
   for (const l of data) { const name = l.name.trim().slice(0, 80); if (have.has(name)) continue; have.add(name); await rows('insert into mv_layouts(tenant_id,name,tiles) values(null,$1,$2)', [name, JSON.stringify(l.tiles)]); added++; }
-  revalidatePath('/layouts'); redirect('/webappdev?imported=' + added + '&of=' + data.length + '&mfr=' + encodeURIComponent(m.id));
+  revalidatePath('/layouts'); redirect('/webappdev/import-layouts?imported=' + added + '&of=' + data.length + '&mfr=' + encodeURIComponent(m.id));
 }
 // Site admin: swap the Standard layouts for the neat versions (every window exactly 16:9, equal-size small windows, edges lined up, centred in the frame).
 // Tiles already placed on a window stay on the nearest window of the new layout. Layouts not in the file, and tenants' own layouts, are left alone.
@@ -589,7 +589,7 @@ export async function tidyStandardLayouts() {
       if (bi < 0) return { ...t }; const [o] = free.splice(bi, 1); return { ...t, tileId: o.tileId }; });
     if (JSON.stringify(tiles) !== JSON.stringify(l.tiles)) { await rows('update mv_layouts set tiles=$1 where id=$2', [JSON.stringify(tiles), l.id]); n++; }
   }
-  revalidatePath('/layouts'); redirect('/webappdev?tidied=' + n);
+  revalidatePath('/layouts'); redirect('/webappdev/tidy-layouts?tidied=' + n);
 }
 async function copyLayout_(f: FormData) {
   const me = await adm(); const src = await one('select name,tiles,extras,tenant_id from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)', [Number(s(f, 'id')), tid(me)]); if (!src) return;
