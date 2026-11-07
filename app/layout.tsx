@@ -39,8 +39,8 @@ export default async function Root({ children }: { children: React.ReactNode }) 
         ...(me.role === 'onetime' ? [] : [{ href: '/plans', label: 'Monitor Plans' }, { href: '/archive', label: 'Archive' }]),
         { href: '/shared', label: 'Shared with me' },
         ...((orgs.length > 1 || pend.length || me.role !== 'master_admin') && me.role !== 'webappdev' ? [{ href: '/organizations', label: pend.length ? `Organizations (${pend.length})` : 'Organizations' }] : []),
-        ...(dev?.on ? [{ href: '/my-comments', label: 'My comments' }] : []),
-        ...(me.role === 'webappdev' ? [{ href: '/webappdev', label: 'Site admin' }, { href: '/mail', label: 'Email' }, ...(devSite() ? [{ href: '/webappdev/markup', label: 'Markup' }, { href: '/interest', label: 'Interest' }] : [])] : []),
+        ...(dev?.on && me.role !== 'webappdev' ? [{ href: '/my-comments', label: 'My comments' }] : []),
+        ...(me.role === 'webappdev' ? [{ href: '/webappdev', label: 'Site admin' }, { href: '/mail', label: 'Email' }, ...(devSite() ? [{ label: 'Markup', children: [{ href: '/webappdev/markup', label: 'All markup' }, ...(dev?.on ? [{ href: '/my-comments', label: 'My comments' }] : [])] }, { href: '/interest', label: 'Interest' }] : [])] : []),
       ]}>
         {orgs.length > 1 && <OrgSwitch orgs={orgs} current={me.membership_id ? String(me.membership_id) : 'home'} />}
         <Link href="/account" className="who">{me.name} <span className="tag">{me.role}</span></Link>
