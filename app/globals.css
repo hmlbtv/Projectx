@@ -280,3 +280,16 @@ button.savedirty{background:#f5a524;color:#1a1200;border-color:#f5a524;box-shado
 @media(prefers-reduced-motion:reduce){button.savedirty{animation:none}}
 a.btn.small.on{background:var(--ink);color:var(--onink);border-color:var(--ink)}
 .laytags{position:absolute;right:8px;top:46px;display:flex;flex-direction:row;flex-wrap:wrap;justify-content:flex-end;align-content:flex-start;gap:4px;width:46%;pointer-events:none}.laytags .tag{font-size:.72rem;white-space:nowrap}
+/* Tag filter: looks like the other drop-downs in the bar, chevron on the right */
+.tagpick{position:relative}
+.tagpick>summary{display:block;cursor:pointer;list-style:none;padding:9px 34px 9px 13px;padding-left:13px;background:var(--bg);border:1px solid var(--line);border-radius:12px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;position:relative}
+.tagpick>summary::-webkit-details-marker{display:none}
+.tagpick>summary::before{display:none}
+.tagpick>summary::after{content:"";position:absolute;right:13px;top:50%;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-70%) rotate(45deg)}
+.tagpick[open]>summary::after{transform:translateY(-30%) rotate(-135deg)}
+.tagpick>summary:hover{border-color:var(--text)}
+.tagpop{position:absolute;z-index:5;left:0;top:calc(100% + 4px);min-width:220px;max-height:300px;overflow:auto;padding:6px;display:grid;gap:0;box-shadow:var(--shadow)}
+.tagpop>span{padding:4px 8px}
+.tagpop label{display:flex;flex-direction:row;gap:8px;align-items:center;justify-content:flex-start;padding:5px 8px;border-radius:8px;cursor:pointer}
+.tagpop label:hover{background:var(--bg)}
+.tagpop input[type=checkbox]{width:16px;height:16px;min-height:0;padding:0;margin:0;accent-color:var(--ink)}
