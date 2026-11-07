@@ -397,7 +397,7 @@ export default function Editor(p: Props) {
         </div>}
       {ctx && <div className="dz-ctx" role="menu" style={{ position: 'fixed', left: ctx.x, top: ctx.y, zIndex: 2000 }}>
         <button type="button" role="menuitem" className="sec" onClick={() => { setCtx(null); duplicate(); }}>⧉ Duplicate</button>
-        <button type="button" role="menuitem" className="sec" onClick={() => { setCtx(null); duplicate(true); }}>⧉ Duplicate inc name</button>
+        <button type="button" role="menuitem" className="sec" onClick={() => { setCtx(null); duplicate(true); }}>⧉ Duplicate - Inc Name</button>
         <button type="button" role="menuitem" className="del" onClick={() => { const ids = sel.includes(ctx.id) ? sel : [ctx.id]; setCtx(null); apply(items.filter(a => !ids.includes(a.id))); setSel([]); }}>🗑 Delete{sel.length > 1 && sel.includes(ctx.id) ? ` ${sel.length} items` : ''}</button></div>}
       <div className="dz-zoomwrap" ref={wrap} style={z > 1 ? { overflow: 'auto', maxHeight: '78vh', borderRadius: 14 } : undefined}><div style={{ width: `${z * 100}%` }}>
       <div ref={stage} className={'canvas dz-stage' + (brush ? ' stamping' : '')} data-pan={z > 1 ? '1' : undefined} tabIndex={0} onKeyDown={onKey}         onContextMenu={e => { const t = (document.elementsFromPoint(e.clientX, e.clientY).map(x => (x as HTMLElement).closest?.('[data-aid]')).find(Boolean) ?? null) as HTMLElement | null; if (t && !readOnly) { e.preventDefault(); openCtx(t.dataset.aid!, e.clientX, e.clientY); } }}
@@ -439,12 +439,12 @@ export default function Editor(p: Props) {
                 : f.kind === 'select' ? <select disabled={readOnly} value={String(one.props?.[f.key] ?? '')} onChange={e => { push(); setProp(f.key, e.target.value); }}>{f.options!.map(o => <option key={o}>{o}</option>)}</select>
                 : <input type={f.kind === 'number' ? 'number' : 'text'} min={f.min} max={f.max} disabled={readOnly} value={one.props?.[f.key] ?? ''} onFocus={push} onChange={e => setProp(f.key, f.kind === 'number' ? Math.min(Math.max(+e.target.value || 0, f.min ?? 0), f.max ?? 9999) : e.target.value.slice(0, 40))} />}</label>))}
             {p.extras?.(one, patch => { push(); edit({ props: { ...one.props, ...patch } }); })}
-            {!readOnly && <div className="dz-pal"><button className="sec small" onClick={() => duplicate()}>Duplicate</button><button className="sec small" onClick={() => duplicate(true)} title="Duplicate, counting the number at the end of the name up by one (Prod 3 becomes Prod 4)">Duplicate inc name</button><button className="sec small" onClick={() => copy()}>Copy</button><button className="del small" onClick={remove}>Delete</button></div>}</>)
+            {!readOnly && <div className="dz-pal"><button className="sec small" onClick={() => duplicate()}>Duplicate</button><button className="sec small" onClick={() => duplicate(true)} title="Duplicate, counting the number at the end of the name up by one (Prod 3 becomes Prod 4)">Duplicate - Inc Name</button><button className="sec small" onClick={() => copy()}>Copy</button><button className="del small" onClick={remove}>Delete</button></div>}</>)
           : sel.length > 1 ? (<>
             <div className="dz-grp">Selection order</div>
             <ol className="dz-order">{sel.map(id => items.find(a => a.id === id)).filter(Boolean).map(a => <li key={a!.id}>{a!.name}</li>)}</ol>
             <p className="mut dz-help">The first one is the reference for Arrange; Space H and V follow this order.</p>
-            {!readOnly && <div className="dz-pal"><button className="sec small" onClick={() => duplicate()}>Duplicate</button><button className="sec small" onClick={() => duplicate(true)} title="Duplicate, counting the number at the end of the name up by one (Prod 3 becomes Prod 4)">Duplicate inc name</button><button className="sec small" onClick={() => copy()}>Copy</button><button className="del small" onClick={remove}>Delete</button></div>}</>)
+            {!readOnly && <div className="dz-pal"><button className="sec small" onClick={() => duplicate()}>Duplicate</button><button className="sec small" onClick={() => duplicate(true)} title="Duplicate, counting the number at the end of the name up by one (Prod 3 becomes Prod 4)">Duplicate - Inc Name</button><button className="sec small" onClick={() => copy()}>Copy</button><button className="del small" onClick={remove}>Delete</button></div>}</>)
           : (<>
             <div className="dz-grp">{p.kind}</div>
             <div className="dz-row"><span>Canvas</span><em>{world.w} × {world.h}</em></div>
@@ -463,7 +463,7 @@ export default function Editor(p: Props) {
             {(() => { const order = sel.map(id => L.find(x => x.id === id)).filter(Boolean) as DAsset[];
               const run = () => { const first = order[0]; const m0 = /^(.*?)(\d+)(\D*)$/.exec(first.name || ''); const base = m0 ? m0[1] : (first.name ? first.name.trimEnd() + ' ' : nl.prefix + ' '), start = m0 ? Number(m0[2]) : 1, pad = m0 ? m0[2].length : 1, tail = m0 ? m0[3] : '';
                 const m = new Map(order.map((a, i) => [a.id, base + String(start + i).padStart(pad, '0') + tail])); apply(items.map(x => m.has(x.id) ? { ...x, name: m.get(x.id)! } : x)); };
-              return <><button type="button" className="sec small" style={{ marginTop: 6 }} disabled={order.length < 2} onClick={run} title="Click the first monitor, which has the start name and number (for example Prod 1), then Ctrl-click the others in the order you want. This counts the number up by one for each.">Select inc name</button>
+              return <><button type="button" className="sec small" style={{ marginTop: 6 }} disabled={order.length < 2} onClick={run} title="Click the first monitor, which has the start name and number (for example Prod 1), then Ctrl-click the others in the order you want. This counts the number up by one for each.">Select - Inc Name</button>
                 <p className="mut" style={{ margin: '4px 0 0', fontSize: '.8rem' }}>Select the first monitor (it keeps its name and number), then Ctrl-click the others in order. Each gets the next number.</p></>; })()}
           </Sec>); })()}
         {!readOnly && <Sec id="add" title="Add" open={openSec.add} toggle={toggleSec}>
