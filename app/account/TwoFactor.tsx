@@ -21,7 +21,7 @@ export default function TwoFactor({ enabled }: { enabled: boolean }) {
     <button type="button" onClick={async () => setSetup(await begin2fa())}>Set up 2FA</button></div>);
   return (<form action={act} style={{ display: 'grid', gap: 10 }}>
     <p>1. Scan this with your authenticator app, or type the key in by hand.</p>
-    {/* eslint-disable-next-line @next/next/no-img-element */}
+    { }
     <img src={view.qr} alt="QR code for your authenticator app" width={220} height={220} style={{ background: '#fff', borderRadius: 10 }} />
     <code style={{ wordBreak: 'break-all' }}>{view.secret}</code>
     <label>2. Enter the 6-digit code it shows<input name="code" inputMode="numeric" autoComplete="one-time-code" required style={{ width: '100%' }} /></label>

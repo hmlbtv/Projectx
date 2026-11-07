@@ -335,7 +335,7 @@ export default function Editor(p: Props) {
   function fitToSpace() {
     if (sel.length !== 1) { setMsg('Select one to fit it to the space.'); return; }
     const a = items.find(i => i.id === sel[0]); if (!a) return; const others = items.filter(i => i.id !== a.id);
-    const xs = [0, world.w, ...others.flatMap(o => [o.x, o.x + o.w])], ys = [0, world.h, ...others.flatMap(o => [o.y, o.y + o.h])];
+    const xs = [0, world.w, ...others.flatMap(o => [o.x, o.x + o.w])];
     let best: { s: number; l: number; r: number; tp: number; b: number } | null = null;
     for (const l of xs) for (const r of xs) {
       if (l > a.x || r < a.x + a.w) continue;

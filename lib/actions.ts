@@ -15,7 +15,7 @@ import { allow, clientIp } from './security';
 import { brandedMail, brandedMailDetailed } from './brandMail';
 import { mailTemplates as T } from './mailTemplates';
 import { getLimits, limitCheck, lockMessage } from './subscriptions';
-import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, sendMail, sendMailDetailed, mailFrom, baseUrl } from './mail';
+import { emailOn, signupBlocked, SIGNUP_BLOCKED_MSG, mailFrom, baseUrl } from './mail';
 import { verifyPassword, hashPassword, passwordProblem, newToken, sha256 } from './password';
 
 const tid = (me: any) => me.tenant_id ?? 0;
@@ -329,7 +329,7 @@ async function wallDefs(me: Me, wall: number) {
 }
 const putDefs = async (wall: number, list: WDef[]) => { await rows('update wall_templates set defaults=$1::jsonb where id=$2', [JSON.stringify(list), wall]); revalidatePath('/walls'); revalidatePath('/plans'); };
 export async function saveWallDefault(wall: number, id: string | null, name: string, mons: Record<string, number>): Promise<{ id?: string; error?: string }> {
-  const me = await adm(); const { list, lim } = await wallDefs(me, Number(wall));
+  const me = await adm(); const { list } = await wallDefs(me, Number(wall));
   const clean: Record<string, number> = {}; for (const [k, v] of Object.entries(mons ?? {})) if (Number.isInteger(v)) clean[String(k).slice(0, 80)] = v;
   const nm = String(name ?? '').trim().slice(0, 60) || `Default ${list.length + 1}`;
   const at = id ? list.findIndex(x => x.id === id) : -1;
@@ -984,7 +984,7 @@ async function copyPlanCompute(me: Me, job: number, planId: number, onlyWall = 0
   const src = { job_id: planId, data: await loadJobPlans(planId) as Record<string, any> };
   const walls = await rows('select rw.id, rw.name, rw.wall_template_id wt, r.location_id loc, w.data from job_walls jw join room_walls rw on rw.id=jw.room_wall_id join rooms r on r.id=rw.room_id join wall_templates w on w.id=rw.wall_template_id where jw.job_id=$1', [job]);
   const old = await rows('select rw.id, rw.wall_template_id wt, r.location_id loc, w.data from room_walls rw join rooms r on r.id=rw.room_id join wall_templates w on w.id=rw.wall_template_id where rw.id = any($1::int[])', [Object.keys(src.data ?? {}).map(Number).filter(Boolean)]);
-  const wtOf = new Map<number, number>(old.map((o: any) => [o.id, o.wt])), locOf = new Map<number, number>(old.map((o: any) => [o.id, o.loc])), dataOf = new Map<number, any>(old.map((o: any) => [o.id, o.data]));
+  const wtOf = new Map<number, number>(old.map((o: any) => [o.id, o.wt])), dataOf = new Map<number, any>(old.map((o: any) => [o.id, o.data]));
   const layouts = await rows('select id,name,tiles from mv_layouts where tenant_id is null or tenant_id=$1', [tid(me)]);
   const names = async (j: number) => { const r = await one('select ss.sources from jobs j join source_sets ss on ss.id=j.source_set_id where j.id=$1', [j]); return Array.isArray(r?.sources) ? r.sources.map((x: any) => String(typeof x === 'string' ? x : x?.name ?? '')) : null; };
   const [srcSrc, tgtSrc] = [await names(planId), await names(job)];

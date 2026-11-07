@@ -106,6 +106,13 @@ const click = async (p, loc, o = {}) => { for (let k = 0; k < 4; k++) { await op
   const pl = p.locator('details.acc', { has: p.locator('input[name="lim_wall_templates"]') }).first(); ok(await pl.count() > 0, 'each plan is a collapsible section');
   const csv = await p.request.get(B + '/webappdev/subscriptions/export'); ok(csv.status() === 200 && (await csv.text()).startsWith('workspace'), 'workspaces CSV downloads');
   const cron = await fetch(B + '/api/cron/subscriptions'); ok(cron.status === 401, 'daily check refuses calls without the secret');
+  // ---- page sweep: every main page opens without errors and nothing spills sideways, on a desktop and a phone width ----
+  for (const [w, h] of [[1280, 800], [390, 800]]) { await p.setViewportSize({ width: w, height: h });
+    for (const pg of ['/', '/productions', '/plans', '/shared', '/layouts', '/walls', '/tiles', '/hardware', '/hardware/usage', '/hardware/racks', '/sources', '/contacts', '/team', '/account', '/subscription', '/audit', '/mail', '/interest', '/webappdev', '/webappdev/tenants', '/webappdev/subscriptions', '/webappdev/demo-site', '/webappdev/email', '/webappdev/import-layouts', '/webappdev/tidy-layouts', '/webappdev/sign-in-length']) {
+      const r = await p.goto(B + pg).catch(() => null); await p.waitForLoadState('networkidle').catch(() => {}); await p.waitForTimeout(150);
+      const over = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth).catch(() => 0);
+      ok(!!r && r.status() < 400 && over <= 2, `sweep ${w}px ${pg}: status ${r?.status()}, sideways overflow ${over}px`); } }
+  await p.setViewportSize({ width: 1280, height: 800 });
   ok(errs.length === 0, 'no server or page errors: ' + errs.join(' | '));
   await b.close(); await stop(); fs.rmSync(DIR, { recursive: true, force: true });
   console.log(fails.length ? `\n${fails.length} failed` : '\nall passed'); process.exit(fails.length ? 1 : 0);

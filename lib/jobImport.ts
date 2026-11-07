@@ -1,5 +1,5 @@
 import { getLimits } from './subscriptions';
-import { rows, one } from './db';
+import { rows } from './db';
 import { record } from './audit';
 import type { Me } from './session';
 

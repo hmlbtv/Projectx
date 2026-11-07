@@ -7,7 +7,7 @@ import { devSite } from '@/lib/devmode';
 import { replyNote, setSeverity, markDone, reopen, addBlock, deleteBlock, assignBlock, blockDone, setDevComment, deleteNote } from '@/lib/devfeedback';
 
 const COL = ['', '#2ea043', '#e3a008', '#e5352b'], SEVTXT = ['', 'minor', 'medium', 'serious'];
-const back = (tab: string) => revalidatePath('/webappdev/markup');
+const back = (_tab: string) => revalidatePath('/webappdev/markup');
 export default async function MarkupPage({ searchParams }: { searchParams: Promise<{ tab?: string; sev?: string; who?: string; dev?: string; blk?: string; pg?: string; q?: string; from?: string; to?: string; st?: string }> }) {
   if (!devSite()) notFound();
   const me = await requireMe(); if (me.role !== 'webappdev') redirect('/');

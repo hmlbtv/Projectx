@@ -14,7 +14,7 @@ export async function GET() {
   const ps = await rows<{ broadcaster_id: number; name: string }>('select p.broadcaster_id, p.name from productions p join broadcasters b on b.id=p.broadcaster_id where b.tenant_id=$1 order by p.name', [t]);
   const sets = await rows<{ name: string }>('select name from source_sets where tenant_id=$1 order by name', [t]);
   const list = bs.length ? bs : [{ id: 0, name: 'Example Broadcaster' }];
-  const used = new Set<string>(['Lists', 'How to use']), tabName = (n: string) => { let b = n.replace(/[\\\/\?\*\[\]:]/g, ' ').trim().slice(0, 28) || 'Broadcaster', x = b, i = 2; while (used.has(x.toLowerCase())) x = `${b.slice(0, 26)} ${i++}`; used.add(x.toLowerCase()); return x; };
+  const used = new Set<string>(['Lists', 'How to use']), tabName = (n: string) => { const b = n.replace(/[\\\/\?\*\[\]:]/g, ' ').trim().slice(0, 28) || 'Broadcaster'; let x = b, i = 2; while (used.has(x.toLowerCase())) x = `${b.slice(0, 26)} ${i++}`; used.add(x.toLowerCase()); return x; };
   const h = (v: string) => ({ value: v, fontWeight: 'bold' as const, backgroundColor: '#e6edf3' }), tx = (v: string) => ({ value: v, type: String });
   const prodsOf = (id: number) => { const l = ps.filter(p => p.broadcaster_id === id).map(p => p.name); return id === 0 ? ['Example Production'] : l; };
   const maxRows = 300, listLen = Math.max(...list.map(b => prodsOf(b.id).length), sets.length, 1);

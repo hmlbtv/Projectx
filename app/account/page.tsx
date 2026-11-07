@@ -2,7 +2,7 @@ import { requireMe } from '@/lib/session';
 import { renameWorkspace } from '@/lib/orgActions';
 import PasswordForm from './PasswordForm';
 import TwoFactor from './TwoFactor';
-import { one, rows } from '@/lib/db';
+import { one } from '@/lib/db';
 import { getLimits, LIMIT_DEFS, limitText, dayStr } from '@/lib/subscriptions';
 export const dynamic = 'force-dynamic';
 export default async function Account({ searchParams }: { searchParams: Promise<{ saved?: string; err?: string }> }) {

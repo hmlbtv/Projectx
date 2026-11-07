@@ -68,7 +68,7 @@ export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFu
   // Once the full view is on screen, ask the browser for real full screen (and landscape on a phone).
   useEffect(() => { if (!full) return; let live = true; (async () => { const el = box.current;
     try { if (el?.requestFullscreen) { await el.requestFullscreen(); fsUsed.current = true; try { await (screen.orientation as any)?.lock?.('landscape'); } catch { /* not allowed here */ } } } catch { /* use the full-window view */ }
-    setTimeout(() => { if (live) setTurned(portrait()); }, 300); })(); return () => { live = false; }; }, [full]); // eslint-disable-line react-hooks/exhaustive-deps
+    setTimeout(() => { if (live) setTurned(portrait()); }, 300); })(); return () => { live = false; }; }, [full]);  
   function leave() { onExit?.(); refitAfterFullScreen(); fsUsed.current = false; setEditing(false); setFull(false); setTurned(false); setPick(null); try { (screen.orientation as any)?.unlock?.(); } catch { /* ignore */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
   useEffect(() => {
     if (!full) return;
@@ -119,7 +119,7 @@ export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFu
     const pt = (x: number, y: number) => { const m = el.getScreenCTM(); if (!m) return null; const q = new DOMPoint(x, y).matrixTransform(m.inverse()); return { x: q.x, y: q.y }; };
     const cur = () => { const B = bx.current, c = zr.current; return { z: c.z, cx: isNaN(c.cx) ? B.vx + B.w / 2 : c.cx, cy: isNaN(c.cy) ? B.vy + B.h / 2 : c.cy }; };
     // zoom so the wall point under (px,py) stays under the same screen spot
-    const zoomAt = (nz: number, sx: number, sy: number) => { const c = cur(), B = bx.current, p0 = pt(sx, sy); if (!p0) return; nz = Math.min(6, Math.max(1, nz)); const k = c.z / nz; setZ(zcl(nz, p0.x - (p0.x - c.cx) * k, p0.y - (p0.y - c.cy) * k)); };
+    const zoomAt = (nz: number, sx: number, sy: number) => { const c = cur(), p0 = pt(sx, sy); if (!p0) return; nz = Math.min(6, Math.max(1, nz)); const k = c.z / nz; setZ(zcl(nz, p0.x - (p0.x - c.cx) * k, p0.y - (p0.y - c.cy) * k)); };
     const wheel = (e: WheelEvent) => { e.preventDefault(); zoomAt(cur().z * Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY); };
     let moved = false, pinch: { d: number; mx: number; my: number } | null = null, drag: { x: number; y: number } | null = null;
     const dist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY), mid = (t: TouchList) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
@@ -133,7 +133,7 @@ export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFu
     el.addEventListener('wheel', wheel, { passive: false }); el.addEventListener('touchstart', ts, { passive: true }); el.addEventListener('touchmove', tm, { passive: false }); el.addEventListener('touchend', te); el.addEventListener('touchcancel', te);
     el.addEventListener('click', clk, true); el.addEventListener('mousedown', mdn); window.addEventListener('mousemove', mmv); window.addEventListener('mouseup', mup);
     return () => { el.removeEventListener('wheel', wheel); el.removeEventListener('touchstart', ts); el.removeEventListener('touchmove', tm); el.removeEventListener('touchend', te); el.removeEventListener('touchcancel', te); el.removeEventListener('click', clk, true); el.removeEventListener('mousedown', mdn); window.removeEventListener('mousemove', mmv); window.removeEventListener('mouseup', mup); };
-  }, [full, fa?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [full, fa?.id]);  
   const savedWall = useRef({ z: 1, cx: NaN, cy: NaN }), wasFa = useRef(false);
   useEffect(() => { if (fa && !wasFa.current) { savedWall.current = zr.current; setZ({ z: 1, cx: NaN, cy: NaN }); } else if (!fa && wasFa.current) setZ(savedWall.current); else if (fa) setZ({ z: 1, cx: NaN, cy: NaN }); wasFa.current = !!fa; }, [fa?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const zc = { z: zm.z, cx: isNaN(zm.cx) ? base.vx + base.w / 2 : zm.cx, cy: isNaN(zm.cy) ? base.vy + base.h / 2 : zm.cy }, zbox = zc.z > 1 ? `${zc.cx - base.w / (2 * zc.z)} ${zc.cy - base.h / (2 * zc.z)} ${base.w / zc.z} ${base.h / zc.z}` : `${base.vx} ${base.vy} ${base.w} ${base.h}`;
@@ -173,7 +173,7 @@ export function WallPlan({ onEditing, wl, layouts, cur, setMon, readOnly, autoFu
 }
 
 export default function Plan({ walls, layouts, sources, sourceCats = {}, saved, save, readOnly = false, start, below, copy, hw, refresh, printInfo }: { hw?: PlanHw; copy?: Record<number, React.ReactNode>; printInfo?: { id: number; bc: string; prod: string; name: string; dates?: [string, string][]; load?: (wallId: number) => Promise<any> }; refresh?: () => Promise<Data>; below?: Record<number, React.ReactNode>; start?: string; walls: Wall[]; layouts: Layout[]; sources: string[]; sourceCats?: Record<string, string>; saved: { name: string; data: Data }[]; save?: (name: string, data: Data) => Promise<void>; readOnly?: boolean }) {
-  const [name, setName] = useState((saved.find(x => x.name === start) ?? saved[0])?.name ?? 'Room Layout 1');
+  const [name] = useState((saved.find(x => x.name === start) ?? saved[0])?.name ?? 'Room Layout 1');
   // A new plan starts from each Wall Template's chosen default MV configuration.
   const seed = () => Object.fromEntries(walls.filter(x => x.defaultMons).map(x => [x.id, { assign: {}, mons: x.defaultMons }])) as Data;
   const [data, setData] = useState<Data>((saved.find(x => x.name === start) ?? saved[0])?.data ?? seed());
@@ -209,7 +209,7 @@ export default function Plan({ walls, layouts, sources, sourceCats = {}, saved, 
     const tick = async () => { if (!live || document.hidden || editingN.current > 0) return; try { const fresh = await refresh(); if (!live || editingN.current > 0) return;
       setData(d => { let next: Data | null = null; for (const [k, v] of Object.entries(fresh)) { const id = Number(k); if (touched.current.has(id) || inflight.current.has(id)) continue; if (JSON.stringify(d[id]) !== JSON.stringify(v)) { next = next ?? { ...d }; next[id] = v as any; } } return next ?? d; }); } catch { /* try again next time */ } };
     const iv = setInterval(tick, 8000); const vis = () => { if (!document.hidden) tick(); }; document.addEventListener('visibilitychange', vis);
-    return () => { live = false; clearInterval(iv); document.removeEventListener('visibilitychange', vis); }; }, [refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { live = false; clearInterval(iv); document.removeEventListener('visibilitychange', vis); }; }, [refresh]);  
   const w = (id: number) => data[id] ?? { layoutId: undefined, assign: {} };
   // Sources are stored per tile NUMBER, so they stay in the same numbered tile when the layout changes.
   const upd = (id: number, next: Data) => { touched.current.add(id); setData(next); };

@@ -3,7 +3,7 @@ import { rows } from '@/lib/db';
 import { requireMe, isAdmin } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { LayoutPreview } from './Preview';
-import { saveLayout, deleteLayout, copyLayout, setLayoutStandard, setLayoutTags } from '@/lib/actions';
+import { saveLayout, deleteLayout, setLayoutStandard, setLayoutTags } from '@/lib/actions';
 import AddDialog from '../AddDialog';
 import Menu from '../Menu';
 import Link from 'next/link';

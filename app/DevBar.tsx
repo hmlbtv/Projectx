@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { makeAnchor, describe, pickAt, pickFor, mapper, type Anchor } from './devAnchor';
+import { makeAnchor, describe, pickAt, mapper, type Anchor } from './devAnchor';
 import { addNote, addMarks, pageNotes, replyNote, myNotes, type DevNote } from '@/lib/devfeedback';
 
 // Dev site only: a floating bar to leave notes, drawings and highlights on any page. Marks sit at page coordinates over the document.

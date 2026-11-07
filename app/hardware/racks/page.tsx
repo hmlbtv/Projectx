@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { requireMe, isAdmin } from '@/lib/session';
 import { rows } from '@/lib/db';
 import { loadHardware } from '@/lib/hardware';
-import type { Frame, Rack, Unit } from '@/lib/hardware';
+import type { Frame, Rack } from '@/lib/hardware';
 import { addHwRack, updateHwRack, deleteHwRack, addHwFrame, updateHwFrame, deleteHwFrame } from '@/lib/actions';
 import AddDialog from '../../AddDialog';
 import Menu from '../../Menu';

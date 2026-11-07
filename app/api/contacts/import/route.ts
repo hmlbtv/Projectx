@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { readSheet } from 'read-excel-file/node';
 import { revalidatePath } from 'next/cache';
 import { getMe, canManage } from '@/lib/session';
-import { rows, one } from '@/lib/db';
+import { rows } from '@/lib/db';
 import { sameOrigin } from '@/lib/wallImages';
 import { record } from '@/lib/audit';
 export const dynamic = 'force-dynamic';

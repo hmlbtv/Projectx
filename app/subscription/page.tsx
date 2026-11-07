@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { rows, one } from '@/lib/db';
 import { requireMe, isAdmin } from '@/lib/session';
-import { LIMIT_DEFS, UNLIMITED, dayStr, getLimits, limitText, money } from '@/lib/subscriptions';
+import { LIMIT_DEFS, dayStr, getLimits, limitText, money } from '@/lib/subscriptions';
 export const dynamic = 'force-dynamic';
 
 // Read only, for the Admins of a workspace: their own plan and what each tier will allow. Nothing here can be changed or bought yet; the site admin manages subscriptions.
