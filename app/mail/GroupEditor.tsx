@@ -29,5 +29,5 @@ export default function GroupEditor({ known, id, name: n0, emails: e0 }: { known
     {err && <div role="alert" style={{ color: 'var(--bad)' }}>{err}</div>}
     {extra.length > 0 && <div><span className="mut">Unregistered addresses in this group:</span>{extra.map(e => <div key={e} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{e}<button type="button" className="sec small" onClick={() => setMany([e], false)}>Remove</button></div>)}</div>}
     <textarea name="emails" value={[...sel].join('\n')} readOnly hidden />
-    <div style={{ display: 'flex', gap: 8 }}><button>{'Save group'}</button>{id && <Link href="/mail" className="btn sec">Cancel</Link>}</div></form>);
+    <div style={{ display: 'flex', gap: 8 }}><button>{'Save group'}</button>{id && <Link href="/mail/groups" className="btn sec">Cancel</Link>}</div></form>);
 }

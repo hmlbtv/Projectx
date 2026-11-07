@@ -81,10 +81,10 @@ export async function mailAction(_: any, f: FormData): Promise<{ msg?: string; e
 }
 export async function duplicateMail(f: FormData) { const me = await dev(); const m = await one('select subject,body,btn_label,btn_url from mail_messages where id=$1', [Number(f.get('id'))]); if (!m) redirect('/mail');
   const r = await one('insert into mail_messages(subject,body,btn_label,btn_url,created_by) values($1,$2,$3,$4,$5) returning id', [m.subject, m.body, m.btn_label, m.btn_url, me.id]); redirect('/mail/' + r.id); }
-export async function deleteDraft(f: FormData) { await dev(); await rows("delete from mail_messages where id=$1 and status<>'sent'", [Number(f.get('id'))]); redirect('/mail'); }
+export async function deleteDraft(f: FormData) { await dev(); await rows("delete from mail_messages where id=$1 and status<>'sent'", [Number(f.get('id'))]); redirect('/mail/library'); }
 export async function saveGroup(f: FormData) { await dev(); const name = String(f.get('name') ?? '').trim().slice(0, 80); if (!name) return;
   const emails = mails(String(f.get('emails') ?? '')).join('\n'), id = Number(f.get('id')) || 0;
   if (id) await rows('update mail_groups set name=$2,emails=$3 where id=$1', [id, name, emails]).catch(() => {});
   else await rows('insert into mail_groups(name,emails) values($1,$2) on conflict(name) do update set emails=excluded.emails', [name, emails]);
-  revalidatePath('/mail'); redirect('/mail'); }
-export async function deleteGroup(f: FormData) { await dev(); await rows('delete from mail_groups where id=$1', [Number(f.get('id'))]); revalidatePath('/mail'); }
+  revalidatePath('/mail/groups'); redirect('/mail/groups'); }
+export async function deleteGroup(f: FormData) { await dev(); await rows('delete from mail_groups where id=$1', [Number(f.get('id'))]); revalidatePath('/mail/groups'); }
