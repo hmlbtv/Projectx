@@ -40,6 +40,7 @@ export default async function Layouts({ searchParams }: { searchParams: Promise<
       : sort === 'tmost' ? nt(b) - nt(a) : sort === 'tfewest' ? nt(a) - nt(b) : 0);
   // Column headers in the list view: click to sort, click again to reverse.
   const tagQs = (o: Record<string, string>) => { const u = new URLSearchParams(o); for (const t of tagsF) u.append('tag', t); return u; };
+  const tagHref = (tags: string[]) => { const u = new URLSearchParams({ ...(q ? { q } : {}), f, sort, view }); for (const t of tags) u.append('tag', t); return u.toString(); };
   const th = (label: string, asc: string, desc: string) => { const on = sort === asc || sort === desc, next = sort === asc ? desc : asc;
     return <th><Link href={`/layouts?${tagQs({ ...(q ? { q } : {}), f, sort: next, view }).toString()}`} className={on ? 'on' : ''}>{label}{on ? (sort === asc ? ' ▲' : ' ▼') : ''}</Link></th>; };
   const qs = (v: string) => tagQs({ ...(q ? { q } : {}), f, sort, view: v }).toString();
@@ -52,12 +53,13 @@ export default async function Layouts({ searchParams }: { searchParams: Promise<
     <form method="get" className="lay-bar">
       <input type="search" name="q" defaultValue={q} placeholder="Search layouts or tags" aria-label="Search layouts" />
       <select name="f" defaultValue={f} aria-label="Filter"><option value="all">All layouts</option><option value="standard">Standard only</option><option value="mine">My tenant only</option><option value="tiles">With tiles on windows</option><option value="notiles">No tiles yet</option></select>
-      {allTags.length > 0 && <details className="tagpick"><summary>{tagsF.length ? `Tags: ${tagsF.join(', ')}` : 'All tags'}</summary>
-        <div className="card tagpop"><span className="mut" style={{ fontSize: '.8rem' }}>Tick one or more, then Apply. Layouts must have all of them.</span>
-          {allTags.map(t => <label key={t} style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'flex-start' }}><input type="checkbox" name="tag" value={t} defaultChecked={tagsF.includes(t)} />{t}</label>)}</div></details>}
       <select name="sort" defaultValue={sort} aria-label="Sort"><option value="default">Standard first</option><option value="name">Name A to Z</option><option value="namez">Name Z to A</option><option value="new">Newest first</option><option value="old">Oldest first</option><option value="most">Most windows</option><option value="fewest">Fewest windows</option><option value="tmost">Most with a tile</option><option value="tfewest">Fewest with a tile</option><option value="type">Standard first (by type)</option><option value="typez">Custom first (by type)</option></select>
-      <input type="hidden" name="view" value={view} /><button className="sec small">Apply</button>
-      <span className="lay-view"><Link className={view === 'cards' ? 'on' : ''} href={`/layouts?${qs('cards')}`}>Cards</Link><Link className={view === 'list' ? 'on' : ''} href={`/layouts?${qs('list')}`}>List</Link></span></form>
+      <input type="hidden" name="view" value={view} />{tagsF.map(t => <input key={t} type="hidden" name="tag" value={t} />)}<button className="sec small">Apply</button>
+</form>
+    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', margin: '0 0 8px' }}>
+      <div className="tagbar" style={{ flex: 1, minWidth: 0 }}>{allTags.map(t => { const on = tagsF.includes(t); return <Link key={t} scroll={false} className={'tag tagbtn' + (on ? ' on' : '')} aria-pressed={on} title={on ? 'Click to unselect' : 'Click to select; a layout must have every selected tag'} href={`/layouts?${tagHref(on ? tagsF.filter(x => x !== t) : [...tagsF, t])}`}>{t}</Link>; })}
+        {tagsF.length > 0 && <Link className="tag tagbtn clear" href={`/layouts?${tagHref([])}`}>Unselect all</Link>}</div>
+      <span className="lay-view"><Link className={view === 'cards' ? 'on' : ''} href={`/layouts?${qs('cards')}`}>Cards</Link><Link className={view === 'list' ? 'on' : ''} href={`/layouts?${qs('list')}`}>List</Link></span></div>
     <p className="mut">{shown.length} of {ls.length} layout{ls.length === 1 ? '' : 's'}</p>
     <datalist id="layout-tags">{allTags.map(t => <option key={t} value={t} />)}</datalist>
     {shown.length === 0 && <p className="mut">No layouts match.</p>}
