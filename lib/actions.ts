@@ -540,7 +540,7 @@ async function cleanExtras(raw: any, tenant: number) {
   return { ...(mine.has(bg) ? { bg, ...(raw?.bgHasAlpha ? { bgHasAlpha: true } : {}), ...(raw?.bgHasAlpha && raw?.bgUseAlpha === false ? { bgUseAlpha: false } : {}) } : {}), items };
 }
 // Tags are short labels used to find layouts: at most 12 per layout, 24 characters each, no repeats (ignoring capitals).
-const cleanTags = (v: any): string[] => { const out: string[] = []; for (const x of (Array.isArray(v) ? v : [])) { const t = String(x ?? '').replace(/[\s,]+/g, ' ').trim().slice(0, 24); if (t && !out.some(o => o.toLowerCase() === t.toLowerCase())) out.push(t); if (out.length >= 12) break; } return out; };
+const cleanTags = (v: any): string[] => { const out: string[] = []; for (const x of (Array.isArray(v) ? v : [])) { const t = String(x ?? '').replace(/[\s,]+/g, ' ').trim().slice(0, 24); if (t && !['standard', 'custom'].includes(t.toLowerCase()) && !out.some(o => o.toLowerCase() === t.toLowerCase())) out.push(t); if (out.length >= 12) break; } return out; };
 async function saveLayoutTiles_(p: { id: number; name: string; tiles: any[]; asNew: boolean; flags?: Record<string, boolean>; extras?: any; tags?: string[] }): Promise<{ id?: number; error?: string }> {
   const me = await adm(); const top = me.role === 'webappdev';
   if (!Array.isArray(p.tiles) || p.tiles.length > 64) return { error: 'A layout can have at most 64 monitors (0 is fine, for a layout with no monitors).' };
