@@ -279,3 +279,4 @@ button.savedirty{background:#f5a524;color:#1a1200;border-color:#f5a524;box-shado
 @keyframes savepulse{50%{box-shadow:0 0 0 6px #f5a52422}}
 @media(prefers-reduced-motion:reduce){button.savedirty{animation:none}}
 a.btn.small.on{background:var(--ink);color:var(--onink);border-color:var(--ink)}
+.laytags{position:absolute;right:8px;top:46px;display:flex;flex-direction:column;align-items:flex-end;gap:3px;max-width:45%;pointer-events:none}.laytags .tag{font-size:.72rem}

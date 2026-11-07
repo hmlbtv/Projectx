@@ -3,7 +3,7 @@ import { rows } from '@/lib/db';
 import { requireMe, isAdmin } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { LayoutPreview } from './Preview';
-import { saveLayout, deleteLayout, copyLayout, setLayoutStandard } from '@/lib/actions';
+import { saveLayout, deleteLayout, copyLayout, setLayoutStandard, setLayoutTags } from '@/lib/actions';
 import AddDialog from '../AddDialog';
 import Menu from '../Menu';
 import Link from 'next/link';
@@ -23,7 +23,7 @@ export default async function Layouts({ searchParams }: { searchParams: Promise<
     const std = !top && !cur.tenant_id;
     const keep = new URLSearchParams(); if ((q0 ?? '').trim()) keep.set('q', (q0 ?? '').trim().slice(0, 80)); if (fl) keep.set('f', fl); if (so) keep.set('sort', so); if (vw) keep.set('view', vw); // the list's search / filter / sort / view, kept for the way back
     return (<><h1 style={{ margin: '0 0 12px' }}>Layout Designer</h1>
-      <LayoutEditor tags={cur.tags ?? []} allTags={allTags} extras={cur.extras} backQuery={keep.toString() ? '?' + keep.toString() : ''} canNeaten={top} standard={top ? !cur.tenant_id : null} key={cur.id} id={cur.id} name={cur.name} tiles={cur.tiles} tileList={tl.map((x: any) => ({ id: x.id, name: x.name, assets: x.assets, mine: !!x.tenant_id }))}
+      <LayoutEditor extras={cur.extras} backQuery={keep.toString() ? '?' + keep.toString() : ''} canNeaten={top} standard={top ? !cur.tenant_id : null} key={cur.id} id={cur.id} name={cur.name} tiles={cur.tiles} tileList={tl.map((x: any) => ({ id: x.id, name: x.name, assets: x.assets, mine: !!x.tenant_id }))}
         notice={std ? (<div className="card dz-note"><span>This is a Standard MV Layout from the TelePlanner team. Change it as you like: Save makes your own copy and the Standard one stays as it is for everyone.</span></div>) : undefined} /></>); }
   const q = (q0 ?? '').trim().slice(0, 80), f = ['standard', 'mine', 'tiles', 'notiles'].includes(fl ?? '') ? fl! : 'all', sort = ['name', 'namez', 'new', 'old', 'most', 'fewest', 'type', 'typez', 'tmost', 'tfewest'].includes(so ?? '') ? so! : 'default', view = vw === 'list' ? 'list' : 'cards';
   const nt = (l: any) => (l.tiles || []).filter((x: any) => x.tileId).length;
@@ -38,7 +38,7 @@ export default async function Layouts({ searchParams }: { searchParams: Promise<
   const th = (label: string, asc: string, desc: string) => { const on = sort === asc || sort === desc, next = sort === asc ? desc : asc;
     return <th><Link href={`/layouts?${new URLSearchParams({ ...(q ? { q } : {}), ...(tagF ? { tag: tagF } : {}), f, sort: next, view }).toString()}`} className={on ? 'on' : ''}>{label}{on ? (sort === asc ? ' ▲' : ' ▼') : ''}</Link></th>; };
   const qs = (v: string) => new URLSearchParams({ ...(q ? { q } : {}), ...(tagF ? { tag: tagF } : {}), f, sort, view: v }).toString();
-  const menu = (l: any) => (l.tenant_id || me.role === 'webappdev') && <Menu>{top && <form action={setLayoutStandard}><input type="hidden" name="id" value={l.id} /><input type="hidden" name="standard" value={l.tenant_id ? '1' : '0'} /><button>{l.tenant_id ? 'Make Standard (all tenants)' : 'Make custom (my tenant only)'}</button></form>}<form action={deleteLayout} className="del-row"><input type="hidden" name="id" value={l.id} /><span className="mut">Delete this MV Layout? Monitor Plans using it lose their tile layout.</span><button className="del">Yes, delete</button></form></Menu>;
+  const menu = (l: any) => (l.tenant_id || me.role === 'webappdev') && <Menu><form action={setLayoutTags} className="stack"><input type="hidden" name="id" value={l.id} /><label className="mut">Tags (separate with commas)<input name="tags" defaultValue={(l.tags ?? []).join(', ')} list="layout-tags" placeholder="e.g. UMD, 9-WAY" /></label><button className="sec small">Save tags</button></form>{top && <form action={setLayoutStandard}><input type="hidden" name="id" value={l.id} /><input type="hidden" name="standard" value={l.tenant_id ? '1' : '0'} /><button>{l.tenant_id ? 'Make Standard (all tenants)' : 'Make custom (my tenant only)'}</button></form>}<form action={deleteLayout} className="del-row"><input type="hidden" name="id" value={l.id} /><span className="mut">Delete this MV Layout? Monitor Plans using it lose their tile layout.</span><button className="del">Yes, delete</button></form></Menu>;
   return (<><div className="pagehead"><h1 style={{ margin: 0 }}>Layout Designer</h1>
       <AddDialog inline action={saveLayout} label="Add MV Layout" title="New MV Layout" placeholder="Layout name"><label className="mut">Number of tiles<input name="count" type="number" min="1" max="36" defaultValue="4" /></label>
         {me.role === 'webappdev' && <label style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><input type="checkbox" name="standard" value="1" style={{ minHeight: 0, width: 'auto' }} /> Standard (all tenants)</label>}</AddDialog></div>
@@ -52,9 +52,11 @@ export default async function Layouts({ searchParams }: { searchParams: Promise<
       <input type="hidden" name="view" value={view} /><button className="sec small">Apply</button>
       <span className="lay-view"><Link className={view === 'cards' ? 'on' : ''} href={`/layouts?${qs('cards')}`}>Cards</Link><Link className={view === 'list' ? 'on' : ''} href={`/layouts?${qs('list')}`}>List</Link></span></form>
     <p className="mut">{shown.length} of {ls.length} layout{ls.length === 1 ? '' : 's'}</p>
+    <datalist id="layout-tags">{allTags.map(t => <option key={t} value={t} />)}</datalist>
     {shown.length === 0 && <p className="mut">No layouts match.</p>}
     {view === 'cards' ? <div className="tiles">
-      {shown.map((l: any) => (<div key={l.id} className="card tile"><Link href={`/layouts?id=${l.id}&${qs(view)}`} className="tilelink"><LayoutPreview tiles={l.tiles} tileMap={tileMap} extras={l.extras} /><b>{l.name}</b>{!l.tenant_id && <span><span className="tag">standard</span></span>}{(l.tags ?? []).length > 0 && <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{(l.tags as string[]).map(t => <span key={t} className="tag">{t}</span>)}</span>}</Link>
+      {shown.map((l: any) => (<div key={l.id} className="card tile"><Link href={`/layouts?id=${l.id}&${qs(view)}`} className="tilelink"><LayoutPreview tiles={l.tiles} tileMap={tileMap} extras={l.extras} /><b>{l.name}</b>{!l.tenant_id && <span><span className="tag">standard</span></span>}</Link>
+        {(l.tags ?? []).length > 0 && <div className="laytags">{(l.tags as string[]).map(t => <span key={t} className="tag">{t}</span>)}</div>}
         {menu(l)}</div>))}</div>
     : <div className="card" style={{ padding: 0, overflowX: 'auto' }}><table className="lay-list"><thead><tr><th></th>{th('Name', 'name', 'namez')}<th>Tags</th>{th('Type', 'type', 'typez')}{th('Windows', 'fewest', 'most')}{th('With a tile', 'tfewest', 'tmost')}<th></th></tr></thead><tbody>
       {shown.map((l: any) => (<tr key={l.id}><td><Link href={`/layouts?id=${l.id}&${qs(view)}`}><LayoutPreview tiles={l.tiles} tileMap={tileMap} width={96} extras={l.extras} /></Link></td>

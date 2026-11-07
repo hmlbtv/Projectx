@@ -607,6 +607,8 @@ async function setLayoutStandard_(f: FormData) {
   await rows('update mv_layouts set tenant_id=$1 where id=$2', [std ? null : tid(me), id]);
   revalidatePath('/layouts');
 }
+// Replace a layout's tags (a comma separated list). A tenant can tag its own layouts; the site admin can tag Standard ones too.
+async function setLayoutTags_(f: FormData) { const me = await adm(); const tags = cleanTags(String(s(f, 'tags')).split(',')); await rows(me.role === 'webappdev' ? 'update mv_layouts set tags=$3 where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'update mv_layouts set tags=$3 where id=$1 and tenant_id=$2', [Number(s(f, 'id')), tid(me), tags]); revalidatePath('/layouts'); revalidatePath('/walls'); }
 async function deleteLayout_(f: FormData) { const me = await adm(); await rows(me.role === 'webappdev' ? 'delete from mv_layouts where id=$1 and (tenant_id=$2 or tenant_id is null)' : 'delete from mv_layouts where id=$1 and tenant_id=$2', [Number(s(f,'id')), tid(me)]); revalidatePath('/layouts'); }
 
 // ---- Productions: Broadcaster > Production > Job ----
@@ -1093,6 +1095,7 @@ export async function deleteTile(...a: Parameters<typeof deleteTile_>) { return 
 export async function saveLayout(...a: Parameters<typeof saveLayout_>) { return audited('saveLayout', saveLayout_, a) as ReturnType<typeof saveLayout_>; }
 export async function saveLayoutTiles(...a: Parameters<typeof saveLayoutTiles_>) { return audited('saveLayoutTiles', saveLayoutTiles_, a) as ReturnType<typeof saveLayoutTiles_>; }
 export async function copyLayout(...a: Parameters<typeof copyLayout_>) { return audited('copyLayout', copyLayout_, a) as ReturnType<typeof copyLayout_>; }
+export async function setLayoutTags(...a: Parameters<typeof setLayoutTags_>) { return audited('setLayoutTags', setLayoutTags_, a) as ReturnType<typeof setLayoutTags_>; }
 export async function setLayoutStandard(...a: Parameters<typeof setLayoutStandard_>) { return audited('setLayoutStandard', setLayoutStandard_, a) as ReturnType<typeof setLayoutStandard_>; }
 export async function deleteLayout(...a: Parameters<typeof deleteLayout_>) { return audited('deleteLayout', deleteLayout_, a) as ReturnType<typeof deleteLayout_>; }
 export async function addBroadcaster(...a: Parameters<typeof addBroadcaster_>) { return audited('addBroadcaster', addBroadcaster_, a) as ReturnType<typeof addBroadcaster_>; }
