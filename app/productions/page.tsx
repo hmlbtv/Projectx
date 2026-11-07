@@ -14,7 +14,8 @@ import { demoInfo, DEMO_NAME } from '@/lib/demoSite';
 import { resetDemoSite } from '@/lib/demoActions';
 import { getLimits, limitText, overLimits } from '@/lib/subscriptions';
 import TreeControls from '../hardware/TreeControls';
-import { addBroadcaster, addProduction, addJob, assignWall, setWallDef, unassignWall, assignWalls, unassignWalls, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob, copyJobToNew } from '@/lib/actions';
+import { addBroadcaster, addProduction, addJob, assignWall, setWallDef, unassignWall, assignWalls, unassignWalls, updateBroadcaster, updateProduction, updateJob, deleteBroadcaster, deleteProduction, deleteJob, copyJobToNew, removeJobUser } from '@/lib/actions';
+import { removeInvite, revokeWallLink } from '@/lib/guestActions';
 export const dynamic = 'force-dynamic';
 
 export default async function Productions({ searchParams }: { searchParams: Promise<{ b?: string; p?: string; j?: string; v?: string; from?: string; cd?: string; cv?: string }> }) {
@@ -45,8 +46,8 @@ export default async function Productions({ searchParams }: { searchParams: Prom
     const j = js.find((x: any) => x.id === jobId); if (!j) redirect('/productions');
     const p = ps.find((x: any) => x.id === j.production_id)!; const b = bs.find((x: any) => x.id === p.broadcaster_id)!;
     const shUsers = await rows('select u.id, u.name, u.email, coalesce(m.role, u.role) role from job_users ju join users u on u.id=ju.user_id left join memberships m on m.user_id=u.id and m.tenant_id=$2 and m.accepted where ju.job_id=$1 order by u.name', [j.id, t]);
-    const shRaw = await rows('select lower(wl.email) email, wl.access, r.name || \' / \' || rw.name wall from wall_links wl join room_walls rw on rw.id=wl.room_wall_id join rooms r on r.id=rw.room_id where wl.job_id=$1 and not wl.revoked order by wl.email, r.name, rw.name', [j.id]);
-    const shGuests = [...new Set(shRaw.map((x: any) => x.email as string))].map(e => { const mine = shRaw.filter((x: any) => x.email === e); return { email: e, access: mine.some((x: any) => x.access === 'edit') ? 'edit' : 'view', walls: mine.map((x: any) => ({ name: x.wall as string, access: x.access as string })) }; });
+    const shRaw = await rows('select wl.id, lower(wl.email) email, wl.access, r.name || \' / \' || rw.name wall from wall_links wl join room_walls rw on rw.id=wl.room_wall_id join rooms r on r.id=rw.room_id where wl.job_id=$1 and not wl.revoked order by wl.email, r.name, rw.name', [j.id]);
+    const shGuests = [...new Set(shRaw.map((x: any) => x.email as string))].map(e => { const mine = shRaw.filter((x: any) => x.email === e); return { email: e, access: mine.some((x: any) => x.access === 'edit') ? 'edit' : 'view', walls: mine.map((x: any) => ({ id: x.id as number, name: x.wall as string, access: x.access as string })) }; });
     const jobPlans = await rows('select room_wall_id, data from job_wall_plans where job_id=$1', [j.id]);
     const inUse = (id: number) => rw.some((x: any) => x.job_id === j.id && x.id === id);
     // Add or remove every wall under a Site, Location or Room in one click.
@@ -86,9 +87,10 @@ export default async function Productions({ searchParams }: { searchParams: Prom
       <div className="card"><b>Shared with</b> <span className="tag">{shUsers.length + shGuests.length}</span>
         {shUsers.length + shGuests.length === 0 ? <p className="mut" style={{ margin: '6px 0 0' }}>Not shared with anyone yet. Invite people from this Job&apos;s Monitor Plans.</p> : <div style={{ marginTop: 8 }}>
           {shUsers.map((u: any) => <details key={'u' + u.id} className="tree l1"><summary><b>{u.name}</b> <span className="mut">{u.email}</span> <span className="tag">Team member</span> <span className="tag">{u.role === 'master_admin' ? 'Master Admin' : u.role === 'admin' ? 'Admin' : u.role === 'manager' ? 'Manager' : 'User'}</span> <span className="tag">Can edit</span></summary>
-            <ul className="mut" style={{ margin: '4px 0 8px', paddingLeft: 22 }}><li>Access to every wall in this Job.</li></ul></details>)}
+            <ul className="mut" style={{ margin: '4px 0 8px', paddingLeft: 22 }}><li>Access to every wall in this Job.</li></ul>{canManage(me) && <form action={removeJobUser} style={{ margin: '0 0 8px 22px' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="user" value={u.id} /><button className="del small" title={`Remove ${u.name} from this Job? They will no longer be able to open its Monitor Plans.`}>Remove from this Job</button></form>}</details>)}
           {shGuests.map((g: any) => <details key={'g' + g.email} className="tree l1"><summary><b>{g.email}</b> <span className="tag">Guest invitation</span> <span className="tag">{g.access === 'edit' ? 'Can edit' : 'View only'}</span> <span className="tag">{g.walls.length} wall{g.walls.length === 1 ? '' : 's'}</span></summary>
-            <ul style={{ margin: '4px 0 8px', paddingLeft: 22 }}>{g.walls.map((w: any) => <li key={w.name}>{w.name} <span className="mut">· {w.access === 'edit' ? 'can edit' : 'view only'}</span></li>)}</ul></details>)}</div>}</div></>);
+            <ul style={{ margin: '4px 0 8px', paddingLeft: 22, listStyle: 'none' }}>{g.walls.map((w: any) => <li key={w.id} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0' }}><span>{w.name} <span className="mut">· {w.access === 'edit' ? 'can edit' : 'view only'}</span></span>{canManage(me) && g.walls.length > 1 && <form action={revokeWallLink}><input type="hidden" name="id" value={w.id} /><button className="del small" style={{ minHeight: 0, padding: '1px 8px' }} title={`Stop sharing ${w.name} with ${g.email}? They will no longer be able to open it.`}>Remove</button></form>}</li>)}</ul>
+            {canManage(me) && <form action={removeInvite} style={{ margin: '0 0 8px 22px' }}><input type="hidden" name="job" value={j.id} /><input type="hidden" name="email" value={g.email} /><button className="del small" title={`Stop sharing everything in this Job with ${g.email}? They will no longer be able to open any of it.`}>Remove all access</button></form>}</details>)}</div>}</div></>);
   }
 
   // ---- Jobs of a Production ----

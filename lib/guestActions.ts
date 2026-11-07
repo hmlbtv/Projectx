@@ -193,7 +193,7 @@ async function updateInvite_(_: FormState, f: FormData): Promise<FormState> {
 async function removeInvite_(f: FormData) {
   const me = await requireMe(); if (!canManage(me)) throw new Error('Admin or Manager only');
   const job = Number(s(f, 'job')); if (!(await jobFor(me, job))) return;
-  await rows('update wall_links set revoked=true where job_id=$1 and lower(email)=$2', [job, s(f, 'email').toLowerCase()]); revalidatePath('/plans'); revalidatePath('/shared');
+  await rows('update wall_links set revoked=true where job_id=$1 and lower(email)=$2', [job, s(f, 'email').toLowerCase()]); revalidatePath('/plans'); revalidatePath('/shared'); revalidatePath('/productions');
 }
 export async function inviteToWalls(...a: Parameters<typeof inviteToWalls_>) { return audited('inviteToWalls', inviteToWalls_, a) as ReturnType<typeof inviteToWalls_>; }
 export async function updateInvite(...a: Parameters<typeof updateInvite_>) { return audited('updateInvite', updateInvite_, a) as ReturnType<typeof updateInvite_>; }
