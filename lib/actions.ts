@@ -1,4 +1,5 @@
 'use server';
+import { MANUFACTURERS, type ImportedLayout } from './manufacturers';
 import { notifySignup } from './signupMail';
 import { audited } from '@/lib/audit';
 import { redirect } from 'next/navigation';
@@ -561,13 +562,19 @@ async function saveLayoutTiles_(p: { id: number; name: string; tiles: any[]; asN
   if (!p.asNew) { await rows('update mv_layouts set name=$1, tiles=$2, tenant_id=$4, extras=$5 where id=$3', [name, JSON.stringify(tiles), Number(p.id), top ? owner : src.tenant_id, extras]); revalidatePath('/layouts'); revalidatePath('/plans'); return { id: Number(p.id) }; }
   const r = (await one('insert into mv_layouts(tenant_id,name,tiles,extras) values($1,$2,$3,$4) returning id', [top ? owner : tid(me), name, JSON.stringify(tiles), extras]))!; revalidatePath('/layouts'); return { id: r.id };
 }
-// One-off: adds the layouts converted from a Kaleido database (data/kaleido-layouts.json) as Standard layouts. Safe to repeat: names that already exist are skipped.
-export async function importKaleidoLayouts() {
+// Site admin: add a manufacturer's layouts (from its built-in database or an uploaded layout/config file) to the Standard MV Layouts. Safe to repeat: names that already exist are skipped.
+export async function importFromManufacturer(f: FormData) {
   const me = await requireMe(); if (me.role !== 'webappdev') throw new Error('Site admin only');
-  const data: { name: string; tiles: any[] }[] = (await import('../data/kaleido-layouts.json')).default as any;
+  const m = MANUFACTURERS.find(x => x.id === String(f.get('manufacturer') ?? '')); const back = (msg: string): never => redirect('/webappdev?mfrerr=' + encodeURIComponent(msg));
+  if (!m) return back('Choose a manufacturer.');
+  let text: string | undefined;
+  if (m.file) { const file = f.get('file'); if (!(file instanceof File) || file.size === 0) return back(`Choose the ${m.name} file to import.`); if (file.size > 5_000_000) return back('That file is too large.'); text = await file.text(); }
+  let data: ImportedLayout[]; try { data = await m.read(text); } catch (e: any) { return back(`Could not read that ${m.name} file: ${String(e?.message ?? e).slice(0, 160)}`); }
+  data = data.filter(l => l && typeof l.name === 'string' && l.name.trim() && Array.isArray(l.tiles) && l.tiles.length > 0);
+  if (data.length === 0) return back(`No layouts were found in the ${m.name} data.`);
   const have = new Set((await rows('select name from mv_layouts where tenant_id is null')).map((r: any) => r.name)); let added = 0;
-  for (const l of data) { if (have.has(l.name)) continue; await rows('insert into mv_layouts(tenant_id,name,tiles) values(null,$1,$2)', [l.name, JSON.stringify(l.tiles)]); added++; }
-  revalidatePath('/layouts'); redirect('/webappdev?imported=' + added + '&of=' + data.length);
+  for (const l of data) { const name = l.name.trim().slice(0, 80); if (have.has(name)) continue; have.add(name); await rows('insert into mv_layouts(tenant_id,name,tiles) values(null,$1,$2)', [name, JSON.stringify(l.tiles)]); added++; }
+  revalidatePath('/layouts'); redirect('/webappdev?imported=' + added + '&of=' + data.length + '&mfr=' + encodeURIComponent(m.id));
 }
 // Site admin: swap the Standard layouts for the neat versions (every window exactly 16:9, equal-size small windows, edges lined up, centred in the frame).
 // Tiles already placed on a window stay on the nearest window of the new layout. Layouts not in the file, and tenants' own layouts, are left alone.

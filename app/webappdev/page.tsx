@@ -1,16 +1,17 @@
 import { redirect } from 'next/navigation';
 import { rows } from '@/lib/db';
 import { requireMe, sessionLimits } from '@/lib/session';
-import { setTenantStatus, deleteTenant, setUserSuspended, saveSessionSettings, importKaleidoLayouts, tidyStandardLayouts } from '@/lib/actions';
+import { setTenantStatus, deleteTenant, setUserSuspended, saveSessionSettings, importFromManufacturer, tidyStandardLayouts } from '@/lib/actions';
 import { emailOn, mailFrom, baseUrl } from '@/lib/mail';
 import TestEmail from './TestEmail';
+import { MANUFACTURERS } from '@/lib/manufacturers';
 import { demoInfo, DEMO_NAME } from '@/lib/demoSite';
 import { publishDemoSite } from '@/lib/demoActions';
 import Link from 'next/link';
 import { loadOptouts } from '@/lib/interestList';
 export const dynamic = 'force-dynamic';
-export default async function SiteAdmin({ searchParams }: { searchParams: Promise<{ demo?: string; demoerr?: string; q?: string; s?: string; imported?: string; of?: string; tidied?: string }> }) {
-  const { demo: demoMsg, demoerr, q: q0, s: sf, imported, of, tidied } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
+export default async function SiteAdmin({ searchParams }: { searchParams: Promise<{ mfr?: string; mfrerr?: string; demo?: string; demoerr?: string; q?: string; s?: string; imported?: string; of?: string; tidied?: string }> }) {
+  const { demo: demoMsg, demoerr, q: q0, s: sf, imported, of, tidied, mfr, mfrerr } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
   const me = await requireMe(); if (me.role !== 'webappdev') redirect('/');
   const demo = await demoInfo();
   const ts = await rows(`select t.id,t.name,t.plan,t.max_walls_per_broadcaster m, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j, t.max_wall_defaults wd, t.status,
@@ -65,9 +66,14 @@ export default async function SiteAdmin({ searchParams }: { searchParams: Promis
       <p className="mut">Build it in your own workspace: add a Broadcaster called <b>{DEMO_NAME}</b> with Productions, Jobs, Wall Templates, walls, a Source Set and Monitor Plans, exactly as a customer would. Then press Publish. Every Demo workspace gets its own copy the first time someone signs in (anyone already signed up gets it at their next sign-in), can change it freely, and can reset it to what you published. Publishing again does not change copies people already have until they reset. The example does not count against plan limits.</p>
       {demo && <p className="mut">Published: {demo.prods} Production{demo.prods === 1 ? '' : 's'}, {demo.jobs} Job{demo.jobs === 1 ? '' : 's'}, {demo.walls} wall{demo.walls === 1 ? '' : 's'}.</p>}
       <form action={publishDemoSite}><button>{demo ? 'Publish the current version' : 'Publish the Demo Site'}</button> <Link href="/productions" className="btn sec small">Open my Productions</Link></form></details>
-    <details className="card acc" open={imported !== undefined}><summary><b>Kaleido MV Layouts</b> <span className="mut">add the MV Layouts converted from the Kaleido database</span></summary>
-      {imported !== undefined && <p><b>{imported}</b> new Standard MV Layout{imported === '1' ? '' : 's'} added{of ? ` (${of} in the file${Number(imported) < Number(of) ? ', the rest were already there' : ''})` : ''}.</p>}
-      <form action={importKaleidoLayouts} className="stack"><p className="mut">47 layouts from the KMX database: even grids, one-big-plus-small, and with-timecode variants. Each monitor is placed and sized as in Kaleido and numbered left to right, top to bottom. Clock-only layouts are left out, and clocks inside layouts are not added as monitors. Safe to press again; layouts already added are skipped.</p><button className="sec">Add Kaleido MV Layouts</button></form></details>
+    <details className="card acc" open={imported !== undefined || !!mfrerr}><summary><b>Import from manufacturer</b> <span className="mut">add multiviewer layouts from a manufacturer to the MV Layouts page</span></summary>
+      {mfrerr && <p role="alert" style={{ color: 'var(--bad)' }}>{mfrerr}</p>}
+      {imported !== undefined && <p role="status"><b>{imported}</b> new Standard MV Layout{imported === '1' ? '' : 's'} added{mfr ? ` from ${MANUFACTURERS.find(x => x.id === mfr)?.name ?? mfr}` : ''}{of ? ` (${of} found${Number(imported) < Number(of) ? ', the rest were already there' : ''})` : ''}.</p>}
+      <form action={importFromManufacturer} className="stack"><label className="mut">Manufacturer<select name="manufacturer" defaultValue={mfr ?? MANUFACTURERS[0].id}>{MANUFACTURERS.map(m => <option key={m.id} value={m.id}>{m.name}{m.file ? ' (upload a file)' : ''}</option>)}</select></label>
+        {MANUFACTURERS.map(m => <p key={m.id} className="mut" style={{ margin: 0 }}><b>{m.name}:</b> {m.about}{m.file ? ` Upload: ${m.file.hint}.` : ''}</p>)}
+        {MANUFACTURERS.some(m => m.file) && <label className="mut">Layout or config file (only for manufacturers marked &quot;upload a file&quot;)<input type="file" name="file" accept={MANUFACTURERS.filter(m => m.file).map(m => m.file!.accept).join(',')} /></label>}
+        <p className="mut" style={{ margin: 0 }}>Imported layouts become Standard MV Layouts that every workspace can use. Safe to press again: layouts already added are skipped. More manufacturers will be added here as they are built and tested.</p>
+        <button className="sec">Import layouts</button></form></details>
     <details className="card acc" open={tidied !== undefined}><summary><b>Tidy Standard MV Layouts</b> <span className="mut">neat 16:9 versions of the Standard MV Layouts</span></summary>
       {tidied !== undefined && <p><b>{tidied}</b> layout{tidied === '1' ? '' : 's'} updated.</p>}
       <form action={tidyStandardLayouts} className="stack"><p className="mut">Replaces the shapes of the Standard MV Layouts (the built-in grids, 1 + 5 and the Kaleido ones) so every window is exactly 16:9, small windows around a big one are the same size, edges line up and the layout is centred. Tiles already on a window stay with it. Six layouts with unusual shapes (9-WAY-PGM-PRV, the 9-WAY-SMALL ones and PROD STCK MIMIC) are left as they are. Tenants' own layouts are not touched.</p><button className="sec">Tidy Standard MV Layouts</button></form></details>
