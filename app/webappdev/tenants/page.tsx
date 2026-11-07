@@ -3,12 +3,14 @@ import { rows } from '@/lib/db';
 import { requireMe } from '@/lib/session';
 import { setTenantStatus, deleteTenant, setUserSuspended } from '@/lib/actions';
 import Link from 'next/link';
+import AutoSelect from '../../AutoSelect';
+import TenantTable from './TenantTable';
 import { loadOptouts } from '@/lib/interestList';
 export const dynamic = 'force-dynamic';
-export default async function Tenants({ searchParams }: { searchParams: Promise<{ q?: string; s?: string }> }) {
-  const { q: q0, s: sf } = await searchParams; const q = (q0 ?? '').trim().slice(0, 80);
+export default async function Tenants({ searchParams }: { searchParams: Promise<{ q?: string; s?: string; v?: string; p?: string; a?: string }> }) {
+  const { q: q0, s: sf, v: v0, p: pf = '', a: af = '' } = await searchParams; const view = v0 === 'detail' ? 'detail' : 'list'; const q = (q0 ?? '').trim().slice(0, 80);
   const me = await requireMe(); if (me.role !== 'webappdev') redirect('/');
-  const ts = await rows(`select t.id,t.name,t.plan,t.max_walls_per_broadcaster m, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j, t.max_wall_defaults wd, t.status,
+  const allTs = await rows(`select t.id,t.name,t.plan,t.max_walls_per_broadcaster m, t.max_broadcasters b, t.max_productions p, t.max_jobs_per_production j, t.max_wall_defaults wd, t.status,
     ((select count(*)::int from users u where u.tenant_id=t.id) + (select count(*)::int from memberships mm where mm.tenant_id=t.id)) members,
     (select count(*)::int from wall_templates w where w.tenant_id=t.id) walls,
     (select count(*)::int from contacts c where c.tenant_id=t.id) contacts,
@@ -43,16 +45,24 @@ export default async function Tenants({ searchParams }: { searchParams: Promise<
   const dur = (s: number) => s < 60 ? s + 's' : s < 3600 ? Math.round(s / 60) + ' min' : (s / 3600).toFixed(1) + ' h';
   const day = (d: any) => d ? new Date(d).toISOString().slice(0, 10) : '';
   const msById = new Map(ms.map((m: any) => [m.id, m]));
+  const plansUsed = [...new Set(allTs.map((t: any) => String(t.plan ?? '')).filter(Boolean))].sort();
+  const ts = allTs.filter((t: any) => { const m: any = msById.get(t.id) ?? {}; return (!pf || t.plan === pf) && (!af || (af === 'active' ? (m.active30 ?? 0) > 0 : af === 'quiet' ? !(m.active30 ?? 0) : af === 'pending' ? (m.pending ?? 0) > 0 : (m.never ?? 0) > 0)); });
   const Stat = ({ k, v }: { k: string; v: any }) => (<div className="stat"><b>{v}</b><span>{k}</span></div>);
   return (<><div className="crumbs"><Link href="/webappdev" className="btn sec small">← Site admin</Link></div>
     <h1>Site admin · Tenants</h1>
     <p className="mut">Counts only, never contact emails. Time logged in runs from sign-in to the last page seen. Activity is for the last 30 days unless stated. New sign-ups start on the demo plan: 1 Wall Template per Broadcaster, 2 Broadcasters, 3 Productions each, 4 Jobs each. One-Time guests (no tenant): {g.guests} accounts, {g.guests30} signed in during the last 30 days.</p>
-    <form method="get" className="searchbar"><input name="q" defaultValue={q} placeholder="Search tenants, users or emails" aria-label="Search" />
-      <select name="s" defaultValue={sf ?? ''} aria-label="Status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="archived">Archived</option></select>
-      <button>Search</button>{(q || sf) && <a href="/webappdev/tenants"><button type="button" className="sec">Clear filters</button></a>}</form>
-    <p className="mut">{ts.length} tenant{ts.length === 1 ? '' : 's'}{q ? ` matching “${q}”` : ''}. Open a Card for details.</p>
+    <form method="get" className="searchbar"><input name="q" defaultValue={q} placeholder="Search tenants, users or emails" aria-label="Search" /><input type="hidden" name="v" value={view} />
+      <button>Search</button></form>
+    <form method="get" className="searchbar" style={{ marginTop: 6 }}><input type="hidden" name="q" value={q} /><input type="hidden" name="v" value={view} />
+      <AutoSelect name="s" value={sf ?? ''} label="Status" options={[['', 'All statuses'], ['active', 'Active'], ['suspended', 'Suspended'], ['archived', 'Archived']]} />
+      <AutoSelect name="p" value={pf} label="Plan" options={[['', 'All plans'], ...plansUsed.map(x => [x, x] as [string, string])]} />
+      <AutoSelect name="a" value={af} label="Activity" options={[['', 'Any activity'], ['active', 'Signed in in the last 30 days'], ['quiet', 'No sign-in in 30 days'], ['pending', 'Has invites not joined'], ['never', 'Has users who never signed in']]} />
+      {(q || sf || pf || af) && <Link href={`/webappdev/tenants?v=${view}`} className="btn small">Clear filters</Link>}</form>
+    <div style={{ margin: '10px 0' }}>{(['list', 'detail'] as const).map((v, i) => <Link key={v} href={`/webappdev/tenants?v=${v}${q ? '&q=' + encodeURIComponent(q) : ''}${sf ? '&s=' + sf : ''}${pf ? '&p=' + encodeURIComponent(pf) : ''}${af ? '&a=' + af : ''}`} className={view === v ? 'btn small' : 'btn sec small'} style={{ borderRadius: i ? '0 8px 8px 0' : '8px 0 0 8px' }}>{v === 'list' ? 'List' : 'Details'}</Link>)}</div>
+    <p className="mut">{ts.length} tenant{ts.length === 1 ? '' : 's'}{q ? ` matching “${q}”` : ''}.{view === 'list' ? ' Open a Card for details.' : ''}</p>
+    {view === 'detail' && ts.length > 0 && <TenantTable rows={ts.map((t: any) => { const m: any = msById.get(t.id) ?? {}; return { id: t.id, name: t.name, status: t.status, plan: t.plan ?? '', owner: t.owner ?? '', members: t.members, walls: t.walls, prods: m.prods ?? 0, jobs: m.jobs ?? 0, plans: m.plans ?? 0, logins30: m.logins30 ?? 0, active30: m.active30 ?? 0, signed: day(m.created_at), last: m.last_login ? day(m.last_login) : '' }; })} />}
     {ts.length === 0 && <div className="card mut">No tenants match.</div>}
-    {ts.map((t: any) => { const m: any = msById.get(t.id) ?? {}; const mine = found.filter((u: any) => u.tenant_id === t.id); const own = t.id === me.tenant_id; return (
+    {view === 'list' && ts.map((t: any) => { const m: any = msById.get(t.id) ?? {}; const mine = found.filter((u: any) => u.tenant_id === t.id); const own = t.id === me.tenant_id; return (
       <details key={t.id} className={'card acc tenant st-' + t.status} open={!!q && ts.length <= 3}>
         <summary><b>{t.name}</b> {t.status !== 'active' && <span className={'badge ' + t.status}>{t.status}</span>}
           <span className="mut">{t.owner || 'No owner'} · {t.members} member{t.members === 1 ? '' : 's'} · last login {ago(m.last_login)}</span></summary>
